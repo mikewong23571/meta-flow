@@ -1,0 +1,10 @@
+[{:artifact-contract/id :artifact-contract/default
+  :artifact-contract/version 1
+  :artifact-contract/name "Phase 1 minimal artifact contract"
+  :artifact-contract/required-paths ["manifest.json" "notes.md" "run.log"]
+  :artifact-contract/optional-paths []}
+ {:artifact-contract/id :artifact-contract/cve-investigation
+  :artifact-contract/version 1
+  :artifact-contract/name "Phase 1 CVE artifact contract"
+  :artifact-contract/required-paths ["manifest.json" "notes.md" "run.log"]
+  :artifact-contract/optional-paths ["cve-summary.edn"]}]

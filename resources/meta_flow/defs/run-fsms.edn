@@ -1,0 +1,60 @@
+[{:run-fsm/id :run-fsm/default
+  :run-fsm/version 1
+  :run-fsm/name "Default Phase 1 run lifecycle"
+  :run-fsm/initial-state :run.state/created
+  :run-fsm/states [:run.state/created
+                   :run.state/leased
+                   :run.state/dispatched
+                   :run.state/running
+                   :run.state/exited
+                   :run.state/awaiting-validation
+                   :run.state/finalized]
+  :run-fsm/terminal-states #{:run.state/finalized}
+  :run-fsm/transitions [{:transition/event :run.event/lease-granted
+                         :transition/from :run.state/created
+                         :transition/to :run.state/leased}
+                        {:transition/event :run.event/dispatched
+                         :transition/from :run.state/leased
+                         :transition/to :run.state/dispatched}
+                        {:transition/event :run.event/worker-started
+                         :transition/from :run.state/dispatched
+                         :transition/to :run.state/running}
+                        {:transition/event :run.event/worker-exited
+                         :transition/from :run.state/running
+                         :transition/to :run.state/exited}
+                        {:transition/event :run.event/artifact-ready
+                         :transition/from :run.state/exited
+                         :transition/to :run.state/awaiting-validation}
+                        {:transition/event :run.event/assessment-accepted
+                         :transition/from :run.state/awaiting-validation
+                         :transition/to :run.state/finalized}]}
+ {:run-fsm/id :run-fsm/cve-worker
+  :run-fsm/version 1
+  :run-fsm/name "CVE investigation worker lifecycle"
+  :run-fsm/initial-state :run.state/created
+  :run-fsm/states [:run.state/created
+                   :run.state/leased
+                   :run.state/dispatched
+                   :run.state/running
+                   :run.state/exited
+                   :run.state/awaiting-validation
+                   :run.state/finalized]
+  :run-fsm/terminal-states #{:run.state/finalized}
+  :run-fsm/transitions [{:transition/event :run.event/lease-granted
+                         :transition/from :run.state/created
+                         :transition/to :run.state/leased}
+                        {:transition/event :run.event/dispatched
+                         :transition/from :run.state/leased
+                         :transition/to :run.state/dispatched}
+                        {:transition/event :run.event/worker-started
+                         :transition/from :run.state/dispatched
+                         :transition/to :run.state/running}
+                        {:transition/event :run.event/worker-exited
+                         :transition/from :run.state/running
+                         :transition/to :run.state/exited}
+                        {:transition/event :run.event/artifact-ready
+                         :transition/from :run.state/exited
+                         :transition/to :run.state/awaiting-validation}
+                        {:transition/event :run.event/assessment-accepted
+                         :transition/from :run.state/awaiting-validation
+                         :transition/to :run.state/finalized}]}]

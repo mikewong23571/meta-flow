@@ -1,0 +1,8 @@
+[{:validator/id :validator/required-paths
+  :validator/version 1
+  :validator/name "Required paths validator"
+  :validator/type :validator.type/required-paths}
+ {:validator/id :validator/cve-bundle
+  :validator/version 1
+  :validator/name "CVE bundle validator"
+  :validator/type :validator.type/required-paths}]

@@ -1,0 +1,44 @@
+[{:task-fsm/id :task-fsm/default
+  :task-fsm/version 1
+  :task-fsm/name "Default Phase 1 task lifecycle"
+  :task-fsm/initial-state :task.state/queued
+  :task-fsm/states [:task.state/queued
+                    :task.state/leased
+                    :task.state/running
+                    :task.state/awaiting-validation
+                    :task.state/completed]
+  :task-fsm/terminal-states #{:task.state/completed}
+  :task-fsm/transitions [{:transition/event :task.event/lease-granted
+                          :transition/from :task.state/queued
+                          :transition/to :task.state/leased}
+                         {:transition/event :task.event/worker-started
+                          :transition/from :task.state/leased
+                          :transition/to :task.state/running}
+                         {:transition/event :task.event/artifact-ready
+                          :transition/from :task.state/running
+                          :transition/to :task.state/awaiting-validation}
+                         {:transition/event :task.event/assessment-accepted
+                          :transition/from :task.state/awaiting-validation
+                          :transition/to :task.state/completed}]}
+ {:task-fsm/id :task-fsm/cve-investigation
+  :task-fsm/version 1
+  :task-fsm/name "CVE investigation task lifecycle"
+  :task-fsm/initial-state :task.state/queued
+  :task-fsm/states [:task.state/queued
+                    :task.state/leased
+                    :task.state/running
+                    :task.state/awaiting-validation
+                    :task.state/completed]
+  :task-fsm/terminal-states #{:task.state/completed}
+  :task-fsm/transitions [{:transition/event :task.event/lease-granted
+                          :transition/from :task.state/queued
+                          :transition/to :task.state/leased}
+                         {:transition/event :task.event/worker-started
+                          :transition/from :task.state/leased
+                          :transition/to :task.state/running}
+                         {:transition/event :task.event/artifact-ready
+                          :transition/from :task.state/running
+                          :transition/to :task.state/awaiting-validation}
+                         {:transition/event :task.event/assessment-accepted
+                          :transition/from :task.state/awaiting-validation
+                          :transition/to :task.state/completed}]}]

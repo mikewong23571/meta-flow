@@ -1,0 +1,10 @@
+{:tasks
+ {init {:doc "Initialize SQLite and runtime directories"
+        :requires ([babashka.tasks :refer [shell]])
+        :task (shell "clojure -M -m meta-flow.main init")}
+  defs-validate {:doc "Validate workflow definitions"
+                 :requires ([babashka.tasks :refer [shell]])
+                 :task (shell "clojure -M -m meta-flow.main defs validate")}
+  test {:doc "Run the test suite"
+        :requires ([babashka.tasks :refer [shell]])
+        :task (shell "clojure -M:test")}}}

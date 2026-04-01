@@ -1,0 +1,21 @@
+# Runtime state
+/var/
+
+# Clojure CLI caches
+/.cpcache/
+
+# Build outputs
+/target/
+/classes/
+
+# REPL / editor artifacts
+/.nrepl-port
+/.repl-port
+/.calva/
+/.clj-kondo/.cache/
+/.lsp/
+/.idea/
+/.vscode/
+
+# OS noise
+.DS_Store

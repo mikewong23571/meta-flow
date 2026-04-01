@@ -1,0 +1,17 @@
+{:workflow/id :workflow/meta-flow
+ :workflow/version 1
+ :workflow/name "Meta Flow Phase 1"
+ :workflow/default-task-type-ref {:definition/id :task-type/cve-investigation
+                                  :definition/version 1}
+ :workflow/default-task-fsm-ref {:definition/id :task-fsm/default
+                                 :definition/version 1}
+ :workflow/default-run-fsm-ref {:definition/id :run-fsm/default
+                                :definition/version 1}
+ :workflow/default-runtime-profile-ref {:definition/id :runtime-profile/mock-worker
+                                        :definition/version 1}
+ :workflow/default-artifact-contract-ref {:definition/id :artifact-contract/default
+                                          :definition/version 1}
+ :workflow/default-validator-ref {:definition/id :validator/required-paths
+                                  :definition/version 1}
+ :workflow/default-resource-policy-ref {:definition/id :resource-policy/default
+                                        :definition/version 1}}
