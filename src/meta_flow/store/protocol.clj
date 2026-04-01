@@ -1,0 +1,16 @@
+(ns meta-flow.store.protocol)
+
+(defprotocol StateStore
+  (upsert-collection-state! [store collection-state])
+  (enqueue-task! [store task])
+  (find-task [store task-id])
+  (find-task-by-work-key [store work-key])
+  (create-run! [store task run lease])
+  (find-run [store run-id])
+  (ingest-run-event! [store event-intent])
+  (list-run-events [store run-id])
+  (attach-artifact! [store run-id artifact])
+  (record-assessment! [store assessment])
+  (record-disposition! [store disposition])
+  (transition-task! [store task-id transition now])
+  (transition-run! [store run-id transition now]))

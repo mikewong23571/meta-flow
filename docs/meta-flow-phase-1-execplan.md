@@ -28,11 +28,12 @@ This document is a subordinate ExecPlan of `docs/meta-flow-program-execplan.md`.
 - [x] (2026-04-01 14:07Z) 创建 `deps.edn`、`build.clj`、`bb.edn` 和 `src/`、`resources/`、`test/`、`script/` 骨架。
 - [x] (2026-04-01 14:07Z) 实现 DefinitionRepository 与默认 definitions 文件。
 - [x] (2026-04-01 14:29Z) 修复 Milestone 1 review 发现的基础问题：SQLite pragma 改为每次应用连接都设置，state 过滤字面量统一为带前导 `:` 的 keyword 文本，并为 Codex runtime profile 补齐必填 definitions 字段与占位资源。
-- [ ] 实现 SQLite 初始化、StateStore、ProjectionReader 和数据库级不变量（已完成：`001_init.sql`、`WAL` / `busy_timeout`、bootstrap tables/views/indexes、`init` 命令；剩余：StateStore 与 ProjectionReader 的 Clojure 实现）。
-- [ ] 实现 FSM、任务入队、run 创建、lease 创建、事件吸收与 artifact 挂接。
+- [x] (2026-04-01 14:55Z) 完成 Milestone 2：新增 `StateStore` 协议与 SQLite 实现、只读 `ProjectionReader`、统一 `event_ingest` 入口，并用测试证明任务入队去重、同 task 单一非终态 run、同 run 单一 active lease、事件幂等与 `event/seq` 单调分配全部生效。
+- [x] (2026-04-01 14:55Z) 完成 SQLite 控制面最小读写层：`upsert-collection-state!`、`enqueue-task!`、`create-run!`、`ingest-run-event!`、`attach-artifact!`、CAS `transition-task!` / `transition-run!` 与基于 view/query 的 scheduler projection 已落地。
+- [ ] 实现 FSM、mock runtime adapter、artifact validator 与完整 happy path（已完成：任务入队、run 创建、lease 创建、事件吸收、artifact 挂接的持久化接口；剩余：FSM 驱动的状态推进、runtime/validator 闭环和调度器）。
 - [ ] 实现 mock runtime adapter 和 artifact validator。
 - [ ] 实现 `init`、`defs validate`、`demo happy-path`、`inspect` CLI（已完成：`init`、`defs validate`；剩余：`demo happy-path`、`inspect`）。
-- [ ] 补齐单元测试和一个 happy-path 集成测试（已完成：definitions loader、db init、SQLite pragma 与 keyword-state 索引的单元测试；剩余：happy-path 集成测试和后续控制面测试）。
+- [ ] 补齐单元测试和一个 happy-path 集成测试（已完成：definitions loader、db init、SQLite pragma、keyword-state 索引、StateStore 不变量与 ProjectionReader 的单元测试；剩余：happy-path 集成测试和后续控制面测试）。
 
 ## Surprises & Discoveries
 
@@ -47,6 +48,9 @@ This document is a subordinate ExecPlan of `docs/meta-flow-program-execplan.md`.
 
 - Observation: Phase 1 的 partial unique index 若继续用无前导 `:` 的 state 文本，会和 Clojure keyword 的默认字符串表示脱节。
   Evidence: review 时在临时库中用 `state=':run.state/created'` 成功插入两条同 task run；修复后新增回归测试断言第二条插入抛出 `SQLException`。
+
+- Observation: `create-run!` 不能顺手隐式推进 `task/state`，否则 task lifecycle 和 run lifecycle 的边界会被写层悄悄打穿。
+  Evidence: 在 `sqlite_store_test` 中，为了让 projection 只暴露真正 runnable 的 task，必须显式调用 `transition-task!`；这验证了“task/run 分离”在写接口层面已经生效。
 
 ## Decision Log
 
@@ -74,11 +78,19 @@ This document is a subordinate ExecPlan of `docs/meta-flow-program-execplan.md`.
   Rationale: 如果让不完整的 Codex profile 在 Phase 1 就通过 definitions 校验，后续 Milestone 3 的失败会被推迟到 runtime，定位成本更高；提早在 definitions 层报错更符合主 plan 的边界。
   Date/Author: 2026-04-01 / Codex
 
+- Decision: Milestone 2 直接沿用 `001_init.sql` / `002_align_keyword_literals.sql` 已定下的主表和 view，不再为 StateStore 额外引入 projection cache 或新的 bootstrap migration。
+  Rationale: 现有 schema 已足够承载 Phase 1 所需的 SQLite 不变量和只读 projection；继续加新表只会扩大迁移面，却不能增加 happy-path 证明力度。
+  Date/Author: 2026-04-01 / Codex
+
+- Decision: `run_events.event_payload_edn` 在 Phase 1 先持久化完整 canonical event map，而不是只保存 `:event/payload` 子树。
+  Rationale: 这样 `list-run-events` 能直接返回可审计、可测试的完整事件实体，同时保持当前 schema 不变；若后续要把列名改成更精确的 `event_edn`，可以通过 migration 演进。
+  Date/Author: 2026-04-01 / Codex
+
 ## Outcomes & Retrospective
 
-Milestone 1 已经完成，并在 review 后做了第一轮 hardening。当前结果是：仓库具备可运行的 `deps.edn` 项目骨架，`resources/meta_flow/defs/` 中的 definitions 可以通过 Malli schema、交叉引用和 Codex profile 专项校验，`clojure -M -m meta-flow.main init` 能幂等创建或升级 `var/meta-flow.sqlite3` 与运行目录，`clojure -M -m meta-flow.main defs validate` 能输出里程碑要求的计数结果；`clojure -M:test` 与 `clj-kondo --lint src test script` 也都已通过。新增测试已经证明：应用连接会重新施加 SQLite pragma，Phase 1 的 state 索引与 view 匹配带前导 `:` 的 keyword 文本。
+Milestone 1 和 Milestone 2 现在都已经完成。当前结果是：仓库除了项目骨架与 definitions 装载以外，还具备了可直接落到 SQLite 的 `StateStore`、只读 `ProjectionReader` 和统一事件写入口。`clojure -M -m meta-flow.main init` 与 `clojure -M -m meta-flow.main defs validate` 继续通过，`clojure -M:test` 与 `clj-kondo --lint src test script` 也已通过；其中新增的 `sqlite_store_test` 已证明任务入队去重、同 task 单一非终态 run、同 run 单一 active lease、事件幂等与 `event/seq` 单调递增都真实受数据库约束保护。
 
-本阶段仍未完成 mock happy path，所以当前回顾结论只能覆盖“宿主骨架与 definitions 装载成立”，还不能证明完整控制面闭环。下一步应把工作集中到 StateStore、ProjectionReader、FSM 服务层和 mock runtime 上，而不是继续扩展 CLI 表面。
+本阶段仍未完成 mock happy path，所以当前回顾结论已经覆盖“宿主骨架、definitions 装载和 SQLite 控制面成立”，但还不能证明完整调度闭环。下一步应把工作集中到 FSM 服务层、mock runtime、artifact validator、`scheduler once` 和 `demo happy-path`，而不是继续扩展基础存储接口。
 
 ## Context and Orientation
 
@@ -282,3 +294,5 @@ Milestone 1 完成后，当前最重要的文件包括：
 2026-04-01：执行 Milestone 1 后更新本 subplan：项目骨架、definitions loader、bootstrap SQL、`init` / `defs validate` CLI、最小单元测试与 lint 已落地；同时记录当前环境缺少 `cljfmt` 可执行命令，格式检查需在后续里程碑补上 repo-local 入口或环境修复。
 
 2026-04-01：根据 review 修订本 subplan：补记 SQLite pragma 的连接级语义、keyword state 字面量与 partial unique index 的匹配约束，并记录通过 `002_align_keyword_literals.sql` 与 adapter-specific runtime profile 校验对 Milestone 1 做的 hardening。
+
+2026-04-01：执行 Milestone 2 后更新本 subplan：新增 `src/meta_flow/store/protocol.clj`、`src/meta_flow/store/sqlite.clj`、`src/meta_flow/projection.clj`、`src/meta_flow/event_ingest.clj` 与 `src/meta_flow/sql.clj`，并通过 `test/meta_flow/sqlite_store_test.clj` 把 SQLite 控制面约束固化为可重复运行的回归测试。
