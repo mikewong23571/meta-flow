@@ -35,7 +35,8 @@
                                                                :resource-policy/default
                                                                3)
             initial {:collection/id :collection/default
-                     :collection/dispatch {:dispatch/paused? false}
+                     :collection/dispatch {:dispatch/paused? false
+                                           :dispatch/cooldown-until nil}
                      :collection/resource-policy-ref {:definition/id (:resource-policy/id default-policy)
                                                       :definition/version (:resource-policy/version default-policy)}
                      :collection/created-at now-value

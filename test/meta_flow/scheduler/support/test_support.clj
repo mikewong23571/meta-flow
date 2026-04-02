@@ -1,4 +1,4 @@
-(ns meta-flow.scheduler.test-support
+(ns meta-flow.scheduler.support.test-support
   (:require [clojure.java.io :as io]
             [meta-flow.control.event-ingest :as event-ingest]
             [meta-flow.control.events :as events]
@@ -32,47 +32,56 @@
       (sql/query-one connection sql-text params))))
 
 (defn enqueue-demo-task!
-  [db-path]
-  (let [store (store.sqlite/sqlite-state-store db-path)
-        defs-repo (defs.loader/filesystem-definition-repository)
-        task-type (defs.protocol/find-task-type-def defs-repo :task-type/cve-investigation 1)
-        now (sql/utc-now)]
-    (store.protocol/enqueue-task! store
-                                  {:task/id (str "task-" (java.util.UUID/randomUUID))
-                                   :task/work-key (str "CVE-2024-12345-" (subs (str (java.util.UUID/randomUUID)) 0 8))
-                                   :task/task-type-ref {:definition/id (:task-type/id task-type)
-                                                        :definition/version (:task-type/version task-type)}
-                                   :task/task-fsm-ref (:task-type/task-fsm-ref task-type)
-                                   :task/run-fsm-ref (:task-type/run-fsm-ref task-type)
-                                   :task/runtime-profile-ref {:definition/id :runtime-profile/mock-worker
-                                                              :definition/version 1}
-                                   :task/artifact-contract-ref (:task-type/artifact-contract-ref task-type)
-                                   :task/validator-ref (:task-type/validator-ref task-type)
-                                   :task/resource-policy-ref (:task-type/resource-policy-ref task-type)
-                                   :task/state :task.state/queued
-                                   :task/created-at now
-                                   :task/updated-at now})))
+  ([db-path]
+   (enqueue-demo-task! db-path {}))
+  ([db-path {:keys [work-key resource-policy-ref runtime-profile-ref]}]
+   (let [store (store.sqlite/sqlite-state-store db-path)
+         defs-repo (defs.loader/filesystem-definition-repository)
+         task-type (defs.protocol/find-task-type-def defs-repo :task-type/cve-investigation 1)
+         now (sql/utc-now)]
+     (store.protocol/enqueue-task! store
+                                   {:task/id (str "task-" (java.util.UUID/randomUUID))
+                                    :task/work-key (or work-key
+                                                       (str "CVE-2024-12345-" (subs (str (java.util.UUID/randomUUID)) 0 8)))
+                                    :task/task-type-ref {:definition/id (:task-type/id task-type)
+                                                         :definition/version (:task-type/version task-type)}
+                                    :task/task-fsm-ref (:task-type/task-fsm-ref task-type)
+                                    :task/run-fsm-ref (:task-type/run-fsm-ref task-type)
+                                    :task/runtime-profile-ref (or runtime-profile-ref
+                                                                  {:definition/id :runtime-profile/mock-worker
+                                                                   :definition/version 1})
+                                    :task/artifact-contract-ref (:task-type/artifact-contract-ref task-type)
+                                    :task/validator-ref (:task-type/validator-ref task-type)
+                                    :task/resource-policy-ref (or resource-policy-ref
+                                                                  (:task-type/resource-policy-ref task-type))
+                                    :task/state :task.state/queued
+                                    :task/created-at now
+                                    :task/updated-at now}))))
 
 (defn enqueue-codex-task!
-  [db-path]
-  (let [store (store.sqlite/sqlite-state-store db-path)
-        defs-repo (defs.loader/filesystem-definition-repository)
-        task-type (defs.protocol/find-task-type-def defs-repo :task-type/cve-investigation 1)
-        now (sql/utc-now)]
-    (store.protocol/enqueue-task! store
-                                  {:task/id (str "task-" (java.util.UUID/randomUUID))
-                                   :task/work-key (str "CVE-2024-99999-" (subs (str (java.util.UUID/randomUUID)) 0 8))
-                                   :task/task-type-ref {:definition/id (:task-type/id task-type)
-                                                        :definition/version (:task-type/version task-type)}
-                                   :task/task-fsm-ref (:task-type/task-fsm-ref task-type)
-                                   :task/run-fsm-ref (:task-type/run-fsm-ref task-type)
-                                   :task/runtime-profile-ref (:task-type/runtime-profile-ref task-type)
-                                   :task/artifact-contract-ref (:task-type/artifact-contract-ref task-type)
-                                   :task/validator-ref (:task-type/validator-ref task-type)
-                                   :task/resource-policy-ref (:task-type/resource-policy-ref task-type)
-                                   :task/state :task.state/queued
-                                   :task/created-at now
-                                   :task/updated-at now})))
+  ([db-path]
+   (enqueue-codex-task! db-path {}))
+  ([db-path {:keys [work-key resource-policy-ref]}]
+   (let [store (store.sqlite/sqlite-state-store db-path)
+         defs-repo (defs.loader/filesystem-definition-repository)
+         task-type (defs.protocol/find-task-type-def defs-repo :task-type/cve-investigation 1)
+         now (sql/utc-now)]
+     (store.protocol/enqueue-task! store
+                                   {:task/id (str "task-" (java.util.UUID/randomUUID))
+                                    :task/work-key (or work-key
+                                                       (str "CVE-2024-99999-" (subs (str (java.util.UUID/randomUUID)) 0 8)))
+                                    :task/task-type-ref {:definition/id (:task-type/id task-type)
+                                                         :definition/version (:task-type/version task-type)}
+                                    :task/task-fsm-ref (:task-type/task-fsm-ref task-type)
+                                    :task/run-fsm-ref (:task-type/run-fsm-ref task-type)
+                                    :task/runtime-profile-ref (:task-type/runtime-profile-ref task-type)
+                                    :task/artifact-contract-ref (:task-type/artifact-contract-ref task-type)
+                                    :task/validator-ref (:task-type/validator-ref task-type)
+                                    :task/resource-policy-ref (or resource-policy-ref
+                                                                  (:task-type/resource-policy-ref task-type))
+                                    :task/state :task.state/queued
+                                    :task/created-at now
+                                    :task/updated-at now}))))
 
 (defn create-expired-leased-run!
   [db-path task]

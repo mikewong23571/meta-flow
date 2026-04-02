@@ -6,7 +6,7 @@
             [meta-flow.control.projection :as projection]
             [meta-flow.store.protocol :as store.protocol]
             [meta-flow.store.sqlite.run.events :as store.sqlite.run.events]
-            [meta-flow.store.sqlite-test-support :as support]))
+            [meta-flow.store.sqlite.test-support :as support]))
 
 (deftest ingest-run-event-is-idempotent-and-assigns-monotonic-sequence
   (let [{:keys [db-path store]} (support/test-system)

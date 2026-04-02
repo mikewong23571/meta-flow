@@ -1,4 +1,4 @@
-(ns meta-flow.store.sqlite-test-support
+(ns meta-flow.store.sqlite.test-support
   (:require [meta-flow.db :as db]
             [meta-flow.control.projection :as projection]
             [meta-flow.store.sqlite :as store.sqlite]))
@@ -74,10 +74,14 @@
    :lease/updated-at now})
 
 (defn collection-state
-  [paused? now]
-  {:collection/id :collection/default
-   :collection/dispatch {:dispatch/paused? paused?}
-   :collection/resource-policy-ref {:definition/id :resource-policy/default
-                                    :definition/version 3}
-   :collection/created-at now
-   :collection/updated-at now})
+  ([paused? now]
+   (collection-state paused? now {}))
+  ([paused? now {:keys [cooldown-until resource-policy-ref]}]
+   {:collection/id :collection/default
+    :collection/dispatch {:dispatch/paused? paused?
+                          :dispatch/cooldown-until cooldown-until}
+    :collection/resource-policy-ref (or resource-policy-ref
+                                        {:definition/id :resource-policy/default
+                                         :definition/version 3})
+    :collection/created-at now
+    :collection/updated-at now}))

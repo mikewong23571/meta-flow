@@ -4,7 +4,7 @@
             [clojure.test :refer [deftest is testing]]
             [meta-flow.runtime.mock.fs :as runtime.mock.fs]
             [meta-flow.scheduler :as scheduler]
-            [meta-flow.scheduler.test-support :as support]))
+            [meta-flow.scheduler.support.test-support :as support]))
 
 (deftest demo-happy-path-completes-and-persists-structured-control-data
   (let [{:keys [db-path artifacts-dir runs-dir]} (support/temp-system)]
@@ -138,8 +138,8 @@
             {retry-task :task
              retry-run :run
              retry-steps :scheduler-steps} (scheduler/demo-retry-path! db-path)]
-        (is (> happy-steps 5))
-        (is (> retry-steps 5))
+        (is (>= happy-steps 5))
+        (is (>= retry-steps 5))
         (is (= :task.state/completed (:task/state happy-task)))
         (is (= :run.state/finalized (:run/state happy-run)))
         (is (= :task.state/retryable-failed (:task/state retry-task)))

@@ -1,7 +1,7 @@
 (ns meta-flow.store.sqlite-records-test
   (:require [clojure.test :refer [deftest is]]
             [meta-flow.store.protocol :as store.protocol]
-            [meta-flow.store.sqlite-test-support :as support]))
+            [meta-flow.store.sqlite.test-support :as support]))
 
 (deftest store-read-boundaries-return-protocol-entities
   (let [{:keys [db-path store]} (support/test-system)

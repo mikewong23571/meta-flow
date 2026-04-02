@@ -5,7 +5,7 @@
             [meta-flow.control.projection :as projection]
             [meta-flow.store.protocol :as store.protocol]
             [meta-flow.store.sqlite.tasks :as store.sqlite.tasks]
-            [meta-flow.store.sqlite-test-support :as support]))
+            [meta-flow.store.sqlite.test-support :as support]))
 
 (deftest enqueue-task-is-idempotent-by-work-key
   (let [{:keys [db-path store reader]} (support/test-system)

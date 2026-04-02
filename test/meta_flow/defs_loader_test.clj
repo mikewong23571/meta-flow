@@ -30,7 +30,7 @@
               :runtime-profiles 2
               :artifact-contracts 2
               :validators 2
-              :resource-policies 2}
+              :resource-policies 3}
              summary)))))
 
 (deftest filesystem-definition-repository-delegates-both-arities

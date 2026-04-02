@@ -25,6 +25,7 @@ This document must be maintained in accordance with `.agent/PLANS.md`.
 - [x] (2026-04-01 16:36Z) 完成 Phase 1 / Milestone 3：修复 FSM 与 mock runtime 的编译/语义漂移，落地 `scheduler once`、`demo happy-path`、`inspect` CLI 与 happy-path 集成测试，证明最小控制面闭环已从 `queued` 收敛到 `completed`。
 - [x] (2026-04-02 08:34Z) 完成 Phase 2 / Milestone 1：扩展 task/resource policy definitions，引入 `max-attempts`、`needs-review`、显式 `requeue` 调度阶段，以及与之对应的 projection、CLI summary 和重试/升级测试，`bb check` 通过。
 - [x] (2026-04-02 09:51Z) 完成 Phase 2 / Milestone 2：将 heartbeat timeout 纳入 resource policy pinning 与 run snapshot，新增只读 timeout projection、scheduler recovery、CLI summary 和超时恢复测试，`bb check` 通过。
+- [x] (2026-04-02 16:53Z) 完成 Phase 2 / Milestone 3：扩展 collection-level dispatch cooldown、按 task resource policy `queue-order` 的优先级排序、按 pinned `resource-policy-ref` 的 resource ceiling 统计，并同步补齐 scheduler summary、CLI 和测试；`bb test` 通过。
 - [ ] 接入 Codex runtime adapter，实现项目级 `CODEX_HOME`、prompt 模板、task-scoped tooling 和 worker 事件回写。
 - [ ] 补齐失败、重试、接管、冷却、资源限流、审计查看与测试覆盖。
 
@@ -56,6 +57,9 @@ This document must be maintained in accordance with `.agent/PLANS.md`.
 
 - Observation: heartbeat timeout 与 lease expiry 虽然都走“释放 lease 并收敛到 retryable-failed”的同层级恢复路径，但测试夹具必须把两者的时间窗口明确分开，否则 lease expiry 会掩盖 heartbeat timeout。
   Evidence: 首轮 heartbeat timeout 测试把 lease expiry 时间设得过近，ProjectionReader 先命中了 expired lease 集合；把 lease TTL 拉远后，heartbeat timeout recovery 与 summary 计数按预期稳定出现。
+
+- Observation: dispatch 一旦真正开始尊重 task resource policy 的 queue-order，部分“通过伪造 runnable id 顺序驱动语义”的测试就必须改成显式对齐 policy 排序。
+  Evidence: Milestone 3 初版让 `dispatch_capacity_test` 中的 codex task 不再稳定地先于 mock task 被调度；把测试 work key 调整为与 `:resource-policy.queue-order/work-key` 对齐后，失败路径再次稳定可重复。
 
 ## Decision Log
 

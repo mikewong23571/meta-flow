@@ -8,7 +8,7 @@
             [meta-flow.scheduler :as scheduler]
             [meta-flow.scheduler.shared :as scheduler.shared]
             [meta-flow.scheduler.step :as scheduler.step]
-            [meta-flow.scheduler.test-support :as support]
+            [meta-flow.scheduler.support.test-support :as support]
             [meta-flow.store.protocol :as store.protocol]
             [meta-flow.store.sqlite :as store.sqlite]))
 

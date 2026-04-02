@@ -2,7 +2,7 @@
   (:require [clojure.test :refer [deftest is testing]]
             [meta-flow.runtime.mock.fs :as runtime.mock.fs]
             [meta-flow.scheduler :as scheduler]
-            [meta-flow.scheduler.test-support :as support]
+            [meta-flow.scheduler.support.test-support :as support]
             [meta-flow.store.protocol :as store.protocol]
             [meta-flow.store.sqlite :as store.sqlite]))
 

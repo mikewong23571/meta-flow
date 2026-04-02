@@ -167,6 +167,7 @@
   [db-path]
   (let [store (store.sqlite/sqlite-state-store db-path)]
     (or (store.protocol/find-collection-state store :collection/default)
-        {:collection/dispatch {:dispatch/paused? false}
+        {:collection/dispatch {:dispatch/paused? false
+                               :dispatch/cooldown-until nil}
          :collection/resource-policy-ref {:definition/id :resource-policy/default
                                           :definition/version 3}})))

@@ -1,6 +1,7 @@
 (ns meta-flow.control.projection
   (:require [meta-flow.db :as db]
             [meta-flow.control.events :as events]
+            [meta-flow.control.projection.snapshot :as snapshot]
             [meta-flow.sql :as sql]
             [meta-flow.store.sqlite.shared :as shared]))
 
@@ -12,16 +13,10 @@
   (list-expired-lease-run-ids [reader now limit])
   (list-heartbeat-timeout-run-ids [reader now limit])
   (list-active-run-ids [reader now limit])
-  (count-active-runs [reader now]))
+  (count-active-runs [reader now])
+  (count-active-runs-for-resource-policy [reader resource-policy-ref now]))
 
 (def ^:private snapshot-list-limit 100)
-
-(defn- collection-states
-  [connection]
-  (mapv #(-> % :state_edn sql/text->edn)
-        (sql/query-rows connection
-                        "SELECT state_edn FROM collection_state ORDER BY updated_at DESC, collection_id ASC"
-                        [])))
 
 (defn- runnable-task-ids-query
   [connection limit]
@@ -140,65 +135,28 @@
            :timeout-count 0}
           (heartbeat-timeout-run-rows-query connection now)))
 
-(defn- query-count
-  [connection sql-text params]
-  (long (or (:item_count (sql/query-one connection sql-text params)) 0)))
-
-(defn- runnable-task-count-query
-  [connection]
-  (query-count connection
-               "SELECT COUNT(*) AS item_count FROM runnable_tasks_v1"
-               []))
-
-(defn- awaiting-validation-run-count-query
-  [connection]
-  (query-count connection
-               "SELECT COUNT(*) AS item_count FROM awaiting_validation_runs_v1"
-               []))
-
-(defn- retryable-failed-task-count-query
-  [connection]
-  (query-count connection
-               "SELECT COUNT(*) AS item_count FROM tasks WHERE state = ':task.state/retryable-failed'"
-               []))
-
-(defn- expired-lease-run-count-query
-  [connection now]
-  (query-count connection
-               (str "SELECT COUNT(*) AS item_count "
-                    "FROM leases l "
-                    "JOIN runs r ON r.run_id = l.run_id "
-                    "WHERE l.state = ':lease.state/active' "
-                    "AND l.lease_expires_at <= ? "
-                    "AND r.state NOT IN (':run.state/awaiting-validation', ':run.state/finalized', ':run.state/retryable-failed')")
-               [now]))
-
-(defn- active-run-count-query
-  [connection]
-  (query-count connection
-               (str "SELECT COUNT(*) AS item_count FROM runs "
-                    "WHERE state NOT IN (':run.state/finalized', ':run.state/retryable-failed')")
-               []))
-
 (defrecord SQLiteProjectionReader [db-path]
   ProjectionReader
   (load-scheduler-snapshot [_ now]
     (sql/with-read-transaction db-path
       (fn [connection]
-        (let [collections (collection-states connection)
+        (let [collections (snapshot/collection-states connection)
+              active-cooldowns (snapshot/active-cooldowns collections now)
               runnable-task-ids (runnable-task-ids-query connection snapshot-list-limit)
               retryable-failed-task-ids (retryable-failed-task-ids-query connection snapshot-list-limit)
               awaiting-validation-run-ids (awaiting-validation-run-ids-query connection snapshot-list-limit)
               expired-lease-run-ids (expired-lease-run-ids-query connection now snapshot-list-limit)
               {:keys [run-ids timeout-count]} (summarize-heartbeat-timeout-runs connection now snapshot-list-limit)
-              runnable-count (runnable-task-count-query connection)
-              retryable-failed-count (retryable-failed-task-count-query connection)
-              awaiting-validation-count (awaiting-validation-run-count-query connection)
-              expired-lease-count (expired-lease-run-count-query connection now)]
+              runnable-count (snapshot/runnable-task-count-query connection)
+              retryable-failed-count (snapshot/retryable-failed-task-count-query connection)
+              awaiting-validation-count (snapshot/awaiting-validation-run-count-query connection)
+              expired-lease-count (snapshot/expired-lease-run-count-query connection now)]
           {:snapshot/now now
            :snapshot/collections collections
            :snapshot/dispatch-paused? (boolean (some #(true? (get-in % [:collection/dispatch :dispatch/paused?]))
                                                      collections))
+           :snapshot/dispatch-cooldown-until (first active-cooldowns)
+           :snapshot/dispatch-cooldown-active? (boolean (seq active-cooldowns))
            :snapshot/runnable-task-ids runnable-task-ids
            :snapshot/retryable-failed-task-ids retryable-failed-task-ids
            :snapshot/awaiting-validation-run-ids awaiting-validation-run-ids
@@ -236,7 +194,11 @@
   (count-active-runs [_ _]
     (sql/with-connection db-path
       (fn [connection]
-        (active-run-count-query connection)))))
+        (snapshot/active-run-count-query connection))))
+  (count-active-runs-for-resource-policy [_ resource-policy-ref _]
+    (sql/with-connection db-path
+      (fn [connection]
+        (snapshot/active-run-count-for-resource-policy-query connection resource-policy-ref)))))
 
 (defn sqlite-projection-reader
   ([] (sqlite-projection-reader db/default-db-path))

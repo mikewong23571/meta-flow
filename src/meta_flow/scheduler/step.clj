@@ -2,6 +2,7 @@
   (:require [meta-flow.control.events :as events]
             [meta-flow.control.projection :as projection]
             [meta-flow.defs.loader :as defs.loader]
+            [meta-flow.scheduler.dispatch.core :as dispatch]
             [meta-flow.scheduler.retry :as retry]
             [meta-flow.scheduler.runtime :as runtime]
             [meta-flow.scheduler.shared :as shared]
@@ -101,42 +102,6 @@
                      (:run/artifact-id run-now))
             (validation/assess-run! env run-now task-now)))))))
 
-(defn task-error
-  [task throwable]
-  {:task/id (:task/id task)
-   :task/work-key (:task/work-key task)
-   :error/message (.getMessage throwable)
-   :error/data (ex-data throwable)})
-
-(defn dispatch-runnable-tasks!
-  [{:keys [reader now store defs-repo] :as env} collection-state]
-  (let [active-count (projection/count-active-runs reader now)
-        max-active (or (:resource-policy/max-active-runs
-                        (shared/collection-policy defs-repo collection-state))
-                       1)
-        created-runs (atom [])
-        task-errors (atom [])]
-    (when-not (:dispatch/paused? (:collection/dispatch collection-state))
-      (loop [remaining (max 0 (- max-active active-count))
-             runnable-ids (projection/list-runnable-task-ids reader now 100)]
-        (when (and (pos? remaining) (seq runnable-ids))
-          (let [task-id (first runnable-ids)
-                created-run (when-let [task (store.protocol/find-task store task-id)]
-                              (when (= :task.state/queued (:task/state task))
-                                (try
-                                  (let [run (runtime/create-run! env task)]
-                                    (swap! created-runs conj run)
-                                    run)
-                                  (catch Throwable throwable
-                                    (swap! task-errors conj (task-error task throwable))
-                                    nil))))]
-            (recur (if created-run
-                     (dec remaining)
-                     remaining)
-                   (rest runnable-ids))))))
-    {:created-runs @created-runs
-     :task-errors @task-errors}))
-
 (defn run-scheduler-step
   [db-path]
   (let [env (scheduler-env db-path)
@@ -147,7 +112,8 @@
         _ (poll-active-runs! env)
         heartbeat-timeout-run-ids (recover-heartbeat-timeouts! env)
         _ (process-awaiting-validation! env)
-        {:keys [created-runs task-errors]} (dispatch-runnable-tasks! env collection-state)
+        {:keys [created-runs task-errors dispatch-block-reason capacity-skipped-task-ids]}
+        (dispatch/dispatch-runnable-tasks! env collection-state snapshot)
         {:keys [requeued-task-ids escalated-task-ids]}
         (retry/process-retryable-failures! env (:snapshot/retryable-failed-task-ids snapshot))]
     {:created-runs created-runs
@@ -155,6 +121,8 @@
      :escalated-task-ids escalated-task-ids
      :expired-lease-run-ids expired-lease-run-ids
      :heartbeat-timeout-run-ids heartbeat-timeout-run-ids
+     :dispatch-block-reason dispatch-block-reason
+     :capacity-skipped-task-ids capacity-skipped-task-ids
      :task-errors task-errors
      :snapshot snapshot
      :now now

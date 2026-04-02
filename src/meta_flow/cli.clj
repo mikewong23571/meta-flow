@@ -71,7 +71,9 @@
 (defn- run-scheduler-once!
   []
   (ensure-system-ready!)
-  (let [{:keys [created-runs requeued-task-ids escalated-task-ids expired-lease-run-ids heartbeat-timeout-run-ids task-errors now snapshot]}
+  (let [{:keys [created-runs requeued-task-ids escalated-task-ids expired-lease-run-ids
+                heartbeat-timeout-run-ids dispatch-block-reason capacity-skipped-task-ids
+                task-errors now snapshot]}
         (scheduler/run-scheduler-step db/default-db-path)]
     (println (str "Scheduler step completed at " now))
     (println (str "Created runs: " (count created-runs)))
@@ -79,12 +81,19 @@
     (println (str "Escalated tasks: " (count escalated-task-ids)))
     (println (str "Recovered expired leases: " (count expired-lease-run-ids)))
     (println (str "Recovered heartbeat timeouts: " (count heartbeat-timeout-run-ids)))
+    (println (str "Dispatch blocked: " (boolean dispatch-block-reason)))
+    (when dispatch-block-reason
+      (println (str "Dispatch block reason: " dispatch-block-reason)))
+    (println (str "Capacity skipped tasks: " (count capacity-skipped-task-ids)))
     (println (str "Dispatch errors: " (count task-errors)))
     (println (str "Runnable tasks before step: " (:snapshot/runnable-count snapshot)))
     (println (str "Retryable failures before step: " (:snapshot/retryable-failed-count snapshot)))
     (println (str "Awaiting validation before step: " (:snapshot/awaiting-validation-count snapshot)))
     (println (str "Expired leases before step: " (:snapshot/expired-lease-count snapshot)))
     (println (str "Heartbeat timeouts before step: " (:snapshot/heartbeat-timeout-count snapshot)))
+    (println (str "Dispatch cooldown active before step: " (:snapshot/dispatch-cooldown-active? snapshot)))
+    (when-let [cooldown-until (:snapshot/dispatch-cooldown-until snapshot)]
+      (println (str "Dispatch cooldown until: " cooldown-until)))
     (doseq [task-error task-errors]
       (println (str "Task " (:task/id task-error) " failed: " (:error/message task-error))))))
 
