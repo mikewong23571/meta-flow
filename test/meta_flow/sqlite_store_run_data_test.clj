@@ -6,7 +6,7 @@
             [meta-flow.projection :as projection]
             [meta-flow.sqlite-store-test-support :as support]
             [meta-flow.store.protocol :as store.protocol]
-            [meta-flow.store.sqlite.run-data :as store.sqlite.run-data]))
+            [meta-flow.store.sqlite.run-events :as store.sqlite.run-events]))
 
 (deftest store-read-boundaries-return-protocol-entities
   (let [{:keys [db-path store]} (support/test-system)
@@ -230,11 +230,11 @@
                                       :actor/id "mock-worker"}
                     :event/emitted-at "2026-04-01T00:02:00Z"}]
     (testing "event ingestion retries a concurrent sequence collision"
-      (let [original-next-event-seq @#'store.sqlite.run-data/next-event-seq
+      (let [original-next-event-seq @#'store.sqlite.run-events/next-event-seq
             call-count (atom 0)
             both-computed-seq (java.util.concurrent.CountDownLatch. 2)
             release-inserts (java.util.concurrent.CountDownLatch. 1)]
-        (with-redefs [store.sqlite.run-data/next-event-seq
+        (with-redefs [store.sqlite.run-events/next-event-seq
                       (fn [connection run-id]
                         (let [seq-value (original-next-event-seq connection run-id)
                               call-number (swap! call-count inc)]

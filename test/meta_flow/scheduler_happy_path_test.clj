@@ -7,6 +7,7 @@
             [meta-flow.defs.protocol :as defs.protocol]
             [meta-flow.events :as events]
             [meta-flow.runtime.mock :as runtime.mock]
+            [meta-flow.runtime.mock.fs :as runtime.mock.fs]
             [meta-flow.runtime.protocol :as runtime.protocol]
             [meta-flow.runtime.registry :as runtime.registry]
             [meta-flow.projection :as projection]
@@ -116,8 +117,8 @@
 
 (deftest demo-happy-path-completes-and-persists-structured-control-data
   (let [{:keys [db-path artifacts-dir runs-dir]} (temp-system)]
-    (binding [runtime.mock/*artifact-root-dir* artifacts-dir
-              runtime.mock/*run-root-dir* runs-dir]
+    (binding [runtime.mock.fs/*artifact-root-dir* artifacts-dir
+              runtime.mock.fs/*run-root-dir* runs-dir]
       (let [{:keys [task run artifact-root scheduler-steps]} (scheduler/demo-happy-path! db-path)
             task-id (:task/id task)
             run-id (:run/id run)
@@ -210,8 +211,8 @@
 
 (deftest demo-retry-path-rejects-the-artifact-and-records-the-current-decision
   (let [{:keys [db-path artifacts-dir runs-dir]} (temp-system)]
-    (binding [runtime.mock/*artifact-root-dir* artifacts-dir
-              runtime.mock/*run-root-dir* runs-dir]
+    (binding [runtime.mock.fs/*artifact-root-dir* artifacts-dir
+              runtime.mock.fs/*run-root-dir* runs-dir]
       (let [{:keys [task run artifact-root assessment disposition scheduler-steps]}
             (scheduler/demo-retry-path! db-path)
             run-view (scheduler/inspect-run! db-path (:run/id run))]
@@ -236,8 +237,8 @@
 
 (deftest demo-commands-converge-even-when-earlier-queued-mock-work-exists
   (let [{:keys [db-path artifacts-dir runs-dir]} (temp-system)]
-    (binding [runtime.mock/*artifact-root-dir* artifacts-dir
-              runtime.mock/*run-root-dir* runs-dir]
+    (binding [runtime.mock.fs/*artifact-root-dir* artifacts-dir
+              runtime.mock.fs/*run-root-dir* runs-dir]
       (enqueue-demo-task! db-path)
       (let [{happy-task :task
              happy-run :run
@@ -255,8 +256,8 @@
 
 (deftest rejected-validation-is-recorded-once-per-run
   (let [{:keys [db-path artifacts-dir runs-dir]} (temp-system)]
-    (binding [runtime.mock/*artifact-root-dir* artifacts-dir
-              runtime.mock/*run-root-dir* runs-dir]
+    (binding [runtime.mock.fs/*artifact-root-dir* artifacts-dir
+              runtime.mock.fs/*run-root-dir* runs-dir]
       (let [task (enqueue-demo-task! db-path)
             task-id (:task/id task)
             _ (advance-scheduler! db-path 4)
@@ -304,8 +305,8 @@
 
 (deftest awaiting-validation-retries-reuse-the-same-assessment-and-disposition-records
   (let [{:keys [db-path artifacts-dir runs-dir]} (temp-system)]
-    (binding [runtime.mock/*artifact-root-dir* artifacts-dir
-              runtime.mock/*run-root-dir* runs-dir]
+    (binding [runtime.mock.fs/*artifact-root-dir* artifacts-dir
+              runtime.mock.fs/*run-root-dir* runs-dir]
       (let [task (enqueue-demo-task! db-path)
             task-id (:task/id task)
             _ (advance-scheduler! db-path 4)
@@ -360,8 +361,8 @@
         task-id (:task/id task)
         {:keys [run-id lease-id]} (create-expired-leased-run! db-path task)
         store (store.sqlite/sqlite-state-store db-path)]
-    (binding [runtime.mock/*artifact-root-dir* artifacts-dir
-              runtime.mock/*run-root-dir* runs-dir]
+    (binding [runtime.mock.fs/*artifact-root-dir* artifacts-dir
+              runtime.mock.fs/*run-root-dir* runs-dir]
       (let [first-step (scheduler/run-scheduler-step db-path)
             task-after-first (scheduler/inspect-task! db-path task-id)
             run-after-first (scheduler/inspect-run! db-path run-id)
@@ -398,8 +399,8 @@
         store (store.sqlite/sqlite-state-store db-path)
         reader (projection/sqlite-projection-reader db-path)
         original-ingest! store.sqlite/ingest-run-event-via-connection!]
-    (binding [runtime.mock/*artifact-root-dir* artifacts-dir
-              runtime.mock/*run-root-dir* runs-dir]
+    (binding [runtime.mock.fs/*artifact-root-dir* artifacts-dir
+              runtime.mock.fs/*run-root-dir* runs-dir]
       (testing "a failure in the recovery transaction leaves the lease and states untouched"
         (is (thrown-with-msg? clojure.lang.ExceptionInfo
                               #"synthetic ingest failure"
@@ -445,8 +446,8 @@
 
 (deftest unsupported-runtime-adapter-does-not-persist-a-leased-run
   (let [{:keys [db-path artifacts-dir runs-dir]} (temp-system)]
-    (binding [runtime.mock/*artifact-root-dir* artifacts-dir
-              runtime.mock/*run-root-dir* runs-dir]
+    (binding [runtime.mock.fs/*artifact-root-dir* artifacts-dir
+              runtime.mock.fs/*run-root-dir* runs-dir]
       (let [task (enqueue-codex-task! db-path)
             task-id (:task/id task)]
         (testing "scheduler records adapter resolution failures and leaves the task runnable"
@@ -467,8 +468,8 @@
   (let [{:keys [db-path artifacts-dir runs-dir]} (temp-system)
         fail-once? (atom true)
         delegate (runtime.mock/mock-runtime)]
-    (binding [runtime.mock/*artifact-root-dir* artifacts-dir
-              runtime.mock/*run-root-dir* runs-dir]
+    (binding [runtime.mock.fs/*artifact-root-dir* artifacts-dir
+              runtime.mock.fs/*run-root-dir* runs-dir]
       (let [task (enqueue-demo-task! db-path)
             task-id (:task/id task)
             failing-adapter (reify runtime.protocol/RuntimeAdapter
@@ -531,8 +532,8 @@
   (let [{:keys [db-path artifacts-dir runs-dir]} (temp-system)
         fail-once? (atom true)
         delegate (runtime.mock/mock-runtime)]
-    (binding [runtime.mock/*artifact-root-dir* artifacts-dir
-              runtime.mock/*run-root-dir* runs-dir]
+    (binding [runtime.mock.fs/*artifact-root-dir* artifacts-dir
+              runtime.mock.fs/*run-root-dir* runs-dir]
       (let [task (enqueue-demo-task! db-path)
             task-id (:task/id task)
             eventful-adapter (reify runtime.protocol/RuntimeAdapter
@@ -584,10 +585,10 @@
   (let [{:keys [db-path artifacts-dir runs-dir]} (temp-system)
         _ (enqueue-demo-task! db-path)
         metadata-writes (atom [])
-        original-write-edn! @#'meta-flow.runtime.mock/write-edn-file!]
-    (binding [runtime.mock/*artifact-root-dir* artifacts-dir
-              runtime.mock/*run-root-dir* runs-dir]
-      (with-redefs-fn {#'meta-flow.runtime.mock/write-edn-file!
+        original-write-edn! @#'meta-flow.runtime.mock.fs/write-edn-file!]
+    (binding [runtime.mock.fs/*artifact-root-dir* artifacts-dir
+              runtime.mock.fs/*run-root-dir* runs-dir]
+      (with-redefs-fn {#'meta-flow.runtime.mock.fs/write-edn-file!
                        (fn [path value]
                          (swap! metadata-writes conj path)
                          (original-write-edn! path value))}
@@ -630,8 +631,8 @@
              :store store
              :repository (defs.loader/filesystem-definition-repository)
              :now now}]
-    (binding [runtime.mock/*artifact-root-dir* artifacts-dir
-              runtime.mock/*run-root-dir* runs-dir]
+    (binding [runtime.mock.fs/*artifact-root-dir* artifacts-dir
+              runtime.mock.fs/*run-root-dir* runs-dir]
       (runtime.protocol/prepare-run! adapter ctx task run)
       (runtime.protocol/dispatch-run! adapter ctx task run)
       (testing "poll advances the mock run in phases"
@@ -685,8 +686,8 @@
 
 (deftest stale-runnable-ids-do-not-consume-dispatch-capacity
   (let [{:keys [db-path artifacts-dir runs-dir]} (temp-system)]
-    (binding [runtime.mock/*artifact-root-dir* artifacts-dir
-              runtime.mock/*run-root-dir* runs-dir]
+    (binding [runtime.mock.fs/*artifact-root-dir* artifacts-dir
+              runtime.mock.fs/*run-root-dir* runs-dir]
       (let [task (enqueue-demo-task! db-path)
             task-id (:task/id task)]
         (with-redefs [projection/list-runnable-task-ids (fn [_ _ _]
@@ -703,8 +704,8 @@
 
 (deftest scheduler-continues-past-runnable-tasks-that-fail-to-dispatch
   (let [{:keys [db-path artifacts-dir runs-dir]} (temp-system)]
-    (binding [runtime.mock/*artifact-root-dir* artifacts-dir
-              runtime.mock/*run-root-dir* runs-dir]
+    (binding [runtime.mock.fs/*artifact-root-dir* artifacts-dir
+              runtime.mock.fs/*run-root-dir* runs-dir]
       (let [blocked-task (enqueue-codex-task! db-path)
             runnable-task (enqueue-demo-task! db-path)]
         (with-redefs [projection/list-runnable-task-ids (fn [_ _ _]
@@ -729,8 +730,8 @@
 
 (deftest demo-happy-path-isolated-from-shared-queue-failures
   (let [{:keys [db-path artifacts-dir runs-dir]} (temp-system)]
-    (binding [runtime.mock/*artifact-root-dir* artifacts-dir
-              runtime.mock/*run-root-dir* runs-dir]
+    (binding [runtime.mock.fs/*artifact-root-dir* artifacts-dir
+              runtime.mock.fs/*run-root-dir* runs-dir]
       (enqueue-codex-task! db-path)
       (let [{:keys [task run scheduler-steps]} (scheduler/demo-happy-path! db-path)]
         (is (= 5 scheduler-steps))
@@ -741,8 +742,8 @@
   (let [{:keys [db-path artifacts-dir runs-dir]} (temp-system)
         scheduler-calls (atom 0)
         original-run-scheduler-step @#'scheduler/run-scheduler-step]
-    (binding [runtime.mock/*artifact-root-dir* artifacts-dir
-              runtime.mock/*run-root-dir* runs-dir]
+    (binding [runtime.mock.fs/*artifact-root-dir* artifacts-dir
+              runtime.mock.fs/*run-root-dir* runs-dir]
       (with-redefs [scheduler/run-scheduler-step (fn [db-path*]
                                                    (swap! scheduler-calls inc)
                                                    (original-run-scheduler-step db-path*))]

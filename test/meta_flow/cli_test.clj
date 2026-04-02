@@ -5,7 +5,7 @@
             [meta-flow.cli :as cli]
             [meta-flow.db :as db]
             [meta-flow.defs.loader :as defs.loader]
-            [meta-flow.runtime.mock :as runtime.mock]
+            [meta-flow.runtime.mock.fs :as runtime.mock.fs]
             [meta-flow.scheduler :as scheduler]
             [meta-flow.store.protocol :as store.protocol]
             [meta-flow.store.sqlite :as store.sqlite]))
@@ -84,8 +84,8 @@
   (let [{:keys [db-path artifacts-dir runs-dir codex-home-dir]} (temp-cli-system)]
     (with-redefs [db/default-db-path db-path
                   db/runtime-directories [artifacts-dir runs-dir codex-home-dir]]
-      (binding [runtime.mock/*artifact-root-dir* artifacts-dir
-                runtime.mock/*run-root-dir* runs-dir]
+      (binding [runtime.mock.fs/*artifact-root-dir* artifacts-dir
+                runtime.mock.fs/*run-root-dir* runs-dir]
         (let [output (with-out-str
                        (cli/dispatch-command! ["demo" "retry-path"]))
               task-id (some->> output
