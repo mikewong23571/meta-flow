@@ -12,6 +12,7 @@
 /.nrepl-port
 /.repl-port
 /.calva/
+/.clj-kondo/
 /.clj-kondo/.cache/
 /.lsp/
 /.idea/
