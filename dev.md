@@ -12,6 +12,20 @@ All other tools (kaocha, clj-kondo, cljfmt, nREPL) are pulled from `deps.edn` au
 
 All development commands go through `bb`. Run `bb tasks` to see the full list.
 
+### Command reference
+
+| Command | What it does |
+|---------|-------------|
+| `bb repl` | Start nREPL server on port 7888 (JVM stays warm) |
+| `bb test` | Run full test suite once (kaocha); supports `--focus my.ns` |
+| `bb test:watch` | Rerun tests automatically on file change |
+| `bb lint` | Static analysis via clj-kondo |
+| `bb fmt` | Reformat all source files in place (cljfmt fix) |
+| `bb fmt:check` | Check formatting without modifying files |
+| `bb check` | fmt:check → lint → test in sequence (CI entry point) |
+| `bb init` | Initialize SQLite database and runtime directories |
+| `bb defs:validate` | Validate bundled EDN workflow definitions |
+
 ### Daily development loop
 
 Start a persistent nREPL server so the JVM stays warm:
@@ -25,13 +39,6 @@ repeated JVM cold-start.
 When you want automatic reruns on file change instead:
 
     bb test:watch
-
-### Running checks manually
-
-    bb test        # run the full test suite once
-    bb lint        # static analysis (clj-kondo)
-    bb fmt:check   # verify formatting without modifying files
-    bb fmt         # reformat all source files in place
 
 ### Full pipeline
 
