@@ -10,10 +10,21 @@
     (when-let [data (ex-data throwable)]
       (pprint/pprint data))))
 
-(defn -main
-  [& args]
+(defn- run-command!
+  [args]
   (try
     (cli/dispatch-command! (vec args))
+    0
     (catch Throwable throwable
       (print-error! throwable)
-      (System/exit 1))))
+      1)))
+
+(defn exit!
+  [status]
+  (System/exit status))
+
+(defn -main
+  [& args]
+  (let [status (run-command! args)]
+    (when (pos? status)
+      (exit! status))))

@@ -1,7 +1,8 @@
 (ns meta-flow.defs-loader-test
   (:require [clojure.test :refer [deftest is testing]]
             [meta-flow.defs.loader :as defs.loader]
-            [meta-flow.defs.protocol :as defs.protocol]))
+            [meta-flow.defs.protocol :as defs.protocol]
+            [meta-flow.defs.repository :as defs.repository]))
 
 (deftest filesystem-repository-loads-and-indexes-definitions
   (let [repository (defs.loader/filesystem-definition-repository)
@@ -21,4 +22,23 @@
              (:runtime-profile/worker-prompt-path (defs.protocol/find-runtime-profile repository :runtime-profile/codex-worker 1))))
       (is (= :artifact-contract/cve-investigation
              (get-in (defs.protocol/find-runtime-profile repository :runtime-profile/codex-worker 1)
-                     [:runtime-profile/artifact-contract-ref :definition/id]))))))
+                     [:runtime-profile/artifact-contract-ref :definition/id]))))
+    (testing "summary reports every definition bucket"
+      (is (= {:task-types 2
+              :task-fsms 2
+              :run-fsms 2
+              :runtime-profiles 2
+              :artifact-contracts 2
+              :validators 2
+              :resource-policies 2}
+             summary)))))
+
+(deftest filesystem-definition-repository-delegates-both-arities
+  (with-redefs [defs.repository/filesystem-definition-repository (fn
+                                                                   ([] ::default-repository)
+                                                                   ([resource-base]
+                                                                    [:repository resource-base]))]
+    (is (= ::default-repository
+           (defs.loader/filesystem-definition-repository)))
+    (is (= [:repository "alt/base"]
+           (defs.loader/filesystem-definition-repository "alt/base")))))

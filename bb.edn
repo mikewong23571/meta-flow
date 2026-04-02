@@ -34,10 +34,15 @@
            (shell "clojure -M:lint")
            (shell "clojure -M -m meta-flow.lint.file-length"))}
 
+  coverage
+  {:doc "Run test coverage governance via Kaocha + Cloverage"
+   :requires ([babashka.tasks :refer [shell]])
+   :task (shell "clojure -M -m meta-flow.lint.coverage")}
+
   fmt
   {:doc "Reformat source files in place (cljfmt fix)"
-   :requires ([babashka.tasks :refer [shell]])
-   :task (shell "clojure -M:fmt")}
+  :requires ([babashka.tasks :refer [shell]])
+  :task (shell "clojure -M:fmt")}
 
   fmt:check
   {:doc "Check formatting without modifying files (cljfmt check)"
@@ -46,8 +51,9 @@
 
   ;; -- CI entry point ------------------------------------------------------
   check
-  {:doc "Run all checks: fmt:check -> lint -> test"
+  {:doc "Run all checks: fmt:check -> lint -> test -> coverage"
    :requires ([babashka.tasks :refer [run]])
    :task (do (run 'fmt:check)
              (run 'lint)
-             (run 'test))}}}
+             (run 'test)
+             (run 'coverage))}}}

@@ -12,9 +12,10 @@ Use the local Babashka task runner; it wraps the repo’s Clojure aliases and av
 - `bb test` runs the Kaocha suite once.
 - `bb test:watch` reruns tests on file changes.
 - `bb lint` runs `clj-kondo` on `src` and `test`, then applies governance on both `src/` and `test/`: file length over 240 lines warns and over 300 lines fails; directory width over 7 direct source files warns and over 12 fails. The warning and error text explicitly frame these as responsibility and layering signals, and ask for splitting by responsibility rather than continuing to grow the same namespace or directory layer.
+- `bb coverage` runs Kaocha with Cloverage and applies overall line-coverage governance: below 88% warns and below 85% fails, with messaging that frames coverage as a responsibility-governance signal rather than a vanity metric.
 - `bb fmt` rewrites formatting with `cljfmt`.
 - `bb fmt:check` verifies formatting without edits.
-- `bb check` runs `fmt:check`, `lint`, then `test`; treat it as the pre-PR gate.
+- `bb check` runs `fmt:check`, `lint`, `test`, then `coverage`; treat it as the pre-PR gate.
 - `bb init` initializes the SQLite DB and runtime directories.
 - `bb defs:validate` validates bundled EDN workflow definitions.
 - `clojure -T:build prep` copies `src` and `resources` into `target/classes`.
@@ -25,7 +26,7 @@ Follow idiomatic Clojure with two-space indentation and small, focused namespace
 
 ## Testing Guidelines
 
-Tests use Kaocha with `clojure.test`; configuration is in `tests.edn`. Add tests beside the covered namespace in `test/meta_flow/`, and name files `*_test.clj` (for example `scheduler/demo_test.clj`). Favor deterministic unit tests plus DB-backed integration coverage for scheduler, store, and CLI behavior. Run `bb test` locally and `bb check` before opening a PR.
+Tests use Kaocha with `clojure.test`; configuration is in `tests.edn`. Add tests beside the covered namespace in `test/meta_flow/`, and name files `*_test.clj` (for example `scheduler/demo_test.clj`). Favor deterministic unit tests plus DB-backed integration coverage for scheduler, store, and CLI behavior. Coverage governance is part of the repo policy: overall line coverage below 88% warns and below 85% fails. Run `bb test` locally and `bb check` before opening a PR.
 
 ## Commit & Pull Request Guidelines
 

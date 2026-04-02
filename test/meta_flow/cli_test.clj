@@ -5,6 +5,7 @@
             [meta-flow.cli :as cli]
             [meta-flow.db :as db]
             [meta-flow.defs.loader :as defs.loader]
+            [meta-flow.defs.protocol :as defs.protocol]
             [meta-flow.runtime.mock.fs :as runtime.mock.fs]
             [meta-flow.scheduler :as scheduler]
             [meta-flow.store.protocol :as store.protocol]
@@ -106,3 +107,129 @@
           (is (= :task.state/retryable-failed (:task/state task)))
           (is (= :run.state/retryable-failed (:run/state run)))
           (is (string? (:run/artifact-root run))))))))
+
+(deftest operational-commands-print-summaries-for-init-defs-scheduler-and-demo
+  (let [repository ::repository
+        bootstrap-calls (atom [])
+        init-output (with-out-str
+                      (with-redefs [defs.loader/filesystem-definition-repository (fn []
+                                                                                   repository)
+                                    defs.protocol/load-workflow-defs (fn [repo]
+                                                                       (swap! bootstrap-calls conj [:load repo])
+                                                                       {:defs/loaded true})
+                                    db/initialize-database! (fn
+                                                              ([] {:db-path "var/meta-flow.sqlite3"
+                                                                   :pragmas {:journal_mode "wal"
+                                                                             :busy_timeout 5000}})
+                                                              ([_] {:db-path "var/meta-flow.sqlite3"
+                                                                    :pragmas {:journal_mode "wal"
+                                                                              :busy_timeout 5000}}))
+                                    db/ensure-runtime-directories! (fn []
+                                                                     ["var/artifacts" "var/runs" "var/codex-home"])]
+                        (cli/dispatch-command! ["init"])))
+        defs-output (with-out-str
+                      (with-redefs [defs.loader/filesystem-definition-repository (fn []
+                                                                                   repository)
+                                    defs.protocol/load-workflow-defs (fn [_]
+                                                                       {:workflow :loaded})
+                                    defs.loader/definitions-summary (fn [_]
+                                                                      {:task-types 2
+                                                                       :task-fsms 3
+                                                                       :run-fsms 4
+                                                                       :runtime-profiles 5})]
+                        (cli/dispatch-command! ["defs" "validate"])))
+        scheduler-output (with-out-str
+                           (with-redefs [db/default-db-path "var/meta-flow.sqlite3"
+                                         defs.loader/filesystem-definition-repository (fn []
+                                                                                        repository)
+                                         defs.protocol/load-workflow-defs (fn [_]
+                                                                            {:workflow :loaded})
+                                         db/initialize-database! (fn
+                                                                   ([] {:db-path "var/meta-flow.sqlite3"
+                                                                        :pragmas {:journal_mode "wal"
+                                                                                  :busy_timeout 5000}})
+                                                                   ([_] {:db-path "var/meta-flow.sqlite3"
+                                                                         :pragmas {:journal_mode "wal"
+                                                                                   :busy_timeout 5000}}))
+                                         db/ensure-runtime-directories! (fn []
+                                                                          ["var/artifacts" "var/runs" "var/codex-home"])
+                                         scheduler/run-scheduler-step (fn [_]
+                                                                        {:now "2026-04-02T00:00:00Z"
+                                                                         :created-runs [{:run/id "run-1"}]
+                                                                         :task-errors [{:task/id "task-1"
+                                                                                        :error/message "bad adapter"}]
+                                                                         :snapshot {:snapshot/runnable-count 3
+                                                                                    :snapshot/awaiting-validation-count 1}})]
+                             (cli/dispatch-command! ["scheduler" "once"])))
+        happy-output (with-out-str
+                       (with-redefs [db/default-db-path "var/meta-flow.sqlite3"
+                                     defs.loader/filesystem-definition-repository (fn []
+                                                                                    repository)
+                                     defs.protocol/load-workflow-defs (fn [_]
+                                                                        {:workflow :loaded})
+                                     db/initialize-database! (fn
+                                                               ([] {:db-path "var/meta-flow.sqlite3"
+                                                                    :pragmas {:journal_mode "wal"
+                                                                              :busy_timeout 5000}})
+                                                               ([_] {:db-path "var/meta-flow.sqlite3"
+                                                                     :pragmas {:journal_mode "wal"
+                                                                               :busy_timeout 5000}}))
+                                     db/ensure-runtime-directories! (fn []
+                                                                      ["var/artifacts" "var/runs" "var/codex-home"])
+                                     scheduler/demo-happy-path! (fn [_]
+                                                                  {:task {:task/id "task-1"
+                                                                          :task/work-key "wk-1"
+                                                                          :task/state :task.state/completed}
+                                                                   :run {:run/id "run-1"
+                                                                         :run/attempt 1
+                                                                         :run/state :run.state/finalized}
+                                                                   :artifact-root "var/artifacts/run-1"
+                                                                   :scheduler-steps 4})]
+                         (cli/dispatch-command! ["demo" "happy-path"])))]
+    (is (= [[:load repository]] @bootstrap-calls))
+    (is (str/includes? init-output "Initialized database at var/meta-flow.sqlite3"))
+    (is (str/includes? init-output "Loaded workflow definitions"))
+    (is (str/includes? defs-output "Definitions valid"))
+    (is (str/includes? defs-output "Task types: 2"))
+    (is (str/includes? scheduler-output "Created runs: 1"))
+    (is (str/includes? scheduler-output "Dispatch errors: 1"))
+    (is (str/includes? scheduler-output "Task task-1 failed: bad adapter"))
+    (is (str/includes? happy-output "Assessment accepted"))
+    (is (str/includes? happy-output "Task task-1 -> :task.state/completed"))
+    (is (str/includes? happy-output "Run run-1 -> :run.state/finalized"))))
+
+(deftest enqueue-and-inspect-requirements-surface-usage-errors
+  (let [repository ::repository]
+    (with-redefs [db/default-db-path "var/meta-flow.sqlite3"
+                  defs.loader/filesystem-definition-repository (fn []
+                                                                 repository)
+                  defs.protocol/load-workflow-defs (fn [_]
+                                                     {:workflow :loaded})
+                  db/initialize-database! (fn
+                                            ([] {:db-path "var/meta-flow.sqlite3"
+                                                 :pragmas {:journal_mode "wal"
+                                                           :busy_timeout 5000}})
+                                            ([_] {:db-path "var/meta-flow.sqlite3"
+                                                  :pragmas {:journal_mode "wal"
+                                                            :busy_timeout 5000}}))
+                  db/ensure-runtime-directories! (fn []
+                                                   ["var/artifacts" "var/runs" "var/codex-home"])
+                  scheduler/enqueue-demo-task! (fn [_ opts]
+                                                 {:task {:task/id "task-1"
+                                                         :task/work-key (or (:work-key opts) "generated-work-key")
+                                                         :task/state :task.state/queued
+                                                         :task/runtime-profile-ref {:definition/id :runtime-profile/mock-worker
+                                                                                    :definition/version 1}}
+                                                  :reused? false})]
+      (let [enqueue-output (with-out-str
+                             (cli/dispatch-command! ["enqueue"]))]
+        (is (str/includes? enqueue-output "generated-work-key")))
+      (is (thrown-with-msg? clojure.lang.ExceptionInfo
+                            #"Missing required option --task-id"
+                            (cli/dispatch-command! ["inspect" "task"])))
+      (let [out-output (with-out-str
+                         (is (thrown-with-msg? clojure.lang.ExceptionInfo
+                                               #"Unsupported command"
+                                               (cli/dispatch-command! ["unsupported" "command"]))))]
+        (is (str/includes? out-output "Usage:"))
+        (is (str/includes? out-output "inspect collection"))))))

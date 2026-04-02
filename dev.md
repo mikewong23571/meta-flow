@@ -20,9 +20,10 @@ All development commands go through `bb`. Run `bb tasks` to see the full list.
 | `bb test` | Run full test suite once (kaocha); supports `--focus my.ns` |
 | `bb test:watch` | Rerun tests automatically on file change |
 | `bb lint` | Static analysis via clj-kondo, plus `src/` and `test/` governance: file length over 240 warns and over 300 fails; directory width over 7 direct source files warns and over 12 fails |
+| `bb coverage` | Run Kaocha + Cloverage and enforce coverage governance: overall line coverage below 88% warns and below 85% fails |
 | `bb fmt` | Reformat all source files in place (cljfmt fix) |
 | `bb fmt:check` | Check formatting without modifying files |
-| `bb check` | fmt:check → lint → test in sequence (CI entry point) |
+| `bb check` | fmt:check → lint → test → coverage in sequence (CI entry point) |
 | `bb init` | Initialize SQLite database and runtime directories |
 | `bb defs:validate` | Validate bundled EDN workflow definitions |
 
@@ -42,7 +43,7 @@ When you want automatic reruns on file change instead:
 
 ### Full pipeline
 
-    bb check       # fmt:check → lint → test (same as pre-commit)
+    bb check       # fmt:check → lint → test → coverage (same as pre-commit)
 
 Run this before opening a PR to confirm everything is green.
 
