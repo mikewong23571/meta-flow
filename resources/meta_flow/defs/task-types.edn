@@ -3,7 +3,7 @@
   :task-type/name "Default generic task"
   :task-type/description "Generic task definition used by Phase 1 bootstrap flows."
   :task-type/task-fsm-ref {:definition/id :task-fsm/default
-                           :definition/version 1}
+                           :definition/version 2}
   :task-type/run-fsm-ref {:definition/id :run-fsm/default
                           :definition/version 1}
   :task-type/runtime-profile-ref {:definition/id :runtime-profile/mock-worker
@@ -13,13 +13,13 @@
   :task-type/validator-ref {:definition/id :validator/required-paths
                             :definition/version 1}
   :task-type/resource-policy-ref {:definition/id :resource-policy/default
-                                  :definition/version 1}}
+                                  :definition/version 2}}
  {:task-type/id :task-type/cve-investigation
   :task-type/version 1
   :task-type/name "CVE investigation"
   :task-type/description "Phase 1 demo task type for producing a minimal CVE evidence bundle."
- :task-type/task-fsm-ref {:definition/id :task-fsm/cve-investigation
-                           :definition/version 1}
+  :task-type/task-fsm-ref {:definition/id :task-fsm/cve-investigation
+                           :definition/version 2}
   :task-type/run-fsm-ref {:definition/id :run-fsm/cve-worker
                           :definition/version 1}
   :task-type/runtime-profile-ref {:definition/id :runtime-profile/codex-worker
@@ -29,4 +29,4 @@
   :task-type/validator-ref {:definition/id :validator/cve-bundle
                             :definition/version 1}
   :task-type/resource-policy-ref {:definition/id :resource-policy/serial-cve
-                                  :definition/version 1}}]
+                                  :definition/version 2}}]

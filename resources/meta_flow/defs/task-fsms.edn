@@ -1,14 +1,16 @@
 [{:task-fsm/id :task-fsm/default
-  :task-fsm/version 1
-  :task-fsm/name "Default Phase 1 task lifecycle"
+  :task-fsm/version 2
+  :task-fsm/name "Default Phase 2 task lifecycle"
   :task-fsm/initial-state :task.state/queued
   :task-fsm/states [:task.state/queued
                     :task.state/leased
                     :task.state/running
                     :task.state/awaiting-validation
                     :task.state/retryable-failed
+                    :task.state/needs-review
                     :task.state/completed]
-  :task-fsm/terminal-states #{:task.state/completed}
+  :task-fsm/terminal-states #{:task.state/completed
+                              :task.state/needs-review}
   :task-fsm/transitions [{:transition/event :task.event/lease-granted
                           :transition/from :task.state/queued
                           :transition/to :task.state/leased}
@@ -27,20 +29,28 @@
                          {:transition/event :task.event/assessment-rejected
                           :transition/from :task.state/awaiting-validation
                           :transition/to :task.state/retryable-failed}
+                         {:transition/event :task.event/requeued
+                          :transition/from :task.state/retryable-failed
+                          :transition/to :task.state/queued}
+                         {:transition/event :task.event/retry-exhausted
+                          :transition/from :task.state/retryable-failed
+                          :transition/to :task.state/needs-review}
                          {:transition/event :task.event/assessment-accepted
                           :transition/from :task.state/awaiting-validation
                           :transition/to :task.state/completed}]}
  {:task-fsm/id :task-fsm/cve-investigation
-  :task-fsm/version 1
-  :task-fsm/name "CVE investigation task lifecycle"
+  :task-fsm/version 2
+  :task-fsm/name "CVE investigation Phase 2 task lifecycle"
   :task-fsm/initial-state :task.state/queued
   :task-fsm/states [:task.state/queued
                     :task.state/leased
                     :task.state/running
                     :task.state/awaiting-validation
                     :task.state/retryable-failed
+                    :task.state/needs-review
                     :task.state/completed]
-  :task-fsm/terminal-states #{:task.state/completed}
+  :task-fsm/terminal-states #{:task.state/completed
+                              :task.state/needs-review}
   :task-fsm/transitions [{:transition/event :task.event/lease-granted
                           :transition/from :task.state/queued
                           :transition/to :task.state/leased}
@@ -59,6 +69,12 @@
                          {:transition/event :task.event/assessment-rejected
                           :transition/from :task.state/awaiting-validation
                           :transition/to :task.state/retryable-failed}
+                         {:transition/event :task.event/requeued
+                          :transition/from :task.state/retryable-failed
+                          :transition/to :task.state/queued}
+                         {:transition/event :task.event/retry-exhausted
+                          :transition/from :task.state/retryable-failed
+                          :transition/to :task.state/needs-review}
                          {:transition/event :task.event/assessment-accepted
                           :transition/from :task.state/awaiting-validation
                           :transition/to :task.state/completed}]}]

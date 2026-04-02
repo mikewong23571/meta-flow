@@ -1,6 +1,7 @@
 (ns meta-flow.scheduler.step
   (:require [meta-flow.control.projection :as projection]
             [meta-flow.defs.loader :as defs.loader]
+            [meta-flow.scheduler.retry :as retry]
             [meta-flow.scheduler.runtime :as runtime]
             [meta-flow.scheduler.shared :as shared]
             [meta-flow.scheduler.state :as state]
@@ -89,8 +90,12 @@
         _ (recover-expired-leases! env)
         _ (poll-active-runs! env)
         _ (process-awaiting-validation! env)
-        {:keys [created-runs task-errors]} (dispatch-runnable-tasks! env collection-state)]
+        {:keys [created-runs task-errors]} (dispatch-runnable-tasks! env collection-state)
+        {:keys [requeued-task-ids escalated-task-ids]}
+        (retry/process-retryable-failures! env (:snapshot/retryable-failed-task-ids snapshot))]
     {:created-runs created-runs
+     :requeued-task-ids requeued-task-ids
+     :escalated-task-ids escalated-task-ids
      :task-errors task-errors
      :snapshot snapshot
      :now now

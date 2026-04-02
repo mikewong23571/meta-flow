@@ -24,15 +24,20 @@
         (testing "a rejected validation converges after the first scheduler pass"
           (is (.delete (io/file artifact-root "notes.md")))
           (let [first-step (scheduler/run-scheduler-step db-path)
+                task-after-first (scheduler/inspect-task! db-path task-id)
+                run-after-first (scheduler/inspect-run! db-path run-id)
                 second-step (scheduler/run-scheduler-step db-path)
-                task-after (scheduler/inspect-task! db-path task-id)
-                run-after (scheduler/inspect-run! db-path run-id)]
+                task-after-second (scheduler/inspect-task! db-path task-id)
+                run-after-second (scheduler/inspect-run! db-path run-id)]
             (is (empty? (:created-runs first-step)))
             (is (empty? (:created-runs second-step)))
-            (is (= :task.state/retryable-failed (:task/state task-after)))
-            (is (= :run.state/retryable-failed (:run/state run-after)))
-            (is (= 9 (:run/event-count run-after)))
-            (is (string? (:run/last-heartbeat run-after)))
+            (is (= :task.state/retryable-failed (:task/state task-after-first)))
+            (is (= :run.state/retryable-failed (:run/state run-after-first)))
+            (is (= [task-id] (:requeued-task-ids second-step)))
+            (is (= :task.state/queued (:task/state task-after-second)))
+            (is (= :run.state/retryable-failed (:run/state run-after-second)))
+            (is (= 9 (:run/event-count run-after-second)))
+            (is (string? (:run/last-heartbeat run-after-second)))
             (is (= {:status ":assessment/rejected"
                     :item_count 1}
                    (select-keys (support/query-one db-path

@@ -26,7 +26,7 @@ Phase 2 的工作是在这条基线上继续前进：补上显式 requeue、max-
 - [x] (2026-04-01 13:12Z) 为本阶段写出独立 subplan，明确 in-scope、out-of-scope、接口与验收标准。
 - [x] (2026-04-02 00:00Z) 确认当前基线已经具备 rejection -> assessment/disposition -> `retryable-failed` 的收敛路径，并已有幂等测试覆盖。
 - [x] (2026-04-02 00:00Z) 确认当前基线已经具备 expired lease recovery、dispatch pause snapshot 和 dispatch capacity 基础行为，并已有调度恢复测试覆盖。
-- [ ] 在当前 FSM 基线上补齐显式 requeue 与 max-attempts，定义何时从 `retryable-failed` 回到 `queued`，何时升级到 `needs-review`。
+- [x] (2026-04-02 08:34Z) 在当前 FSM 基线上补齐显式 requeue 与 max-attempts：task FSM 新增 `:task.state/needs-review`、`:task.event/requeued`、`:task.event/retry-exhausted`，resource policy 新增 `max-attempts`，scheduler 新增 retry stage 并通过 projection/CLI/tests 验证 `retryable-failed -> queued` 与 exhausted -> `needs-review`。
 - [ ] 实现 heartbeat timeout，并把它收敛为与现有 lease-expiry 同层级的调度恢复输入，而不是另起一套隐藏状态机。
 - [ ] 扩展 collection state 和 resource policy，支持 cooldown、resource ceilings、priority ordering，并保持 ProjectionReader 只读。
 - [ ] 扩展 CLI / inspect / scheduler summary，使 retry、requeue、escalate、cooldown-skip 对操作者可见。
@@ -39,6 +39,9 @@ Phase 2 的工作是在这条基线上继续前进：补上显式 requeue、max-
 
 - Observation: 当前最需要避免的不是“功能不够多”，而是让后续计划重新偏回单文件实现。
   Evidence: 仓库已经拆成 `control/`、`scheduler/`、`runtime/mock/`、`store/sqlite/run|lease|artifact/` 等层；同时 lint 已对文件长度与目录宽度实施治理。
+
+- Observation: 若在同一轮调度里对“本轮刚刚失败”的 task 立即执行 requeue，失败事实会在 step 末尾被新的 lease 覆盖，操作者看不到显式 `retryable-failed -> queued` 控制动作。
+  Evidence: 首轮实现把 retry stage 直接接在 validation/recovery 后面时，既有 rejection/expired-lease 测试会在下一次 inspect 中直接看到 `leased`，`demo retry-path` 也会继续滚到第二次 attempt。
 
 ## Decision Log
 
@@ -54,9 +57,13 @@ Phase 2 的工作是在这条基线上继续前进：补上显式 requeue、max-
   Rationale: 当前 repo 的真实开发入口已经是 babashka task，而不是散落的单独命令。
   Date/Author: 2026-04-02 / Codex
 
+- Decision: retry stage 只处理 scheduler step 开始时 snapshot 中已经存在的 `retryable-failed` tasks，而不处理本轮刚生成的失败。
+  Rationale: 这样可以保持 failure convergence 与 retry control 的语义分离，让 `retryable-failed` 先稳定落库并对 inspect 可见；下一轮再显式迁回 `queued` 或升级到 `needs-review`。
+  Date/Author: 2026-04-02 / Codex
+
 ## Outcomes & Retrospective
 
-本阶段尚未完成。阶段完成时，本节应记录三类结果：一，当前 direct-to-`retryable-failed` 基线是否被扩展成可解释、可重试、可升级的完整失败路径；二，resource/cooldown 输入是否在不破坏 ProjectionReader 只读边界的前提下进入调度器；三，新增代码是否在保持 `bb check` 通过的同时，继续满足文件长度、目录宽度和覆盖率治理。
+Milestone 1 已完成，但 Phase 2 整体尚未完成。当前已实现的结果是：一，现有 direct-to-`retryable-failed` 基线已被扩展成“下一轮显式 requeue 或升级到 `needs-review`”的可解释失败路径；二，这一扩展只增加 ProjectionReader 的只读 retryable-failed 查询，没有引入 projection 写路径；三，新增代码在 `bb check` 下保持通过，文件长度 warning 也已压回治理阈值内。
 
 ## Context and Orientation
 

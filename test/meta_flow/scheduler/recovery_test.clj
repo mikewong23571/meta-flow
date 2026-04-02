@@ -43,7 +43,8 @@
                 second-events (store.protocol/list-run-events store run-id)]
             (is (empty? (:created-runs second-step)))
             (is (empty? (:task-errors second-step)))
-            (is (= :task.state/retryable-failed (:task/state task-after-second)))
+            (is (= [task-id] (:requeued-task-ids second-step)))
+            (is (= :task.state/queued (:task/state task-after-second)))
             (is (= :run.state/retryable-failed (:run/state run-after-second)))
             (is (= first-events second-events))))))))
 

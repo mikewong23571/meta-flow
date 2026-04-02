@@ -42,7 +42,7 @@
                   :definition/version 1}
                  (:run/runtime-profile-ref run-view)))
           (is (= {:definition/id :resource-policy/default
-                  :definition/version 1}
+                  :definition/version 2}
                  (:collection/resource-policy-ref collection-view))))
         (testing "dispatch persists a durable execution handle on the run"
           (is (= "polling"

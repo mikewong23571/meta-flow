@@ -33,7 +33,7 @@
   (or (store.protocol/find-collection-state store :collection/default)
       (let [default-policy (defs.protocol/find-resource-policy defs-repo
                                                                :resource-policy/default
-                                                               1)
+                                                               2)
             initial {:collection/id :collection/default
                      :collection/dispatch {:dispatch/paused? false}
                      :collection/resource-policy-ref {:definition/id (:resource-policy/id default-policy)
@@ -48,3 +48,9 @@
   (defs.protocol/find-resource-policy defs-repo
                                       (get-in collection-state [:collection/resource-policy-ref :definition/id])
                                       (get-in collection-state [:collection/resource-policy-ref :definition/version])))
+
+(defn task-policy
+  [defs-repo task]
+  (defs.protocol/find-resource-policy defs-repo
+                                      (get-in task [:task/resource-policy-ref :definition/id])
+                                      (get-in task [:task/resource-policy-ref :definition/version])))

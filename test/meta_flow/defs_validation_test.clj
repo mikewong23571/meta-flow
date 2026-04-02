@@ -93,7 +93,10 @@
         indexes (defs.validation/validate-definition-links! definitions)]
     (is (contains? indexes :task-types))
     (is (contains? (:runtime-profiles indexes) [:runtime-profile/mock-worker 1]))
-    (is (contains? (:resource-policies indexes) [:resource-policy/default 1]))
+    (is (contains? (:task-fsms indexes) [:task-fsm/default 2]))
+    (is (contains? (:task-fsms indexes) [:task-fsm/cve-investigation 2]))
+    (is (contains? (:resource-policies indexes) [:resource-policy/default 2]))
+    (is (contains? (:resource-policies indexes) [:resource-policy/serial-cve 2]))
     (is (thrown-with-msg? clojure.lang.ExceptionInfo
                           #"Missing referenced definition for workflow default task type"
                           (defs.validation/validate-definition-links!

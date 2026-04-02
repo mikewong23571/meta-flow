@@ -23,6 +23,7 @@ This document must be maintained in accordance with `.agent/PLANS.md`.
 - [x] (2026-04-01 14:29Z) 加固 Milestone 1 基础约束：新增 per-connection SQLite pragma 应用入口、`002_align_keyword_literals.sql` 修复 migration、Codex runtime profile 必填字段校验，以及针对 pragma 和 keyword-state 索引的回归测试。
 - [x] (2026-04-01 14:55Z) 完成 Phase 1 / Milestone 2：落地 `StateStore`、`ProjectionReader` 与统一事件写入口，并通过新增控制面测试证明任务入队去重、单 task 非终态 run 约束、单 run active lease 约束、事件幂等与 event sequence 分配均按计划生效。
 - [x] (2026-04-01 16:36Z) 完成 Phase 1 / Milestone 3：修复 FSM 与 mock runtime 的编译/语义漂移，落地 `scheduler once`、`demo happy-path`、`inspect` CLI 与 happy-path 集成测试，证明最小控制面闭环已从 `queued` 收敛到 `completed`。
+- [x] (2026-04-02 08:34Z) 完成 Phase 2 / Milestone 1：扩展 task/resource policy definitions，引入 `max-attempts`、`needs-review`、显式 `requeue` 调度阶段，以及与之对应的 projection、CLI summary 和重试/升级测试，`bb check` 通过。
 - [ ] 接入 Codex runtime adapter，实现项目级 `CODEX_HOME`、prompt 模板、task-scoped tooling 和 worker 事件回写。
 - [ ] 补齐失败、重试、接管、冷却、资源限流、审计查看与测试覆盖。
 

@@ -38,7 +38,7 @@
    :task/task-type-ref {:definition/id :task-type/default
                         :definition/version 1}
    :task/task-fsm-ref {:definition/id :task-fsm/default
-                       :definition/version 1}
+                       :definition/version 2}
    :task/runtime-profile-ref {:definition/id :runtime-profile/mock-worker
                               :definition/version 1}
    :task/artifact-contract-ref {:definition/id :artifact-contract/default
@@ -46,7 +46,7 @@
    :task/validator-ref {:definition/id :validator/required-paths
                         :definition/version 1}
    :task/resource-policy-ref {:definition/id :resource-policy/default
-                              :definition/version 1}
+                              :definition/version 2}
    :task/state :task.state/queued
    :task/created-at now
    :task/updated-at now})
@@ -78,6 +78,6 @@
   {:collection/id :collection/default
    :collection/dispatch {:dispatch/paused? paused?}
    :collection/resource-policy-ref {:definition/id :resource-policy/default
-                                    :definition/version 1}
+                                    :definition/version 2}
    :collection/created-at now
    :collection/updated-at now})

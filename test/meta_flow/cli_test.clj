@@ -44,7 +44,7 @@
                   scheduler/inspect-collection! (fn [_]
                                                   {:collection/dispatch {:dispatch/paused? false}
                                                    :collection/resource-policy-ref {:definition/id :resource-policy/default
-                                                                                    :definition/version 1}})]
+                                                                                    :definition/version 2}})]
       (let [task-output (with-out-str
                           (cli/dispatch-command! ["inspect" "task" "--task-id" "task-123"]))
             run-output (with-out-str
@@ -71,14 +71,13 @@
         (is (some? task-id))
         (is (= :task.state/queued (:task/state task)))
         (is (= work-key (:task/work-key task)))
-        (is (= {:definition/id :runtime-profile/mock-worker
-                :definition/version 1}
+        (is (= {:definition/id :runtime-profile/mock-worker :definition/version 1}
                (:task/runtime-profile-ref task)))
         (is (true? (.exists (io/file artifacts-dir))))
         (is (true? (.exists (io/file runs-dir))))
         (is (true? (.exists (io/file codex-home-dir))))
         (is (= {:definition/id :resource-policy/default
-                :definition/version 1}
+                :definition/version 2}
                (:collection/resource-policy-ref task-row)))))))
 
 (deftest demo-retry-path-command-prints-rejected-outcome
@@ -156,9 +155,12 @@
                                          scheduler/run-scheduler-step (fn [_]
                                                                         {:now "2026-04-02T00:00:00Z"
                                                                          :created-runs [{:run/id "run-1"}]
+                                                                         :requeued-task-ids ["task-2"]
+                                                                         :escalated-task-ids ["task-3"]
                                                                          :task-errors [{:task/id "task-1"
                                                                                         :error/message "bad adapter"}]
                                                                          :snapshot {:snapshot/runnable-count 3
+                                                                                    :snapshot/retryable-failed-count 2
                                                                                     :snapshot/awaiting-validation-count 1}})]
                              (cli/dispatch-command! ["scheduler" "once"])))
         happy-output (with-out-str
@@ -192,7 +194,10 @@
     (is (str/includes? defs-output "Definitions valid"))
     (is (str/includes? defs-output "Task types: 2"))
     (is (str/includes? scheduler-output "Created runs: 1"))
+    (is (str/includes? scheduler-output "Requeued tasks: 1"))
+    (is (str/includes? scheduler-output "Escalated tasks: 1"))
     (is (str/includes? scheduler-output "Dispatch errors: 1"))
+    (is (str/includes? scheduler-output "Retryable failures before step: 2"))
     (is (str/includes? scheduler-output "Task task-1 failed: bad adapter"))
     (is (str/includes? happy-output "Assessment accepted"))
     (is (str/includes? happy-output "Task task-1 -> :task.state/completed"))

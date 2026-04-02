@@ -16,3 +16,5 @@
 (def task-artifact-ready :task.event/artifact-ready)
 (def task-assessment-accepted :task.event/assessment-accepted)
 (def task-assessment-rejected :task.event/assessment-rejected)
+(def task-requeued :task.event/requeued)
+(def task-retry-exhausted :task.event/retry-exhausted)

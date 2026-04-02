@@ -5,6 +5,7 @@
 (defprotocol ProjectionReader
   (load-scheduler-snapshot [reader now])
   (list-runnable-task-ids [reader now limit])
+  (list-retryable-failed-task-ids [reader now limit])
   (list-awaiting-validation-run-ids [reader now limit])
   (list-expired-lease-run-ids [reader now limit])
   (list-active-run-ids [reader now limit])
@@ -33,6 +34,15 @@
         (sql/query-rows connection
                         (str "SELECT run_id FROM awaiting_validation_runs_v1 "
                              "ORDER BY updated_at ASC, run_id ASC LIMIT ?")
+                        [limit])))
+
+(defn- retryable-failed-task-ids-query
+  [connection limit]
+  (mapv :task_id
+        (sql/query-rows connection
+                        (str "SELECT task_id FROM tasks "
+                             "WHERE state = ':task.state/retryable-failed' "
+                             "ORDER BY updated_at ASC, task_id ASC LIMIT ?")
                         [limit])))
 
 (defn- expired-lease-run-ids-query
@@ -74,6 +84,12 @@
                "SELECT COUNT(*) AS item_count FROM awaiting_validation_runs_v1"
                []))
 
+(defn- retryable-failed-task-count-query
+  [connection]
+  (query-count connection
+               "SELECT COUNT(*) AS item_count FROM tasks WHERE state = ':task.state/retryable-failed'"
+               []))
+
 (defn- expired-lease-run-count-query
   [connection now]
   (query-count connection
@@ -99,9 +115,11 @@
       (fn [connection]
         (let [collections (collection-states connection)
               runnable-task-ids (runnable-task-ids-query connection snapshot-list-limit)
+              retryable-failed-task-ids (retryable-failed-task-ids-query connection snapshot-list-limit)
               awaiting-validation-run-ids (awaiting-validation-run-ids-query connection snapshot-list-limit)
               expired-lease-run-ids (expired-lease-run-ids-query connection now snapshot-list-limit)
               runnable-count (runnable-task-count-query connection)
+              retryable-failed-count (retryable-failed-task-count-query connection)
               awaiting-validation-count (awaiting-validation-run-count-query connection)
               expired-lease-count (expired-lease-run-count-query connection now)]
           {:snapshot/now now
@@ -109,15 +127,21 @@
            :snapshot/dispatch-paused? (boolean (some #(true? (get-in % [:collection/dispatch :dispatch/paused?]))
                                                      collections))
            :snapshot/runnable-task-ids runnable-task-ids
+           :snapshot/retryable-failed-task-ids retryable-failed-task-ids
            :snapshot/awaiting-validation-run-ids awaiting-validation-run-ids
            :snapshot/expired-lease-run-ids expired-lease-run-ids
            :snapshot/runnable-count runnable-count
+           :snapshot/retryable-failed-count retryable-failed-count
            :snapshot/awaiting-validation-count awaiting-validation-count
            :snapshot/expired-lease-count expired-lease-count}))))
   (list-runnable-task-ids [_ _ limit]
     (sql/with-connection db-path
       (fn [connection]
         (runnable-task-ids-query connection limit))))
+  (list-retryable-failed-task-ids [_ _ limit]
+    (sql/with-connection db-path
+      (fn [connection]
+        (retryable-failed-task-ids-query connection limit))))
   (list-awaiting-validation-run-ids [_ _ limit]
     (sql/with-connection db-path
       (fn [connection]

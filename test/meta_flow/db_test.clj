@@ -100,9 +100,9 @@
                        "runtime_profile_id, runtime_profile_version, artifact_contract_id, artifact_contract_version, "
                        "validator_id, validator_version, resource_policy_id, resource_policy_version, state, task_edn, created_at, updated_at) "
                        "VALUES "
-                       "('task-1', 'wk-1', ':task-type/default', 1, ':task-fsm/default', 1, "
+                       "('task-1', 'wk-1', ':task-type/default', 1, ':task-fsm/default', 2, "
                        "':runtime-profile/mock-worker', 1, ':artifact-contract/default', 1, "
-                       "':validator/required-paths', 1, ':resource-policy/default', 1, ':task.state/queued', '{}', "
+                       "':validator/required-paths', 1, ':resource-policy/default', 2, ':task.state/queued', '{}', "
                        "'2026-04-01T00:00:00Z', '2026-04-01T00:00:00Z')"))
     (testing "queued task view matches keyword-text state values"
       (is (= "task-1"
@@ -135,9 +135,9 @@
                        "runtime_profile_id, runtime_profile_version, artifact_contract_id, artifact_contract_version, "
                        "validator_id, validator_version, resource_policy_id, resource_policy_version, state, task_edn, created_at, updated_at) "
                        "VALUES "
-                       "('task-1', 'wk-backfill', ':task-type/default', 1, ':task-fsm/default', 1, "
+                       "('task-1', 'wk-backfill', ':task-type/default', 1, ':task-fsm/default', 2, "
                        "':runtime-profile/mock-worker', 1, ':artifact-contract/default', 1, "
-                       "':validator/required-paths', 1, ':resource-policy/default', 1, ':task.state/awaiting-validation', '{}', "
+                       "':validator/required-paths', 1, ':resource-policy/default', 2, ':task.state/awaiting-validation', '{}', "
                        "'2026-04-01T00:00:00Z', '2026-04-01T00:00:00Z')"))
     (execute-sql! db-path
                   (str "INSERT INTO runs "
