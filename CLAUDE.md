@@ -10,7 +10,7 @@ All tasks run through `bb`. The full list is in `bb.edn`.
 bb check          # fmt:check → lint → test — run before every commit (also runs automatically as pre-commit hook)
 bb test           # run test suite once via kaocha; supports --focus my.ns
 bb test:watch     # rerun tests on file change
-bb lint           # clj-kondo static analysis
+bb lint           # clj-kondo static analysis plus src governance (file length >240 warn, >300 fail; directory width >7 warn, >12 fail)
 bb fmt            # reformat source files in place
 bb fmt:check      # check formatting without modifying files
 bb repl           # start nREPL on port 7888

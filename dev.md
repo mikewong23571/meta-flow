@@ -19,7 +19,7 @@ All development commands go through `bb`. Run `bb tasks` to see the full list.
 | `bb repl` | Start nREPL server on port 7888 (JVM stays warm) |
 | `bb test` | Run full test suite once (kaocha); supports `--focus my.ns` |
 | `bb test:watch` | Rerun tests automatically on file change |
-| `bb lint` | Static analysis via clj-kondo |
+| `bb lint` | Static analysis via clj-kondo, plus `src/` governance: file length over 240 warns and over 300 fails; directory width over 7 direct source files warns and over 12 fails |
 | `bb fmt` | Reformat all source files in place (cljfmt fix) |
 | `bb fmt:check` | Check formatting without modifying files |
 | `bb check` | fmt:check → lint → test in sequence (CI entry point) |

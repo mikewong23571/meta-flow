@@ -28,9 +28,11 @@
    :task (shell "clojure -M:kaocha --watch")}
 
   lint
-  {:doc "Static analysis via clj-kondo"
+  {:doc "Static analysis via clj-kondo plus src file-length and directory-width governance"
    :requires ([babashka.tasks :refer [shell]])
-   :task (shell "clojure -M:lint")}
+   :task (do
+           (shell "clojure -M:lint")
+           (shell "clojure -M -m meta-flow.lint.file-length"))}
 
   fmt
   {:doc "Reformat source files in place (cljfmt fix)"

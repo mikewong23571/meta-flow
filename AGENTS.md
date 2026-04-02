@@ -11,7 +11,7 @@ Use the local Babashka task runner; it wraps the repo’s Clojure aliases and av
 - `bb repl` starts nREPL on port `7888`.
 - `bb test` runs the Kaocha suite once.
 - `bb test:watch` reruns tests on file changes.
-- `bb lint` runs `clj-kondo` on `src` and `test`.
+- `bb lint` runs `clj-kondo` on `src` and `test`, then applies source governance on `src/`: file length over 240 lines warns and over 300 lines fails; directory width over 7 direct source files warns and over 12 fails. The warning and error text explicitly frame these as responsibility and layering signals, and ask for splitting by responsibility rather than continuing to grow the same namespace or directory layer.
 - `bb fmt` rewrites formatting with `cljfmt`.
 - `bb fmt:check` verifies formatting without edits.
 - `bb check` runs `fmt:check`, `lint`, then `test`; treat it as the pre-PR gate.
