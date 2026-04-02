@@ -1,7 +1,7 @@
 (ns meta-flow.runtime.mock.execution
   (:require [clojure.java.io :as io]
             [cheshire.core :as cheshire]
-            [meta-flow.events :as events]
+            [meta-flow.control.events :as events]
             [meta-flow.runtime.mock.events :as mock.events]
             [meta-flow.runtime.mock.fs :as mock.fs]
             [meta-flow.store.protocol :as store.protocol]))

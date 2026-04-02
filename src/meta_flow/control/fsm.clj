@@ -1,4 +1,4 @@
-(ns meta-flow.fsm)
+(ns meta-flow.control.fsm)
 
 (defn- transition-list
   [fsm]

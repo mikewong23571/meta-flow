@@ -1,6 +1,6 @@
 (ns meta-flow.runtime.mock.events
-  (:require [meta-flow.event-ingest :as event-ingest]
-            [meta-flow.events :as events]))
+  (:require [meta-flow.control.event-ingest :as event-ingest]
+            [meta-flow.control.events :as events]))
 
 (defn mock-event-intent
   [run event-type idempotency-token payload now]

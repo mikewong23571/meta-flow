@@ -1,4 +1,4 @@
-(ns meta-flow.projection
+(ns meta-flow.control.projection
   (:require [meta-flow.db :as db]
             [meta-flow.sql :as sql]))
 

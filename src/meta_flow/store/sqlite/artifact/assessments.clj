@@ -1,4 +1,4 @@
-(ns meta-flow.store.sqlite.assessments
+(ns meta-flow.store.sqlite.artifact.assessments
   (:require [meta-flow.sql :as sql]
             [meta-flow.store.sqlite.shared :as shared]))
 

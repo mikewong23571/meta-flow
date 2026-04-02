@@ -1,8 +1,8 @@
-(ns meta-flow.store.sqlite.run-lifecycle
+(ns meta-flow.store.sqlite.run.lifecycle
   (:require [meta-flow.db :as db]
             [meta-flow.sql :as sql]
-            [meta-flow.store.sqlite.leases :as leases]
-            [meta-flow.store.sqlite.run-rows :as run-rows]
+            [meta-flow.store.sqlite.lease.core :as leases]
+            [meta-flow.store.sqlite.run.rows :as run-rows]
             [meta-flow.store.sqlite.shared :as shared]
             [meta-flow.store.sqlite.tasks :as tasks]))
 

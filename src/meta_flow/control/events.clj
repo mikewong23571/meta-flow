@@ -1,4 +1,4 @@
-(ns meta-flow.events)
+(ns meta-flow.control.events)
 
 (def run-lease-granted :run.event/lease-granted)
 (def run-dispatched :run.event/dispatched)

@@ -10,7 +10,7 @@ All tasks run through `bb`. The full list is in `bb.edn`.
 bb check          # fmt:check → lint → test — run before every commit (also runs automatically as pre-commit hook)
 bb test           # run test suite once via kaocha; supports --focus my.ns
 bb test:watch     # rerun tests on file change
-bb lint           # clj-kondo static analysis plus src governance (file length >240 warn, >300 fail; directory width >7 warn, >12 fail)
+bb lint           # clj-kondo static analysis plus src/test governance (file length >240 warn, >300 fail; directory width >7 warn, >12 fail)
 bb fmt            # reformat source files in place
 bb fmt:check      # check formatting without modifying files
 bb repl           # start nREPL on port 7888
@@ -36,13 +36,13 @@ Static, versioned configuration loaded from EDN files at startup. Definitions de
 **State store** (`src/meta_flow/store/`)
 Single source of truth for all runtime state. `StateStore` protocol in `store/protocol.clj`; SQLite implementation in `store/sqlite.clj`. Covers tasks, runs, leases, events, artifacts, assessments, and dispositions. All state transitions go through explicit compare-and-set operations. `enqueue-task!` is idempotent by work key.
 
-**Event ingestion** (`src/meta_flow/event_ingest.clj`)
+**Event ingestion** (`src/meta_flow/control/event_ingest.clj`)
 The only permitted write path for run events. Callers supply an intent map without `:event/seq`; the store assigns monotonic sequence numbers inside a transaction. Idempotency keys collapse duplicate events.
 
-**Projection layer** (`src/meta_flow/projection.clj`)
+**Projection layer** (`src/meta_flow/control/projection.clj`)
 Read-only query layer on top of SQLite. `ProjectionReader` protocol exposes `load-scheduler-snapshot`, plus list queries for runnable tasks, awaiting-validation runs, and expired leases. All backed by SQL views (`runnable_tasks_v1`, `awaiting_validation_runs_v1`). Never write through this layer.
 
-**FSM** (`src/meta_flow/fsm.clj`)
+**FSM** (`src/meta_flow/control/fsm.clj`)
 Pure functions over FSM definition maps. `ensure-transition!` validates and returns the target state or throws. Called by the scheduler to guard every state advance. Tasks and runs each have independent FSMs defined in `resources/meta_flow/defs/task-fsms.edn` and `run-fsms.edn`.
 
 **Scheduler** (`src/meta_flow/scheduler.clj`)
@@ -60,7 +60,7 @@ Called by the scheduler after a run reaches `awaiting-validation`. Loads the art
 ### Key invariants
 
 - `StateStore` and `DefinitionRepository` are separate. Definitions never flow through the store.
-- All run events must go through `event-ingest/ingest-run-event!`, never directly to `StateStore`.
+- All run events must go through `control.event-ingest/ingest-run-event!`, never directly to `StateStore`.
 - `ProjectionReader` is read-only. Scheduler inputs come only from projections.
 - Task lifecycle and run lifecycle are independent. `create-run!` does not advance task state; callers must call `transition-task!` explicitly.
 - SQLite keyword-text state values always include the leading `:`. Indexes and views depend on this.

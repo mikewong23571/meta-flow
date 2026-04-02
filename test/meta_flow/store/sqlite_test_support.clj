@@ -1,6 +1,6 @@
-(ns meta-flow.sqlite-store-test-support
+(ns meta-flow.store.sqlite-test-support
   (:require [meta-flow.db :as db]
-            [meta-flow.projection :as projection]
+            [meta-flow.control.projection :as projection]
             [meta-flow.store.sqlite :as store.sqlite]))
 
 (defn temp-db-path

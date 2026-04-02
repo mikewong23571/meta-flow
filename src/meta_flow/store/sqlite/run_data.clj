@@ -1,8 +1,8 @@
 (ns meta-flow.store.sqlite.run-data
-  (:require [meta-flow.store.sqlite.artifacts :as artifacts]
-            [meta-flow.store.sqlite.assessments :as assessments]
-            [meta-flow.store.sqlite.dispositions :as dispositions]
-            [meta-flow.store.sqlite.run-events :as run-events]))
+  (:require [meta-flow.store.sqlite.artifact.assessments :as assessments]
+            [meta-flow.store.sqlite.artifact.core :as artifacts]
+            [meta-flow.store.sqlite.artifact.dispositions :as dispositions]
+            [meta-flow.store.sqlite.run.events :as run-events]))
 
 (defn find-run-event-row
   [connection run-id idempotency-key]

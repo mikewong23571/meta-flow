@@ -1,6 +1,6 @@
 (ns meta-flow.scheduler.step
-  (:require [meta-flow.defs.loader :as defs.loader]
-            [meta-flow.projection :as projection]
+  (:require [meta-flow.control.projection :as projection]
+            [meta-flow.defs.loader :as defs.loader]
             [meta-flow.scheduler.runtime :as runtime]
             [meta-flow.scheduler.shared :as shared]
             [meta-flow.scheduler.state :as state]

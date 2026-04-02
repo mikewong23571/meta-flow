@@ -1,4 +1,4 @@
-(ns meta-flow.store.sqlite.run-rows
+(ns meta-flow.store.sqlite.run.rows
   (:require [meta-flow.db :as db]
             [meta-flow.sql :as sql]
             [meta-flow.store.sqlite.shared :as shared]))

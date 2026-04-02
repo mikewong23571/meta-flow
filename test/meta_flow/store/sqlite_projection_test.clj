@@ -1,8 +1,8 @@
-(ns meta-flow.sqlite-store-projection-test
+(ns meta-flow.store.sqlite-projection-test
   (:require [clojure.edn :as edn]
             [clojure.test :refer [deftest is]]
-            [meta-flow.projection :as projection]
-            [meta-flow.sqlite-store-test-support :as support]
+            [meta-flow.control.projection :as projection]
+            [meta-flow.store.sqlite-test-support :as support]
             [meta-flow.store.protocol :as store.protocol]))
 
 (deftest load-scheduler-snapshot-is-transactionally-consistent

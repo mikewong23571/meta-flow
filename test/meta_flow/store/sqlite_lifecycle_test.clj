@@ -1,4 +1,11 @@
-(ns meta-flow.sqlite-store-lifecycle-test (:require [clojure.test :refer [deftest is testing]] [meta-flow.event-ingest :as event-ingest] [meta-flow.events :as events] [meta-flow.sqlite-store-test-support :as support] [meta-flow.store.protocol :as store.protocol] [meta-flow.store.sqlite.tasks :as store.sqlite.tasks] [meta-flow.projection :as projection]))
+(ns meta-flow.store.sqlite-lifecycle-test
+  (:require [clojure.test :refer [deftest is testing]]
+            [meta-flow.control.event-ingest :as event-ingest]
+            [meta-flow.control.events :as events]
+            [meta-flow.control.projection :as projection]
+            [meta-flow.store.protocol :as store.protocol]
+            [meta-flow.store.sqlite.tasks :as store.sqlite.tasks]
+            [meta-flow.store.sqlite-test-support :as support]))
 
 (deftest enqueue-task-is-idempotent-by-work-key
   (let [{:keys [db-path store reader]} (support/test-system)
@@ -15,7 +22,7 @@
       (is (= 1
              (support/query-single-value db-path "SELECT COUNT(*) FROM tasks")))
       (is (= ["task-1"]
-             (meta-flow.projection/list-runnable-task-ids reader now 10))))))
+             (projection/list-runnable-task-ids reader now 10))))))
 
 (deftest create-run-enforces-phase1-run-and-lease-uniqueness
   (let [{:keys [db-path store]} (support/test-system)

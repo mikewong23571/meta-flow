@@ -1,8 +1,8 @@
 (ns meta-flow.scheduler.dev
   (:require [clojure.java.io :as io]
+            [meta-flow.control.events :as events]
             [meta-flow.defs.loader :as defs.loader]
             [meta-flow.defs.protocol :as defs.protocol]
-            [meta-flow.events :as events]
             [meta-flow.scheduler.shared :as shared]
             [meta-flow.scheduler.validation :as validation]
             [meta-flow.store.protocol :as store.protocol]

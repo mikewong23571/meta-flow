@@ -1,7 +1,7 @@
-(ns meta-flow.store.sqlite.run-events
+(ns meta-flow.store.sqlite.run.events
   (:require [clojure.string :as str]
             [meta-flow.sql :as sql]
-            [meta-flow.store.sqlite.run-rows :as run-rows]
+            [meta-flow.store.sqlite.run.rows :as run-rows]
             [meta-flow.store.sqlite.shared :as shared]))
 
 (def ^:private max-event-ingest-attempts 5)

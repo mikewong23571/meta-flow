@@ -1,4 +1,4 @@
-(ns meta-flow.store.sqlite.leases
+(ns meta-flow.store.sqlite.lease.core
   (:require [meta-flow.sql :as sql]
             [meta-flow.store.sqlite.shared :as shared]))
 

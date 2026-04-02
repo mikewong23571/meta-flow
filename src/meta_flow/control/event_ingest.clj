@@ -1,4 +1,4 @@
-(ns meta-flow.event-ingest
+(ns meta-flow.control.event-ingest
   (:require [meta-flow.store.protocol :as store.protocol]
             [meta-flow.store.sqlite.shared :as store.sqlite.shared]))
 

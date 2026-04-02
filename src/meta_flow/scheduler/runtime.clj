@@ -1,8 +1,8 @@
 (ns meta-flow.scheduler.runtime
-  (:require [meta-flow.defs.protocol :as defs.protocol]
-            [meta-flow.events :as events]
-            [meta-flow.event-ingest :as event-ingest]
-            [meta-flow.fsm :as fsm]
+  (:require [meta-flow.control.event-ingest :as event-ingest]
+            [meta-flow.control.events :as events]
+            [meta-flow.control.fsm :as fsm]
+            [meta-flow.defs.protocol :as defs.protocol]
             [meta-flow.runtime.protocol :as runtime.protocol]
             [meta-flow.runtime.registry :as runtime.registry]
             [meta-flow.scheduler.shared :as shared]

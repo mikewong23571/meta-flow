@@ -21,6 +21,9 @@
        "responsibility, subdomain, or implementation layer instead of continuing "
        "to add source files at the same level."))
 
+(def governance-roots
+  ["src" "test"])
+
 (defn clojure-source-file?
   [file]
   (and (.isFile file)
@@ -138,8 +141,8 @@
 
 (defn run-check!
   []
-  (let [issues (->> (concat (collect-file-stats ["src"])
-                            (collect-directory-stats ["src"]))
+  (let [issues (->> (concat (collect-file-stats governance-roots)
+                            (collect-directory-stats governance-roots))
                     (filter :level)
                     vec)]
     (when (seq issues)

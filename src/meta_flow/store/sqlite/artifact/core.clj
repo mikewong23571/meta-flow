@@ -1,6 +1,6 @@
-(ns meta-flow.store.sqlite.artifacts
+(ns meta-flow.store.sqlite.artifact.core
   (:require [meta-flow.sql :as sql]
-            [meta-flow.store.sqlite.run-rows :as run-rows]
+            [meta-flow.store.sqlite.run.rows :as run-rows]
             [meta-flow.store.sqlite.shared :as shared]))
 
 (defn attach-artifact!

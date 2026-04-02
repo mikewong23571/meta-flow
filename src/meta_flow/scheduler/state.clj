@@ -1,7 +1,7 @@
 (ns meta-flow.scheduler.state
-  (:require [meta-flow.defs.protocol :as defs.protocol]
-            [meta-flow.event-ingest :as event-ingest]
-            [meta-flow.fsm :as fsm]
+  (:require [meta-flow.control.event-ingest :as event-ingest]
+            [meta-flow.control.fsm :as fsm]
+            [meta-flow.defs.protocol :as defs.protocol]
             [meta-flow.store.protocol :as store.protocol]))
 
 (def terminal-run-states

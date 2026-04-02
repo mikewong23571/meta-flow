@@ -1,6 +1,6 @@
 (ns meta-flow.store.sqlite.runs
-  (:require [meta-flow.store.sqlite.run-lifecycle :as lifecycle]
-            [meta-flow.store.sqlite.run-rows :as run-rows]))
+  (:require [meta-flow.store.sqlite.run.lifecycle :as lifecycle]
+            [meta-flow.store.sqlite.run.rows :as run-rows]))
 
 (defn find-run-row
   [connection run-id]

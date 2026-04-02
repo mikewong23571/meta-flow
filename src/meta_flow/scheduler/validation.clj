@@ -1,6 +1,6 @@
 (ns meta-flow.scheduler.validation
-  (:require [meta-flow.defs.protocol :as defs.protocol]
-            [meta-flow.events :as events]
+  (:require [meta-flow.control.events :as events]
+            [meta-flow.defs.protocol :as defs.protocol]
             [meta-flow.scheduler.shared :as shared]
             [meta-flow.scheduler.state :as state]
             [meta-flow.service.validation :as service.validation]
