@@ -141,7 +141,7 @@
 (defn- find-task-row
   [connection task-id]
   (sql/query-one connection
-                 "SELECT task_id, state, task_edn FROM tasks WHERE task_id = ?"
+                 "SELECT task_id, state, task_edn, updated_at FROM tasks WHERE task_id = ?"
                  [task-id]))
 
 (defn- find-collection-state-row
@@ -153,7 +153,7 @@
 (defn- find-task-by-work-key-row
   [connection work-key]
   (sql/query-one connection
-                 "SELECT task_id, state, task_edn FROM tasks WHERE work_key = ?"
+                 "SELECT task_id, state, task_edn, updated_at FROM tasks WHERE work_key = ?"
                  [work-key]))
 
 (defn- find-run-row
@@ -163,11 +163,37 @@
                       "created_at, updated_at FROM runs WHERE run_id = ?")
                  [run-id]))
 
+(defn- find-latest-run-row-for-task
+  [connection task-id]
+  (sql/query-one connection
+                 (str "SELECT run_id, task_id, attempt, state, lease_id, artifact_id, run_edn, "
+                      "created_at, updated_at FROM runs WHERE task_id = ? ORDER BY attempt DESC LIMIT 1")
+                 [task-id]))
+
 (defn- find-run-event-row
   [connection run-id idempotency-key]
   (sql/query-one connection
                  "SELECT run_id, event_seq, event_payload_edn FROM run_events WHERE run_id = ? AND event_idempotency_key = ?"
                  [run-id idempotency-key]))
+
+(defn- run-event-count
+  [connection run-id]
+  (long (or (:item_count (sql/query-one connection
+                                        "SELECT COUNT(*) AS item_count FROM run_events WHERE run_id = ?"
+                                        [run-id]))
+            0)))
+
+(defn- find-assessment-row
+  [connection run-id assessment-key]
+  (sql/query-one connection
+                 "SELECT assessment_edn FROM assessments WHERE run_id = ? AND assessment_key = ?"
+                 [run-id assessment-key]))
+
+(defn- find-disposition-row
+  [connection run-id disposition-key]
+  (sql/query-one connection
+                 "SELECT disposition_edn FROM dispositions WHERE run_id = ? AND disposition_key = ?"
+                 [run-id disposition-key]))
 
 (defn- next-event-seq
   [connection run-id]
@@ -175,6 +201,13 @@
                            "SELECT COALESCE(MAX(event_seq), 0) AS max_seq FROM run_events WHERE run_id = ?"
                            [run-id])]
     (inc (long (or (:max_seq row) 0)))))
+
+(defn- next-run-attempt
+  [connection task-id]
+  (let [row (sql/query-one connection
+                           "SELECT COALESCE(MAX(attempt), 0) AS max_attempt FROM runs WHERE task_id = ?"
+                           [task-id])]
+    (inc (long (or (:max_attempt row) 0)))))
 
 (def ^:private max-run-row-update-attempts 5)
 
@@ -190,6 +223,12 @@
     true (assoc :run/artifact-id (:artifact_id row))
     (:created_at row) (assoc :run/created-at (:created_at row))
     (:updated_at row) (assoc :run/updated-at (:updated_at row))))
+
+(defn- collection-state-row->entity
+  [row]
+  (cond-> (parse-edn-column row :state_edn)
+    (:created_at row) (assoc :collection/created-at (:created_at row))
+    (:updated_at row) (assoc :collection/updated-at (:updated_at row))))
 
 (defn- replace-run-row!
   [connection row run]
@@ -340,12 +379,14 @@
               updated-task (build-transitioned-entity existing :task :task/state to-state now transition)]
           (when (= 1 (sql/execute-update! connection
                                           (str "UPDATE tasks SET state = ?, task_edn = ?, updated_at = ? "
-                                               "WHERE task_id = ? AND state = ?")
+                                               "WHERE task_id = ? AND state = ? AND updated_at = ? AND task_edn = ?")
                                           [(:task/state updated-task)
                                            (sql/edn->text updated-task)
                                            (:task/updated-at updated-task)
                                            task-id
-                                           stored-state]))
+                                           stored-state
+                                           (:updated_at row)
+                                           (:task_edn row)]))
             updated-task))))))
 
 (defn- update-run-transition!
@@ -369,27 +410,35 @@
                  (and message (str/includes? message "busy"))
                  (and message (str/includes? message "run_events.run_id, run_events.event_seq"))))))
 
+(defn ingest-run-event-via-connection!
+  [connection event-intent]
+  (when (contains? event-intent :event/seq)
+    (throw (ex-info "Event producers must not supply :event/seq"
+                    {:event-intent event-intent})))
+  (validate-event-intent! event-intent)
+  (if-let [existing-row (find-run-event-row connection
+                                            (:event/run-id event-intent)
+                                            (:event/idempotency-key event-intent))]
+    (parse-edn-column existing-row :event_payload_edn)
+    (let [event (normalize-event event-intent (next-event-seq connection (:event/run-id event-intent)))]
+      (sql/execute-update! connection
+                           (str "INSERT INTO run_events "
+                                "(run_id, event_seq, event_type, event_idempotency_key, event_payload_edn, created_at) "
+                                "VALUES (?, ?, ?, ?, ?, ?)")
+                           [(:event/run-id event)
+                            (:event/seq event)
+                            (:event/type event)
+                            (:event/idempotency-key event)
+                            (sql/edn->text event)
+                            (:event/emitted-at event)])
+      (update-run-summary-from-event! connection event)
+      event)))
+
 (defn- ingest-run-event-once!
   [db-path event-intent]
   (sql/with-transaction db-path
     (fn [connection]
-      (if-let [existing-row (find-run-event-row connection
-                                                (:event/run-id event-intent)
-                                                (:event/idempotency-key event-intent))]
-        (parse-edn-column existing-row :event_payload_edn)
-        (let [event (normalize-event event-intent (next-event-seq connection (:event/run-id event-intent)))]
-          (sql/execute-update! connection
-                               (str "INSERT INTO run_events "
-                                    "(run_id, event_seq, event_type, event_idempotency_key, event_payload_edn, created_at) "
-                                    "VALUES (?, ?, ?, ?, ?, ?)")
-                               [(:event/run-id event)
-                                (:event/seq event)
-                                (:event/type event)
-                                (:event/idempotency-key event)
-                                (sql/edn->text event)
-                                (:event/emitted-at event)])
-          (update-run-summary-from-event! connection event)
-          event)))))
+      (ingest-run-event-via-connection! connection event-intent))))
 
 (defn- ingest-run-event-with-retry!
   [db-path event-intent]
@@ -413,6 +462,41 @@
             (recur (inc attempt))
             :else
             (throw throwable)))))))
+
+(defn transition-task-via-connection!
+  [connection task-id transition now]
+  (update-task-transition! connection
+                           task-id
+                           (:transition/from transition)
+                           (:transition/to transition)
+                           now
+                           transition))
+
+(defn transition-run-via-connection!
+  [connection run-id transition now]
+  (update-run-transition! connection
+                          run-id
+                          (:transition/from transition)
+                          (:transition/to transition)
+                          now
+                          transition))
+
+(defn- release-lease-via-connection!
+  [connection lease-id now]
+  (when-let [row (sql/query-one connection
+                                "SELECT lease_edn FROM leases WHERE lease_id = ?"
+                                [lease-id])]
+    (let [released-lease (-> (sql/text->edn (:lease_edn row))
+                             (assoc :lease/state :lease.state/released
+                                    :lease/updated-at now)
+                             sql/canonicalize-edn)]
+      (sql/execute-update! connection
+                           "UPDATE leases SET state = ?, lease_edn = ?, updated_at = ? WHERE lease_id = ?"
+                           [(:lease/state released-lease)
+                            (sql/edn->text released-lease)
+                            (:lease/updated-at released-lease)
+                            lease-id])
+      released-lease)))
 
 (defrecord SQLiteStateStore [db-path]
   store.protocol/StateStore
@@ -440,6 +524,11 @@
                                 (:collection/created-at collection-state)
                                 (:collection/updated-at collection-state)])
           collection-state))))
+  (find-collection-state [_ collection-id]
+    (sql/with-connection db-path
+      (fn [connection]
+        (some-> (find-collection-state-row connection collection-id)
+                collection-state-row->entity))))
   (enqueue-task! [_ task]
     (sql/with-transaction db-path
       (fn [connection]
@@ -478,16 +567,91 @@
           (insert-lease! connection lease)
           {:run run
            :lease lease}))))
+  (claim-task-for-run! [_ task run lease task-transition run-transition now]
+    (let [task-id (require-key! task :task/id)
+          run-id (require-key! run :run/id)
+          lease-id (require-key! lease :lease/id)
+          _ (require-matching-value! lease :lease/run-id run-id)]
+      (sql/with-transaction db-path
+        (fn [connection]
+          (when-let [task-row (find-task-row connection task-id)]
+            (when (= (:state task-row) (db/keyword-text (:transition/from task-transition)))
+              (let [attempt (next-run-attempt connection task-id)
+                    lease (normalize-lease (assoc lease :lease/run-id run-id))
+                    run (normalize-run (assoc run
+                                              :run/task-id task-id
+                                              :run/attempt attempt
+                                              :run/lease-id lease-id)
+                                       lease-id)
+                    _ (insert-run! connection run)
+                    _ (insert-lease! connection lease)
+                    claimed-run (or (update-run-transition! connection
+                                                            run-id
+                                                            (:transition/from run-transition)
+                                                            (:transition/to run-transition)
+                                                            now
+                                                            run-transition)
+                                    (throw (ex-info "Failed to transition claimed run"
+                                                    {:task-id task-id
+                                                     :run-id run-id})))
+                    claimed-task (or (update-task-transition! connection
+                                                              task-id
+                                                              (:transition/from task-transition)
+                                                              (:transition/to task-transition)
+                                                              now
+                                                              task-transition)
+                                     (throw (ex-info "Failed to transition claimed task"
+                                                     {:task-id task-id
+                                                      :run-id run-id})))]
+                {:task claimed-task
+                 :run claimed-run
+                 :lease lease})))))))
+  (recover-run-startup-failure! [_ task run now]
+    (sql/with-transaction db-path
+      (fn [connection]
+        (let [run-row (find-run-row connection (:run/id run))
+              task-row (find-task-row connection (:task/id task))
+              event-count (run-event-count connection (:run/id run))
+              current-run (some-> run-row run-row->entity)
+              current-task (some-> task-row (parse-edn-column :task_edn))]
+          (if (and current-run
+                   current-task
+                   (zero? event-count)
+                   (= :run.state/leased (:run/state current-run))
+                   (= :task.state/leased (:task/state current-task))
+                   (= (:run/lease-id current-run) (:run/lease-id run)))
+            (let [recovered-run (or (transition-run-via-connection! connection
+                                                                    (:run/id run)
+                                                                    {:transition/from :run.state/leased
+                                                                     :transition/to :run.state/finalized}
+                                                                    now)
+                                    current-run)
+                  _ (release-lease-via-connection! connection (:run/lease-id run) now)
+                  recovered-task (or (transition-task-via-connection! connection
+                                                                      (:task/id task)
+                                                                      {:transition/from :task.state/leased
+                                                                       :transition/to :task.state/queued}
+                                                                      now)
+                                     current-task)]
+              {:recovery/status :recovered
+               :run recovered-run
+               :task recovered-task
+               :event-count event-count})
+            {:recovery/status :skipped
+             :run current-run
+             :task current-task
+             :event-count event-count})))))
   (find-run [_ run-id]
     (sql/with-connection db-path
       (fn [connection]
         (some-> (find-run-row connection run-id)
                 run-row->entity))))
+  (find-latest-run-for-task [_ task-id]
+    (sql/with-connection db-path
+      (fn [connection]
+        (some-> (find-latest-run-row-for-task connection task-id)
+                run-row->entity))))
   (ingest-run-event! [_ event-intent]
-    (when (contains? event-intent :event/seq)
-      (throw (ex-info "Event producers must not supply :event/seq"
-                      {:event-intent event-intent})))
-    (validate-event-intent! event-intent)
     (ingest-run-event-with-retry! db-path event-intent))
   (list-run-events [_ run-id]
     (sql/with-connection db-path
@@ -496,6 +660,14 @@
               (sql/query-rows connection
                               "SELECT event_payload_edn FROM run_events WHERE run_id = ? ORDER BY event_seq ASC"
                               [run-id])))))
+  (list-run-events-after [_ run-id event-seq]
+    (sql/with-connection db-path
+      (fn [connection]
+        (mapv #(parse-edn-column % :event_payload_edn)
+              (sql/query-rows connection
+                              (str "SELECT event_payload_edn FROM run_events "
+                                   "WHERE run_id = ? AND event_seq > ? ORDER BY event_seq ASC")
+                              [run-id event-seq])))))
   (attach-artifact! [_ run-id artifact]
     (let [_ (require-matching-value! artifact :artifact/run-id run-id)
           artifact (normalize-artifact (assoc artifact :artifact/run-id run-id))
@@ -518,54 +690,71 @@
                                   (:artifact/created-at artifact)])
             (update-run-artifact! connection run-id (:artifact/id artifact))
             (assoc artifact :artifact/root-path root-path))))))
+  (find-artifact [_ artifact-id]
+    (sql/with-connection db-path
+      (fn [connection]
+        (some-> (sql/query-one connection
+                               "SELECT artifact_edn FROM artifacts WHERE artifact_id = ?"
+                               [artifact-id])
+                (parse-edn-column :artifact_edn)))))
   (record-assessment! [_ assessment]
-    (let [assessment (normalize-assessment assessment)]
+    (let [assessment (normalize-assessment assessment)
+          run-id (require-key! assessment :assessment/run-id)
+          assessment-key (require-key! assessment :assessment/key)]
       (sql/with-transaction db-path
         (fn [connection]
           (sql/execute-update! connection
-                               (str "INSERT INTO assessments "
-                                    "(assessment_id, run_id, validator_id, validator_version, status, assessment_edn, created_at) "
-                                    "VALUES (?, ?, ?, ?, ?, ?, ?)")
+                               (str "INSERT OR IGNORE INTO assessments "
+                                    "(assessment_id, run_id, assessment_key, validator_id, validator_version, status, assessment_edn, created_at) "
+                                    "VALUES (?, ?, ?, ?, ?, ?, ?, ?)")
                                [(require-key! assessment :assessment/id)
-                                (require-key! assessment :assessment/run-id)
+                                run-id
+                                assessment-key
                                 (ref-id assessment :assessment/validator-ref)
                                 (ref-version assessment :assessment/validator-ref)
                                 (require-key! assessment :assessment/outcome)
                                 (sql/edn->text assessment)
                                 (:assessment/checked-at assessment)])
-          assessment))))
+          (or (some-> (find-assessment-row connection run-id assessment-key)
+                      (parse-edn-column :assessment_edn))
+              assessment)))))
+  (find-assessment-by-key [_ run-id assessment-key]
+    (sql/with-connection db-path
+      (fn [connection]
+        (some-> (find-assessment-row connection run-id assessment-key)
+                (parse-edn-column :assessment_edn)))))
   (record-disposition! [_ disposition]
-    (let [disposition (normalize-disposition disposition)]
+    (let [disposition (normalize-disposition disposition)
+          run-id (require-key! disposition :disposition/run-id)
+          disposition-key (require-key! disposition :disposition/key)]
       (sql/with-transaction db-path
         (fn [connection]
           (sql/execute-update! connection
-                               (str "INSERT INTO dispositions "
-                                    "(disposition_id, run_id, disposition_type, disposition_edn, created_at) "
-                                    "VALUES (?, ?, ?, ?, ?)")
+                               (str "INSERT OR IGNORE INTO dispositions "
+                                    "(disposition_id, run_id, disposition_key, disposition_type, disposition_edn, created_at) "
+                                    "VALUES (?, ?, ?, ?, ?, ?)")
                                [(require-key! disposition :disposition/id)
-                                (require-key! disposition :disposition/run-id)
+                                run-id
+                                disposition-key
                                 (require-key! disposition :disposition/action)
                                 (sql/edn->text disposition)
                                 (:disposition/decided-at disposition)])
-          disposition))))
+          (or (some-> (find-disposition-row connection run-id disposition-key)
+                      (parse-edn-column :disposition_edn))
+              disposition)))))
+  (find-disposition-by-key [_ run-id disposition-key]
+    (sql/with-connection db-path
+      (fn [connection]
+        (some-> (find-disposition-row connection run-id disposition-key)
+                (parse-edn-column :disposition_edn)))))
   (transition-task! [_ task-id transition now]
     (sql/with-transaction db-path
       (fn [connection]
-        (update-task-transition! connection
-                                 task-id
-                                 (:transition/from transition)
-                                 (:transition/to transition)
-                                 now
-                                 transition))))
+        (transition-task-via-connection! connection task-id transition now))))
   (transition-run! [_ run-id transition now]
     (sql/with-transaction db-path
       (fn [connection]
-        (update-run-transition! connection
-                                run-id
-                                (:transition/from transition)
-                                (:transition/to transition)
-                                now
-                                transition)))))
+        (transition-run-via-connection! connection run-id transition now)))))
 
 (defn sqlite-state-store
   ([] (sqlite-state-store db/default-db-path))

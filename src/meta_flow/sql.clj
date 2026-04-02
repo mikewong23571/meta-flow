@@ -22,7 +22,9 @@
 
 (defn text->edn
   [value]
-  (some-> value edn/read-string))
+  (some-> value (#(edn/read-string {:readers {}
+                                    :default tagged-literal}
+                                   %))))
 
 (defn sql-param
   [value]

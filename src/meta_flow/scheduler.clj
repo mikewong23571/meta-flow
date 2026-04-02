@@ -1,6 +1,8 @@
 (ns meta-flow.scheduler
-  (:require [meta-flow.defs.loader :as defs.loader]
+  (:require [clojure.java.io :as io]
+            [meta-flow.defs.loader :as defs.loader]
             [meta-flow.defs.protocol :as defs.protocol]
+            [meta-flow.events :as events]
             [meta-flow.event-ingest :as event-ingest]
             [meta-flow.fsm :as fsm]
             [meta-flow.projection :as projection]
@@ -11,7 +13,21 @@
             [meta-flow.store.protocol :as store.protocol]
             [meta-flow.store.sqlite :as store.sqlite]))
 
-(def ^:private max-demo-scheduler-steps 5)
+(def ^:private max-demo-scheduler-steps 20)
+
+(def ^:private terminal-run-states
+  #{:run.state/finalized
+    :run.state/retryable-failed})
+
+(def ^:private current-assessment-key
+  "validation/current")
+
+(def ^:private current-disposition-key
+  "decision/current")
+
+(def ^:private demo-runtime-profile-ref
+  {:definition/id :runtime-profile/mock-worker
+   :definition/version 1})
 
 (defn- new-id
   []
@@ -27,89 +43,16 @@
       (.plusSeconds 1800)
       str))
 
-(defn- scalar-query
-  [db-path sql-text params]
-  (sql/with-connection db-path
-    (fn [connection]
-      (when-let [row (sql/query-one connection sql-text params)]
-        (first (vals row))))))
-
-(defn- latest-collection-state
-  [db-path]
-  (sql/with-connection db-path
-    (fn [connection]
-      (when-let [row (sql/query-one connection
-                                    "SELECT state_edn FROM collection_state ORDER BY updated_at DESC LIMIT 1"
-                                    [])]
-        (sql/text->edn (:state_edn row))))))
-
-(defn- all-non-final-runs
-  [db-path]
-  (sql/with-connection db-path
-    (fn [connection]
-      (map :run_id
-           (sql/query-rows connection
-                           "SELECT run_id FROM runs WHERE state <> ':run.state/finalized'"
-                           [])))))
-
-(defn- find-artifact
-  [db-path artifact-id]
-  (sql/with-connection db-path
-    (fn [connection]
-      (when-let [row (sql/query-one connection
-                                    "SELECT artifact_edn FROM artifacts WHERE artifact_id = ?"
-                                    [artifact-id])]
-        (sql/text->edn (:artifact_edn row))))))
-
-(defn- latest-assessment
-  [db-path run-id]
-  (sql/with-connection db-path
-    (fn [connection]
-      (when-let [row (sql/query-one connection
-                                    "SELECT assessment_edn FROM assessments WHERE run_id = ? ORDER BY created_at DESC LIMIT 1"
-                                    [run-id])]
-        (sql/text->edn (:assessment_edn row))))))
-
-(defn- latest-disposition
-  [db-path run-id]
-  (sql/with-connection db-path
-    (fn [connection]
-      (when-let [row (sql/query-one connection
-                                    "SELECT disposition_edn FROM dispositions WHERE run_id = ? ORDER BY created_at DESC LIMIT 1"
-                                    [run-id])]
-        (sql/text->edn (:disposition_edn row))))))
-
 (defn- run-artifact-root
-  [db-path run]
+  [store run]
   (when-let [artifact-id (:run/artifact-id run)]
-    (when-let [artifact (find-artifact db-path artifact-id)]
+    (when-let [artifact (store.protocol/find-artifact store artifact-id)]
       (or (:artifact/root-path artifact)
           (:artifact/location artifact)))))
 
-(defn- active-run-count
-  [db-path]
-  (or (scalar-query db-path
-                    "SELECT COUNT(*) AS count FROM runs WHERE state <> ':run.state/finalized'"
-                    [])
-      0))
-
-(defn- run-count-for-task
-  [db-path task-id]
-  (or (scalar-query db-path
-                    "SELECT COUNT(*) AS count FROM runs WHERE task_id = ?"
-                    [task-id])
-      0))
-
-(defn- latest-run-id-for-task
-  [db-path task-id]
-  (scalar-query db-path
-                "SELECT run_id FROM runs WHERE task_id = ? ORDER BY attempt DESC LIMIT 1"
-                [task-id]))
-
 (defn- latest-run
   [store task-id]
-  (when-let [run-id (latest-run-id-for-task (:db-path store) task-id)]
-    (store.protocol/find-run store run-id)))
+  (store.protocol/find-latest-run-for-task store task-id))
 
 (defn- task-fsm
   [defs-repo task]
@@ -131,6 +74,10 @@
   [defs-repo run event-type]
   (fsm/apply-run-event (run-fsm defs-repo run) run event-type))
 
+(defn- terminal-run-state?
+  [run]
+  (contains? terminal-run-states (:run/state run)))
+
 (defn- apply-task-event!
   [store defs-repo task event now-value]
   (if-let [transition (task-transition-for-event defs-repo task (:event/type event))]
@@ -145,30 +92,91 @@
         run)
     run))
 
+(defn- event-seq
+  [event]
+  (long (or (:event/seq event) 0)))
+
+(defn- apply-run-event-stream!
+  [store defs-repo run now-value]
+  (let [watermark (long (or (:run/last-applied-event-seq run) 0))
+        events (store.protocol/list-run-events-after store (:run/id run) watermark)]
+    (if (seq events)
+      (let [applied-run (reduce (fn [current-run event]
+                                  (apply-run-event! store defs-repo current-run event now-value))
+                                run
+                                events)
+            max-seq (reduce max watermark (map event-seq events))]
+        (or (store.protocol/transition-run! store (:run/id applied-run)
+                                            {:transition/from (:run/state applied-run)
+                                             :transition/to (:run/state applied-run)
+                                             :changes {:run/last-applied-event-seq max-seq}}
+                                            now-value)
+            (assoc applied-run :run/last-applied-event-seq max-seq)))
+      run)))
+
+(defn- apply-task-event-stream!
+  [store defs-repo task run-id now-value]
+  (let [watermark (long (or (:task/last-applied-event-seq task) 0))
+        events (store.protocol/list-run-events-after store run-id watermark)]
+    (if (seq events)
+      (let [applied-task (reduce (fn [current-task event]
+                                   (apply-task-event! store defs-repo current-task event now-value))
+                                 task
+                                 events)
+            max-seq (reduce max watermark (map event-seq events))]
+        (or (store.protocol/transition-task! store (:task/id applied-task)
+                                             {:transition/from (:task/state applied-task)
+                                              :transition/to (:task/state applied-task)
+                                              :changes {:task/last-applied-event-seq max-seq}}
+                                             now-value)
+            (assoc applied-task :task/last-applied-event-seq max-seq)))
+      task)))
+
 (defn- apply-event-stream!
   [store defs-repo run task now-value]
-  (let [events (store.protocol/list-run-events store (:run/id run))]
-    (reduce (fn [{:keys [run task]} event]
-              {:run (apply-run-event! store defs-repo run event now-value)
-               :task (apply-task-event! store defs-repo task event now-value)})
-            {:run run
-             :task task}
-            events)))
+  {:run (apply-run-event-stream! store defs-repo run now-value)
+   :task (apply-task-event-stream! store defs-repo task (:run/id run) now-value)})
+
+(defn- scheduler-event-intent
+  [run event-type payload now-value]
+  {:event/run-id (:run/id run)
+   :event/type event-type
+   :event/payload payload
+   :event/caused-by {:actor/type :scheduler
+                     :actor/id "meta-flow-scheduler"}
+   :event/idempotency-key (str "scheduler:" (:run/id run) ":" event-type)
+   :event/emitted-at now-value})
 
 (defn- emit-event!
   [store run event-type payload now-value]
   (event-ingest/ingest-run-event! store
-                                  {:event/run-id (:run/id run)
-                                   :event/type event-type
-                                   :event/payload payload
-                                   :event/caused-by {:actor/type :scheduler
-                                                     :actor/id "meta-flow-scheduler"}
-                                   :event/idempotency-key (str "scheduler:" (:run/id run) ":" event-type)
-                                   :event/emitted-at now-value}))
+                                  (scheduler-event-intent run event-type payload now-value)))
+
+(defn- persist-dispatch-result!
+  [store run dispatch-result now-value]
+  (when (seq dispatch-result)
+    (or (store.protocol/transition-run! store (:run/id run)
+                                        {:transition/from (:run/state run)
+                                         :transition/to (:run/state run)
+                                         :changes {:run/execution-handle dispatch-result}}
+                                        now-value)
+        run)))
+
+(defn- ingest-poll-events!
+  [store adapter defs-repo run task now-value]
+  (let [ctx {:db-path (:db-path store)
+             :store store
+             :repository defs-repo
+             :now now-value}
+        poll-events (runtime.protocol/poll-run! adapter ctx run now-value)]
+    (doseq [event-intent poll-events]
+      (event-ingest/ingest-run-event! store event-intent))
+    {:run (or (store.protocol/find-run store (:run/id run)) run)
+     :task (or (store.protocol/find-task store (:task/id task)) task)}))
 
 (defn- ensure-collection-state!
   [store defs-repo now-value]
-  (or (latest-collection-state (:db-path store))
+  (or (store.protocol/find-collection-state store :collection/default)
       (let [default-policy (defs.protocol/find-resource-policy defs-repo
                                                                :resource-policy/default
                                                                1)
@@ -203,31 +211,38 @@
                             (:lease/updated-at released-lease)
                             lease-id]))))
 
-(defn- recover-run-startup-failure!
-  [db-path task run now-value]
-  (sql/with-transaction db-path
-    (fn [connection]
-      (let [recovered-run (-> run
-                              (assoc :run/state :run.state/finalized
-                                     :run/updated-at now-value)
-                              sql/canonicalize-edn)
-            recovered-task (-> task
-                               (assoc :task/state :task.state/queued
-                                      :task/updated-at now-value)
-                               sql/canonicalize-edn)]
-        (sql/execute-update! connection
-                             "UPDATE runs SET state = ?, run_edn = ?, updated_at = ? WHERE run_id = ?"
-                             [(:run/state recovered-run)
-                              (sql/edn->text recovered-run)
-                              (:run/updated-at recovered-run)
-                              (:run/id recovered-run)])
-        (release-lease! connection (:run/lease-id recovered-run) now-value)
-        (sql/execute-update! connection
-                             "UPDATE tasks SET state = ?, task_edn = ?, updated_at = ? WHERE task_id = ?"
-                             [(:task/state recovered-task)
-                              (sql/edn->text recovered-task)
-                              (:task/updated-at recovered-task)
-                              (:task/id recovered-task)])))))
+(defn- recover-expired-lease!
+  [db-path defs-repo run task now-value]
+  (when-let [lease-id (:run/lease-id run)]
+    (sql/with-transaction db-path
+      (fn [connection]
+        (let [run-event (scheduler-event-intent run
+                                                events/run-lease-expired
+                                                {:lease/id lease-id}
+                                                now-value)
+              task-event (scheduler-event-intent run
+                                                 events/task-lease-expired
+                                                 {:lease/id lease-id}
+                                                 now-value)
+              run-after (if-let [transition (run-transition-for-event defs-repo run (:event/type run-event))]
+                          (or (store.sqlite/transition-run-via-connection! connection
+                                                                           (:run/id run)
+                                                                           transition
+                                                                           now-value)
+                              run)
+                          run)
+              task-after (if-let [transition (task-transition-for-event defs-repo task (:event/type task-event))]
+                           (or (store.sqlite/transition-task-via-connection! connection
+                                                                             (:task/id task)
+                                                                             transition
+                                                                             now-value)
+                               task)
+                           task)]
+          (store.sqlite/ingest-run-event-via-connection! connection run-event)
+          (store.sqlite/ingest-run-event-via-connection! connection task-event)
+          (release-lease! connection lease-id now-value)
+          {:run run-after
+           :task task-after})))))
 
 (defn- create-run!
   [db-path store defs-repo task]
@@ -238,9 +253,7 @@
         adapter (runtime.registry/runtime-adapter (:runtime-profile/adapter-id runtime-profile))
         run-id (str "run-" (new-id))
         lease-id (str "lease-" (new-id))
-        attempt (inc (run-count-for-task db-path (:task/id task)))
         run {:run/id run-id
-             :run/attempt attempt
              :run/run-fsm-ref (:task/run-fsm-ref task)
              :run/runtime-profile-ref (:task/runtime-profile-ref task)
              :run/state :run.state/created
@@ -253,7 +266,6 @@
                :lease/expires-at (lease-expires-at now-value)
                :lease/created-at now-value
                :lease/updated-at now-value}
-        {:keys [run]} (store.protocol/create-run! store task run lease)
         run-lease-transition {:transition/from (:run/state run)
                               :transition/to (fsm/ensure-transition! (run-fsm defs-repo run)
                                                                      :run
@@ -266,61 +278,94 @@
                                                                       (:task/id task)
                                                                       (:task/state task)
                                                                       :task.event/lease-granted)}
-        leased-run (or (store.protocol/transition-run! store (:run/id run) run-lease-transition now-value)
-                       run)
-        leased-task (or (store.protocol/transition-task! store (:task/id task) task-lease-transition now-value)
-                        task)
+        claimed (store.protocol/claim-task-for-run! store
+                                                    task
+                                                    run
+                                                    lease
+                                                    task-lease-transition
+                                                    run-lease-transition
+                                                    now-value)
+        leased-run (:run claimed)
+        leased-task (:task claimed)
         ctx {:db-path db-path
              :store store
              :repository defs-repo
              :now now-value}]
-    (try
-      (runtime.protocol/prepare-run! adapter ctx leased-task leased-run)
-      (runtime.protocol/dispatch-run! adapter ctx leased-task leased-run)
-      (apply-event-stream! store defs-repo leased-run leased-task now-value)
-      (catch Throwable startup-ex
-        (try
-          (recover-run-startup-failure! db-path leased-task leased-run (now))
-          (catch Throwable recovery-ex
-            (.addSuppressed startup-ex recovery-ex)))
-        (throw startup-ex)))))
+    (when claimed
+      (try
+        (runtime.protocol/prepare-run! adapter ctx leased-task leased-run)
+        (let [dispatch-result (runtime.protocol/dispatch-run! adapter ctx leased-task leased-run)
+              run-with-handle (or (persist-dispatch-result! store leased-run dispatch-result now-value)
+                                  leased-run)
+              task-now (or (store.protocol/find-task store (:task/id leased-task))
+                           leased-task)]
+          (apply-event-stream! store defs-repo run-with-handle task-now now-value))
+        (catch Throwable startup-ex
+          (try
+            (let [recovery-result (store.protocol/recover-run-startup-failure! store leased-task leased-run (now))
+                  recovery-status (:recovery/status recovery-result)
+                  event-count (:event-count recovery-result)
+                  recovered-run (:run recovery-result)
+                  recovered-task (:task recovery-result)]
+              (when (and (= :skipped recovery-status)
+                         (pos? (long (or event-count 0)))
+                         recovered-run
+                         recovered-task)
+                ;; If dispatch emitted durable events before failing, advance the
+                ;; control-plane state immediately instead of leaving the claim
+                ;; parked in :leased until a later poll or lease timeout.
+                (apply-event-stream! store defs-repo recovered-run recovered-task (now))))
+            (catch Throwable recovery-ex
+              (.addSuppressed startup-ex recovery-ex)))
+          (throw startup-ex))))))
 
 (defn- assess-run!
-  [store defs-repo db-path run task]
+  [store defs-repo run task]
   (let [run-id (:run/id run)
-        existing-assessment (latest-assessment db-path run-id)
-        existing-disposition (latest-disposition db-path run-id)
+        existing-assessment (store.protocol/find-assessment-by-key store run-id current-assessment-key)
+        existing-disposition (store.protocol/find-disposition-by-key store run-id current-disposition-key)
         now-value (now)
         assessment (or existing-assessment
-                       (let [artifact-root (run-artifact-root db-path run)
+                       (let [artifact-root (run-artifact-root store run)
                              contract (defs.protocol/find-artifact-contract defs-repo
                                                                             (get-in task [:task/artifact-contract-ref :definition/id])
                                                                             (get-in task [:task/artifact-contract-ref :definition/version]))
                              outcome (service.validation/assess-required-paths artifact-root contract)
                              recorded {:assessment/id (new-id)
                                        :assessment/run-id run-id
+                                       :assessment/key current-assessment-key
                                        :assessment/validator-ref (:task/validator-ref task)
                                        :assessment/outcome (:assessment/outcome outcome)
                                        :assessment/missing-paths (:assessment/missing-paths outcome)
                                        :assessment/checks (:assessment/checks outcome)
                                        :assessment/notes (:assessment/notes outcome)
                                        :assessment/checked-at now-value}]
-                         (store.protocol/record-assessment! store recorded)
-                         recorded))
+                         (store.protocol/record-assessment! store recorded)))
         disposition (or existing-disposition
                         (let [recorded {:disposition/id (new-id)
                                         :disposition/run-id run-id
+                                        :disposition/key current-disposition-key
                                         :disposition/decided-at now-value
                                         :disposition/action (if (= :assessment/accepted (:assessment/outcome assessment))
                                                               :disposition/accepted
                                                               :disposition/rejected)
                                         :disposition/notes (:assessment/notes assessment)}]
-                          (store.protocol/record-disposition! store recorded)
-                          recorded))]
-    (when (= :assessment/accepted (:assessment/outcome assessment))
-      (emit-event! store run :run.event/assessment-accepted {:artifact/id (:run/artifact-id run)} now-value)
-      (emit-event! store run :task.event/assessment-accepted {:artifact/id (:run/artifact-id run)} now-value)
-      (apply-event-stream! store defs-repo run task now-value))
+                          (store.protocol/record-disposition! store recorded)))]
+    (if (= :assessment/accepted (:assessment/outcome assessment))
+      (do
+        (emit-event! store run events/run-assessment-accepted {:artifact/id (:run/artifact-id run)} now-value)
+        (emit-event! store run events/task-assessment-accepted {:artifact/id (:run/artifact-id run)} now-value)
+        (apply-event-stream! store defs-repo run task now-value))
+      (do
+        (emit-event! store run events/run-assessment-rejected
+                     {:artifact/id (:run/artifact-id run)
+                      :assessment/notes (:assessment/notes assessment)}
+                     now-value)
+        (emit-event! store run events/task-assessment-rejected
+                     {:artifact/id (:run/artifact-id run)
+                      :assessment/notes (:assessment/notes assessment)}
+                     now-value)
+        (apply-event-stream! store defs-repo run task now-value)))
     {:assessment assessment
      :disposition disposition}))
 
@@ -332,10 +377,20 @@
         now-value (now)
         collection-state (ensure-collection-state! store defs-repo now-value)
         snapshot (projection/load-scheduler-snapshot reader now-value)
-        _ (doseq [run-id (all-non-final-runs db-path)]
+        _ (doseq [run-id (projection/list-expired-lease-run-ids reader now-value 100)]
             (when-let [run (store.protocol/find-run store run-id)]
               (when-let [task (store.protocol/find-task store (:run/task-id run))]
-                (apply-event-stream! store defs-repo run task now-value))))
+                (recover-expired-lease! db-path defs-repo run task now-value))))
+        _ (doseq [run-id (projection/list-active-run-ids reader now-value 100)]
+            (when-let [run (store.protocol/find-run store run-id)]
+              (when-let [task (store.protocol/find-task store (:run/task-id run))]
+                (let [runtime-profile (defs.protocol/find-runtime-profile defs-repo
+                                                                          (get-in run [:run/runtime-profile-ref :definition/id])
+                                                                          (get-in run [:run/runtime-profile-ref :definition/version]))
+                      adapter (runtime.registry/runtime-adapter (:runtime-profile/adapter-id runtime-profile))
+                      {run-now :run task-now :task} (ingest-poll-events! store adapter defs-repo run task now-value)]
+                  (when-not (terminal-run-state? run-now)
+                    (apply-event-stream! store defs-repo run-now task-now now-value))))))
         _ (doseq [run-id (projection/list-awaiting-validation-run-ids reader now-value 100)]
             (when-let [run (store.protocol/find-run store run-id)]
               (when-let [task (store.protocol/find-task store (:run/task-id run))]
@@ -343,8 +398,8 @@
                   (when (and (= :run.state/awaiting-validation (:run/state run-now))
                              (= :task.state/awaiting-validation (:task/state task-now))
                              (:run/artifact-id run-now))
-                    (assess-run! store defs-repo db-path run-now task-now))))))
-        active-count (active-run-count db-path)
+                    (assess-run! store defs-repo run-now task-now))))))
+        active-count (projection/count-active-runs reader now-value)
         max-active (or (:resource-policy/max-active-runs
                         (collection-policy defs-repo collection-state))
                        1)
@@ -379,16 +434,16 @@
      :collection-state collection-state}))
 
 (defn- build-demo-task
-  [defs-repo]
+  [defs-repo {:keys [task-id work-key runtime-profile-ref]
+              :or {runtime-profile-ref demo-runtime-profile-ref}}]
   (let [task-type (defs.protocol/find-task-type-def defs-repo :task-type/cve-investigation 1)]
-    {:task/id (str "task-" (new-id))
-     :task/work-key (str "CVE-2024-12345-" (subs (new-id) 0 8))
+    {:task/id (or task-id (str "task-" (new-id)))
+     :task/work-key (or work-key (str "CVE-2024-12345-" (subs (new-id) 0 8)))
      :task/task-type-ref {:definition/id (:task-type/id task-type)
                           :definition/version (:task-type/version task-type)}
      :task/task-fsm-ref (:task-type/task-fsm-ref task-type)
      :task/run-fsm-ref (:task-type/run-fsm-ref task-type)
-     :task/runtime-profile-ref {:definition/id :runtime-profile/mock-worker
-                                :definition/version 1}
+     :task/runtime-profile-ref runtime-profile-ref
      :task/artifact-contract-ref (:task-type/artifact-contract-ref task-type)
      :task/validator-ref (:task-type/validator-ref task-type)
      :task/resource-policy-ref (:task-type/resource-policy-ref task-type)
@@ -401,12 +456,31 @@
   (and (= :task.state/completed (:task/state task))
        (= :run.state/finalized (:run/state run))))
 
+(defn- retry-path-complete?
+  [task run]
+  (and (= :task.state/retryable-failed (:task/state task))
+       (= :run.state/retryable-failed (:run/state run))))
+
+(defn enqueue-demo-task!
+  ([db-path]
+   (enqueue-demo-task! db-path {}))
+  ([db-path options]
+   (let [store (store.sqlite/sqlite-state-store db-path)
+         defs-repo (defs.loader/filesystem-definition-repository)
+         now-value (now)
+         _ (ensure-collection-state! store defs-repo now-value)
+         existing-task (when-let [work-key (:work-key options)]
+                         (store.protocol/find-task-by-work-key store work-key))
+         task (or existing-task
+                  (store.protocol/enqueue-task! store
+                                                (build-demo-task defs-repo options)))]
+     {:task task
+      :reused? (boolean existing-task)})))
+
 (defn demo-happy-path!
   [db-path]
   (let [store (store.sqlite/sqlite-state-store db-path)
-        defs-repo (defs.loader/filesystem-definition-repository)
-        _ (ensure-collection-state! store defs-repo (now))
-        task (store.protocol/enqueue-task! store (build-demo-task defs-repo))]
+        task (:task (enqueue-demo-task! db-path))]
     (loop [step 0]
       (let [task-now (store.protocol/find-task store (:task/id task))
             run-now (latest-run store (:task/id task))]
@@ -414,7 +488,7 @@
           (happy-path-complete? task-now run-now)
           {:task task-now
            :run run-now
-           :artifact-root (run-artifact-root db-path run-now)
+           :artifact-root (run-artifact-root store run-now)
            :scheduler-steps step}
 
           (>= step max-demo-scheduler-steps)
@@ -423,20 +497,55 @@
                            :run run-now
                            :scheduler-steps step}))
 
-          (and task-now
-               (= :task.state/queued (:task/state task-now))
-               (nil? run-now))
+          :else
           (do
-            (create-run! db-path store defs-repo task-now)
-            (recur (inc step)))
+            (run-scheduler-step db-path)
+            (recur (inc step))))))))
+
+(defn demo-retry-path!
+  [db-path]
+  (let [store (store.sqlite/sqlite-state-store db-path)
+        task (:task (enqueue-demo-task! db-path))]
+    (loop [step 0
+           tampered? false]
+      (let [task-now (store.protocol/find-task store (:task/id task))
+            run-now (latest-run store (:task/id task))
+            artifact-root (some->> run-now
+                                   (run-artifact-root store))]
+        (cond
+          (retry-path-complete? task-now run-now)
+          {:task task-now
+           :run run-now
+           :artifact-root artifact-root
+           :assessment (store.protocol/find-assessment-by-key store (:run/id run-now) current-assessment-key)
+           :disposition (store.protocol/find-disposition-by-key store (:run/id run-now) current-disposition-key)
+           :scheduler-steps step}
+
+          (>= step max-demo-scheduler-steps)
+          (throw (ex-info "Demo retry path did not converge within the expected scheduler steps"
+                          {:task task-now
+                           :run run-now
+                           :scheduler-steps step
+                           :artifact-root artifact-root
+                           :tampered? tampered?}))
 
           :else
-          (let [{run-next :run task-next :task} (apply-event-stream! store defs-repo run-now task-now (now))]
-            (when (and (= :run.state/awaiting-validation (:run/state run-next))
-                       (= :task.state/awaiting-validation (:task/state task-next))
-                       (:run/artifact-id run-next))
-              (assess-run! store defs-repo db-path run-next task-next))
-            (recur (inc step))))))))
+          (let [tampered-now? (if (and (not tampered?)
+                                       artifact-root
+                                       (= :run.state/exited (:run/state run-now)))
+                                (let [notes-file (io/file artifact-root "notes.md")]
+                                  (when-not (.exists notes-file)
+                                    (throw (ex-info "Demo retry path could not find notes.md to remove"
+                                                    {:artifact-root artifact-root
+                                                     :run run-now})))
+                                  (when-not (.delete notes-file)
+                                    (throw (ex-info "Demo retry path could not remove notes.md"
+                                                    {:artifact-root artifact-root
+                                                     :run run-now})))
+                                  true)
+                                tampered?)]
+            (run-scheduler-step db-path)
+            (recur (inc step) tampered-now?)))))))
 
 (defn inspect-task!
   [db-path task-id]
@@ -461,20 +570,21 @@
   [db-path run-id]
   (let [store (store.sqlite/sqlite-state-store db-path)]
     (if-let [run (store.protocol/find-run store run-id)]
-      (let [events (store.protocol/list-run-events store run-id)
-            heartbeat (->> events
-                           (filter #(= :event/worker-heartbeat (:event/type %)))
+      (let [event-list (store.protocol/list-run-events store run-id)
+            heartbeat (->> event-list
+                           (filter #(= events/run-worker-heartbeat (:event/type %)))
                            last
                            :event/emitted-at)]
         (assoc run
-               :run/artifact-root (run-artifact-root db-path run)
-               :run/event-count (count events)
+               :run/artifact-root (run-artifact-root store run)
+               :run/event-count (count event-list)
                :run/last-heartbeat heartbeat))
       (throw (ex-info (str "Run not found: " run-id) {:run-id run-id})))))
 
 (defn inspect-collection!
   [db-path]
-  (or (latest-collection-state db-path)
-      {:collection/dispatch {:dispatch/paused? false}
-       :collection/resource-policy-ref {:definition/id :resource-policy/default
-                                        :definition/version 1}}))
+  (let [store (store.sqlite/sqlite-state-store db-path)]
+    (or (store.protocol/find-collection-state store :collection/default)
+        {:collection/dispatch {:dispatch/paused? false}
+         :collection/resource-policy-ref {:definition/id :resource-policy/default
+                                          :definition/version 1}})))

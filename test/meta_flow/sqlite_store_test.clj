@@ -2,6 +2,7 @@
   (:require [clojure.edn :as edn]
             [clojure.test :refer [deftest is testing]]
             [meta-flow.db :as db]
+            [meta-flow.events :as events]
             [meta-flow.event-ingest :as event-ingest]
             [meta-flow.projection :as projection]
             [meta-flow.store.protocol :as store.protocol]
@@ -149,6 +150,189 @@
     (is (= 1
            (query-single-value db-path "SELECT COUNT(*) FROM leases")))))
 
+(deftest claim-task-for-run-is-atomic-and-computes-attempt
+  (let [{:keys [db-path store]} (test-system)
+        now "2026-04-01T00:00:00Z"
+        lease-now "2026-04-01T00:01:00Z"
+        task-entity (store.protocol/enqueue-task! store (task "task-claim" "work/claim" now))
+        claimed (store.protocol/claim-task-for-run! store
+                                                    task-entity
+                                                    (-> (run "run-claim" nil now)
+                                                        (assoc :run/state :run.state/created)
+                                                        (dissoc :run/attempt))
+                                                    (lease "lease-claim" "run-claim" "2026-04-01T00:10:00Z" now)
+                                                    {:transition/from :task.state/queued
+                                                     :transition/to :task.state/leased}
+                                                    {:transition/from :run.state/created
+                                                     :transition/to :run.state/leased}
+                                                    lease-now)]
+    (is (= :task.state/leased
+           (get-in claimed [:task :task/state])))
+    (is (= :run.state/leased
+           (get-in claimed [:run :run/state])))
+    (is (= 1
+           (get-in claimed [:run :run/attempt])))
+    (is (= "lease-claim"
+           (get-in claimed [:run :run/lease-id])))
+    (is (= 1
+           (query-single-value db-path "SELECT COUNT(*) FROM runs")))
+    (is (= 1
+           (query-single-value db-path "SELECT COUNT(*) FROM leases")))
+    (is (= ":task.state/leased"
+           (query-single-value db-path "SELECT state FROM tasks WHERE task_id = 'task-claim'")))
+    (is (= ":run.state/leased"
+           (query-single-value db-path "SELECT state FROM runs WHERE run_id = 'run-claim'")))))
+
+(deftest claim-task-for-run-skips-non-runnable-tasks-without-side-effects
+  (let [{:keys [db-path store]} (test-system)
+        now "2026-04-01T00:00:00Z"
+        task-entity (store.protocol/enqueue-task! store (task "task-claim-skipped" "work/claim-skipped" now))
+        _ (store.protocol/transition-task! store "task-claim-skipped"
+                                           {:transition/from :task.state/queued
+                                            :transition/to :task.state/leased}
+                                           "2026-04-01T00:01:00Z")]
+    (is (nil? (store.protocol/claim-task-for-run! store
+                                                  task-entity
+                                                  (-> (run "run-claim-skipped" nil now)
+                                                      (assoc :run/state :run.state/created)
+                                                      (dissoc :run/attempt))
+                                                  (lease "lease-claim-skipped" "run-claim-skipped" "2026-04-01T00:10:00Z" now)
+                                                  {:transition/from :task.state/queued
+                                                   :transition/to :task.state/leased}
+                                                  {:transition/from :run.state/created
+                                                   :transition/to :run.state/leased}
+                                                  "2026-04-01T00:01:00Z")))
+    (is (= 0
+           (query-single-value db-path "SELECT COUNT(*) FROM runs")))
+    (is (= 0
+           (query-single-value db-path "SELECT COUNT(*) FROM leases")))))
+
+(deftest recover-run-startup-failure-reverts-only-clean-claimed-runs
+  (let [{:keys [db-path store]} (test-system)
+        now "2026-04-01T00:00:00Z"
+        leased-at "2026-04-01T00:01:00Z"
+        task-entity (store.protocol/enqueue-task! store (task "task-recover" "work/recover" now))
+        claimed (store.protocol/claim-task-for-run! store
+                                                    task-entity
+                                                    {:run/id "run-recover"
+                                                     :run/run-fsm-ref {:definition/id :run-fsm/default
+                                                                       :definition/version 1}
+                                                     :run/runtime-profile-ref {:definition/id :runtime-profile/mock-worker
+                                                                               :definition/version 1}
+                                                     :run/state :run.state/created
+                                                     :run/created-at now
+                                                     :run/updated-at now}
+                                                    {:lease/id "lease-recover"
+                                                     :lease/run-id "run-recover"
+                                                     :lease/token "lease-recover-token"
+                                                     :lease/state :lease.state/active
+                                                     :lease/expires-at "2026-04-01T00:30:00Z"
+                                                     :lease/created-at now
+                                                     :lease/updated-at now}
+                                                    {:transition/from :task.state/queued
+                                                     :transition/to :task.state/leased}
+                                                    {:transition/from :run.state/created
+                                                     :transition/to :run.state/leased}
+                                                    leased-at)
+        claimed-task (:task claimed)
+        claimed-run (:run claimed)]
+    (testing "clean claimed runs are compensated back to queued/finalized"
+      (is (= :recovered
+             (:recovery/status (store.protocol/recover-run-startup-failure! store claimed-task claimed-run "2026-04-01T00:02:00Z"))))
+      (is (= :task.state/queued
+             (:task/state (store.protocol/find-task store "task-recover"))))
+      (is (= :run.state/finalized
+             (:run/state (store.protocol/find-run store "run-recover"))))
+      (is (= ":lease.state/released"
+             (query-single-value db-path "SELECT state FROM leases WHERE lease_id = 'lease-recover'"))))
+    (testing "runs with emitted events are no longer compensated"
+      (let [task-2 (store.protocol/enqueue-task! store (task "task-recover-skip" "work/recover-skip" now))
+            claimed-skip (store.protocol/claim-task-for-run! store
+                                                             task-2
+                                                             {:run/id "run-recover-skip"
+                                                              :run/run-fsm-ref {:definition/id :run-fsm/default
+                                                                                :definition/version 1}
+                                                              :run/runtime-profile-ref {:definition/id :runtime-profile/mock-worker
+                                                                                        :definition/version 1}
+                                                              :run/state :run.state/created
+                                                              :run/created-at now
+                                                              :run/updated-at now}
+                                                             {:lease/id "lease-recover-skip"
+                                                              :lease/run-id "run-recover-skip"
+                                                              :lease/token "lease-recover-skip-token"
+                                                              :lease/state :lease.state/active
+                                                              :lease/expires-at "2026-04-01T00:30:00Z"
+                                                              :lease/created-at now
+                                                              :lease/updated-at now}
+                                                             {:transition/from :task.state/queued
+                                                              :transition/to :task.state/leased}
+                                                             {:transition/from :run.state/created
+                                                              :transition/to :run.state/leased}
+                                                             leased-at)
+            claimed-task-skip (:task claimed-skip)
+            claimed-run-skip (:run claimed-skip)]
+        (event-ingest/ingest-run-event! store {:event/run-id "run-recover-skip"
+                                               :event/type events/run-dispatched
+                                               :event/idempotency-key "recover-skip-dispatched"
+                                               :event/payload {}
+                                               :event/caused-by {:actor/type :runtime.adapter/mock
+                                                                 :actor/id "mock-runtime"}
+                                               :event/emitted-at "2026-04-01T00:02:00Z"})
+        (is (= :skipped
+               (:recovery/status (store.protocol/recover-run-startup-failure! store claimed-task-skip claimed-run-skip "2026-04-01T00:03:00Z"))))
+        (is (= :task.state/leased
+               (:task/state (store.protocol/find-task store "task-recover-skip"))))
+        (is (= :run.state/leased
+               (:run/state (store.protocol/find-run store "run-recover-skip"))))
+        (is (= ":lease.state/active"
+               (query-single-value db-path "SELECT state FROM leases WHERE lease_id = 'lease-recover-skip'")))))))
+
+(deftest store-read-boundaries-return-protocol-entities
+  (let [{:keys [db-path store]} (test-system)
+        now "2026-04-01T00:00:00Z"
+        task-entity (store.protocol/enqueue-task! store (task "task-read" "work/read" now))
+        _ (store.protocol/upsert-collection-state! store (collection-state true now))
+        _ (store.protocol/create-run! store task-entity
+                                      (run "run-read-1" 1 now)
+                                      (lease "lease-read-1" "run-read-1" "2026-04-01T00:10:00Z" now))
+        _ (execute-sql! db-path
+                        "UPDATE runs SET state = ':run.state/finalized' WHERE run_id = 'run-read-1'")
+        _ (store.protocol/create-run! store task-entity
+                                      (run "run-read-2" 2 "2026-04-01T00:01:00Z")
+                                      (lease "lease-read-2" "run-read-2" "2026-04-01T00:11:00Z" "2026-04-01T00:01:00Z"))
+        artifact {:artifact/id "artifact-read"
+                  :artifact/run-id "run-read-2"
+                  :artifact/task-id "task-read"
+                  :artifact/contract-ref {:definition/id :artifact-contract/default
+                                          :definition/version 1}
+                  :artifact/location "/tmp/artifact-read"
+                  :artifact/created-at "2026-04-01T00:02:00Z"}
+        assessment {:assessment/id "assessment-read"
+                    :assessment/run-id "run-read-2"
+                    :assessment/key "validation/current"
+                    :assessment/validator-ref {:definition/id :validator/required-paths
+                                               :definition/version 1}
+                    :assessment/outcome :assessment/accepted
+                    :assessment/checked-at "2026-04-01T00:03:00Z"}
+        disposition {:disposition/id "disposition-read"
+                     :disposition/run-id "run-read-2"
+                     :disposition/key "decision/current"
+                     :disposition/action :disposition/accepted
+                     :disposition/decided-at "2026-04-01T00:04:00Z"}
+        stored-artifact (store.protocol/attach-artifact! store "run-read-2" artifact)
+        stored-assessment (store.protocol/record-assessment! store assessment)
+        stored-disposition (store.protocol/record-disposition! store disposition)]
+    (is (true? (get-in (store.protocol/find-collection-state store :collection/default)
+                       [:collection/dispatch :dispatch/paused?])))
+    (is (= stored-artifact
+           (store.protocol/find-artifact store "artifact-read")))
+    (is (= stored-assessment
+           (store.protocol/find-assessment-by-key store "run-read-2" "validation/current")))
+    (is (= stored-disposition
+           (store.protocol/find-disposition-by-key store "run-read-2" "decision/current")))
+    (is (= "run-read-2"
+           (:run/id (store.protocol/find-latest-run-for-task store "task-read"))))))
+
 (deftest attach-artifact-rejects-mismatched-run-id
   (let [{:keys [db-path store]} (test-system)
         now "2026-04-01T00:00:00Z"
@@ -199,20 +383,80 @@
            (query-single-value db-path "SELECT COUNT(*) FROM artifacts")))
     (is (nil? (query-single-value db-path "SELECT artifact_id FROM runs WHERE run_id = 'run-2'")))))
 
+(deftest record-assessment-is-idempotent-by-run-and-assessment-key
+  (let [{:keys [db-path store]} (test-system)
+        now "2026-04-01T00:00:00Z"
+        task-entity (store.protocol/enqueue-task! store (task "task-assessment" "work/assessment" now))
+        _ (store.protocol/create-run! store task-entity
+                                      (run "run-assessment" 1 now)
+                                      (lease "lease-assessment" "run-assessment" "2026-04-01T00:10:00Z" now))
+        first {:assessment/id "assessment-1"
+               :assessment/run-id "run-assessment"
+               :assessment/key "validation/current"
+               :assessment/validator-ref {:definition/id :validator/required-paths
+                                          :definition/version 1}
+               :assessment/outcome :assessment/accepted
+               :assessment/notes ["accepted"]
+               :assessment/checked-at now}
+        duplicate (assoc first
+                         :assessment/id "assessment-2"
+                         :assessment/outcome :assessment/rejected
+                         :assessment/notes ["should-not-overwrite"]
+                         :assessment/checked-at "2026-04-01T00:01:00Z")]
+    (is (= first
+           (store.protocol/record-assessment! store first)))
+    (is (= first
+           (store.protocol/record-assessment! store duplicate)))
+    (is (= 1
+           (query-single-value db-path "SELECT COUNT(*) FROM assessments")))
+    (is (= "validation/current"
+           (query-single-value db-path "SELECT assessment_key FROM assessments WHERE run_id = 'run-assessment'")))
+    (is (= ":assessment/accepted"
+           (query-single-value db-path "SELECT status FROM assessments WHERE run_id = 'run-assessment'")))))
+
+(deftest record-disposition-is-idempotent-by-run-and-disposition-key
+  (let [{:keys [db-path store]} (test-system)
+        now "2026-04-01T00:00:00Z"
+        task-entity (store.protocol/enqueue-task! store (task "task-disposition" "work/disposition" now))
+        _ (store.protocol/create-run! store task-entity
+                                      (run "run-disposition" 1 now)
+                                      (lease "lease-disposition" "run-disposition" "2026-04-01T00:10:00Z" now))
+        first {:disposition/id "disposition-1"
+               :disposition/run-id "run-disposition"
+               :disposition/key "decision/current"
+               :disposition/action :disposition/accepted
+               :disposition/notes ["accepted"]
+               :disposition/decided-at now}
+        duplicate (assoc first
+                         :disposition/id "disposition-2"
+                         :disposition/action :disposition/rejected
+                         :disposition/notes ["should-not-overwrite"]
+                         :disposition/decided-at "2026-04-01T00:01:00Z")]
+    (is (= first
+           (store.protocol/record-disposition! store first)))
+    (is (= first
+           (store.protocol/record-disposition! store duplicate)))
+    (is (= 1
+           (query-single-value db-path "SELECT COUNT(*) FROM dispositions")))
+    (is (= "decision/current"
+           (query-single-value db-path "SELECT disposition_key FROM dispositions WHERE run_id = 'run-disposition'")))
+    (is (= ":disposition/accepted"
+           (query-single-value db-path "SELECT disposition_type FROM dispositions WHERE run_id = 'run-disposition'")))))
+
 (deftest ingest-run-event-is-idempotent-and-assigns-monotonic-sequence
   (let [{:keys [db-path store]} (test-system)
         now "2026-04-01T00:00:00Z"
         task-1 (store.protocol/enqueue-task! store (task "task-1" "work/cve-3" now))
         _ (store.protocol/create-run! store task-1 (run "run-1" 1 now) (lease "lease-1" "run-1" "2026-04-01T00:10:00Z" now))
         heartbeat {:event/run-id "run-1"
-                   :event/type :event/worker-heartbeat
+                   :event/type events/run-worker-heartbeat
                    :event/idempotency-key "heartbeat-1"
                    :event/payload {:progress/stage :stage/research}
                    :event/caused-by {:actor/type :worker
                                      :actor/id "mock-worker"}
                    :event/emitted-at "2026-04-01T00:01:00Z"}
         exit-event {:event/run-id "run-1"
-                    :event/type :event/worker-exit
+                    :event/type events/run-worker-exited
                     :event/idempotency-key "exit-1"
                     :event/payload {:worker/exit-code 0}
                     :event/caused-by {:actor/type :worker
@@ -240,6 +484,8 @@
         (is (= 2 (:event/seq second-event)))
         (is (= [1 2]
                (mapv :event/seq stored-events)))
+        (is (= [2]
+               (mapv :event/seq (store.protocol/list-run-events-after store "run-1" 1))))
         (is (= 2
                (query-single-value db-path "SELECT COUNT(*) FROM run_events WHERE run_id = 'run-1'")))))))
 
@@ -249,14 +495,14 @@
         task-1 (store.protocol/enqueue-task! store (task "task-1" "work/cve-4" now))
         _ (store.protocol/create-run! store task-1 (run "run-1" 1 now) (lease "lease-1" "run-1" "2026-04-01T00:10:00Z" now))
         heartbeat {:event/run-id "run-1"
-                   :event/type :event/worker-heartbeat
+                   :event/type events/run-worker-heartbeat
                    :event/idempotency-key "heartbeat-1"
                    :event/payload {:progress/stage :stage/research}
                    :event/caused-by {:actor/type :worker
                                      :actor/id "mock-worker"}
                    :event/emitted-at "2026-04-01T00:01:00Z"}
         exit-event {:event/run-id "run-1"
-                    :event/type :event/worker-exit
+                    :event/type events/run-worker-exited
                     :event/idempotency-key "exit-1"
                     :event/payload {:worker/exit-code 0}
                     :event/caused-by {:actor/type :worker
@@ -303,7 +549,7 @@
       (is (= "artifact-existing"
              (:run/artifact-id (store.protocol/find-run store "run-1"))))
       (event-ingest/ingest-run-event! store {:event/run-id "run-1"
-                                             :event/type :event/worker-heartbeat
+                                             :event/type events/run-worker-heartbeat
                                              :event/idempotency-key "heartbeat-2"
                                              :event/payload {:progress/stage :stage/validate}
                                              :event/caused-by {:actor/type :worker
@@ -317,14 +563,14 @@
                (:run/artifact-id persisted-run)))))
     (testing "late events do not move run updated_at backward"
       (event-ingest/ingest-run-event! store {:event/run-id "run-1"
-                                             :event/type :event/worker-exit
+                                             :event/type events/run-worker-exited
                                              :event/idempotency-key "exit-late-check"
                                              :event/payload {:worker/exit-code 0}
                                              :event/caused-by {:actor/type :worker
                                                                :actor/id "mock-worker"}
                                              :event/emitted-at "2026-04-01T00:10:00Z"})
       (event-ingest/ingest-run-event! store {:event/run-id "run-1"
-                                             :event/type :event/worker-heartbeat
+                                             :event/type events/run-worker-heartbeat
                                              :event/idempotency-key "heartbeat-late-check"
                                              :event/payload {:progress/stage :stage/research}
                                              :event/caused-by {:actor/type :worker
@@ -344,7 +590,7 @@
                                         (run "run-instant" 1 created-at)
                                         (lease "lease-instant" "run-instant" expires-at created-at))
           stored-event (event-ingest/ingest-run-event! store {:event/run-id "run-instant"
-                                                              :event/type :event/worker-heartbeat
+                                                              :event/type events/run-worker-heartbeat
                                                               :event/idempotency-key "heartbeat-instant"
                                                               :event/payload {:progress/stage :stage/research}
                                                               :event/caused-by {:actor/type :worker
@@ -415,6 +661,8 @@
              (projection/list-runnable-task-ids reader future-now 10)))
       (is (= ["run-awaiting"]
              (projection/list-awaiting-validation-run-ids reader future-now 10)))
+      (is (= ["run-expired" "run-awaiting"]
+             (projection/list-active-run-ids reader future-now 10)))
       (is (= ["run-expired"]
              (projection/list-expired-lease-run-ids reader future-now 10))))
     (testing "snapshot aggregates the same scheduling inputs"
@@ -426,6 +674,7 @@
         (is (= 1 (:snapshot/runnable-count snapshot)))
         (is (= 1 (:snapshot/awaiting-validation-count snapshot)))
         (is (= 1 (:snapshot/expired-lease-count snapshot)))
+        (is (= 2 (projection/count-active-runs reader future-now)))
         (is (= "task-queued" (:task/id queued-task)))))))
 
 (deftest upsert-collection-state-preserves-created-at-in-canonical-edn
@@ -501,3 +750,26 @@
       (is (= 100 (count (:snapshot/runnable-task-ids snapshot))))
       (is (= 100 (count (:snapshot/awaiting-validation-run-ids snapshot))))
       (is (= 100 (count (:snapshot/expired-lease-run-ids snapshot)))))))
+
+(deftest transition-task-cas-rejects-stale-row-image
+  (let [{:keys [db-path store]} (test-system)
+        now "2026-04-01T00:00:00Z"
+        task-entity (store.protocol/enqueue-task! store (task "task-cas" "work/cas" now))
+        stale-row {:task_id "task-cas"
+                   :state ":task.state/queued"
+                   :task_edn (pr-str task-entity)
+                   :updated_at now}]
+    (execute-sql! db-path
+                  (str "UPDATE tasks "
+                       "SET task_edn = '{:task/id \"task-cas\" :task/state :task.state/queued :task/updated-at \"2026-04-01T00:00:01Z\"}', "
+                       "updated_at = '2026-04-01T00:00:01Z' "
+                       "WHERE task_id = 'task-cas'"))
+    (with-redefs [store.sqlite/find-task-row (fn [_ _] stale-row)]
+      (is (nil? (store.protocol/transition-task! store "task-cas"
+                                                 {:transition/from :task.state/queued
+                                                  :transition/to :task.state/leased}
+                                                 "2026-04-01T00:00:02Z"))))
+    (is (= :task.state/queued
+           (:task/state (store.protocol/find-task store "task-cas"))))
+    (is (= "2026-04-01T00:00:01Z"
+           (:task/updated-at (store.protocol/find-task store "task-cas"))))))

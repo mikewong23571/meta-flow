@@ -1,6 +1,7 @@
 (ns meta-flow.db
   (:require [clojure.java.io :as io]
-            [clojure.string :as str]))
+            [clojure.string :as str])
+  (:import (com.zaxxer.hikari HikariConfig HikariDataSource)))
 
 (def default-db-path "var/meta-flow.sqlite3")
 
@@ -21,6 +22,8 @@
        "applied_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)"))
 
 (declare apply-pragmas!)
+
+(defonce ^:private data-sources (atom {}))
 
 (defn ensure-runtime-directories!
   []
@@ -43,11 +46,53 @@
   (with-open [statement (.createStatement connection)]
     (.execute statement sql)))
 
+(defn- build-data-source
+  [db-path]
+  (Class/forName "org.sqlite.JDBC")
+  (let [config (doto (HikariConfig.)
+                 (.setPoolName (str "meta-flow-" (Math/abs (hash (str (.getCanonicalPath (io/file db-path)))))))
+                 (.setJdbcUrl (jdbc-url db-path))
+                 (.setDriverClassName "org.sqlite.JDBC")
+                 (.setMaximumPoolSize 4)
+                 (.setMinimumIdle 0)
+                 (.setAutoCommit true)
+                 (.setConnectionTimeout 5000)
+                 (.setValidationTimeout 5000)
+                 (.setIdleTimeout 60000)
+                 (.setMaxLifetime 0))]
+    (HikariDataSource. config)))
+
+(defn data-source
+  ([] (data-source default-db-path))
+  ([db-path]
+   (or (get @data-sources db-path)
+       (let [created (build-data-source db-path)
+             cached (get (swap! data-sources #(if (contains? % db-path)
+                                                %
+                                                (assoc % db-path created)))
+                         db-path)]
+         (when-not (identical? created cached)
+           (.close created))
+         cached))))
+
+(defn close-data-source!
+  ([] (close-data-source! default-db-path))
+  ([db-path]
+   (when-let [^HikariDataSource data-source (get (swap! data-sources dissoc db-path) db-path)]
+     (.close data-source)
+     true)))
+
+(defn close-all-data-sources!
+  []
+  (let [cached (vals (swap! data-sources (constantly {})))]
+    (doseq [^HikariDataSource data-source cached]
+      (.close data-source))
+    (count cached)))
+
 (defn open-connection
   ([] (open-connection default-db-path))
   ([db-path]
-   (Class/forName "org.sqlite.JDBC")
-   (let [connection (java.sql.DriverManager/getConnection (jdbc-url db-path))]
+   (let [connection (.getConnection ^HikariDataSource (data-source db-path))]
      (try
        (apply-pragmas! connection)
        connection

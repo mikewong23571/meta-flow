@@ -12,8 +12,10 @@
    ["Usage:"
     "  clojure -M -m meta-flow.main init"
     "  clojure -M -m meta-flow.main defs validate"
+    "  clojure -M -m meta-flow.main enqueue [--work-key <work-key>]"
     "  clojure -M -m meta-flow.main scheduler once"
     "  clojure -M -m meta-flow.main demo happy-path"
+    "  clojure -M -m meta-flow.main demo retry-path"
     "  clojure -M -m meta-flow.main inspect task --task-id <task-id>"
     "  clojure -M -m meta-flow.main inspect run --run-id <run-id>"
     "  clojure -M -m meta-flow.main inspect collection"]))
@@ -78,6 +80,20 @@
     (doseq [task-error task-errors]
       (println (str "Task " (:task/id task-error) " failed: " (:error/message task-error))))))
 
+(defn- run-enqueue!
+  [args]
+  (ensure-system-ready!)
+  (let [work-key (option-value args "--work-key")
+        {:keys [task reused?]} (scheduler/enqueue-demo-task! db/default-db-path
+                                                             (cond-> {}
+                                                               work-key (assoc :work-key work-key)))]
+    (println (str "Enqueued task " (:task/id task) " for " (:task/work-key task)))
+    (when reused?
+      (println "Task already existed for that work key; reused persisted control-plane state"))
+    (println (str "Task " (:task/id task) " -> " (:task/state task)))
+    (println (str "Runtime profile " (get-in task [:task/runtime-profile-ref :definition/id])
+                  " v" (get-in task [:task/runtime-profile-ref :definition/version])))))
+
 (defn- run-demo-happy-path!
   []
   (ensure-system-ready!)
@@ -86,6 +102,20 @@
     (println (str "Created run " (:run/id run) " attempt " (:run/attempt run)))
     (println (str "Mock worker produced artifact " artifact-root))
     (println "Assessment accepted")
+    (println (str "Task " (:task/id task) " -> " (:task/state task)))
+    (println (str "Run " (:run/id run) " -> " (:run/state run)))
+    (println (str "Scheduler steps: " scheduler-steps))))
+
+(defn- run-demo-retry-path!
+  []
+  (ensure-system-ready!)
+  (let [{:keys [task run artifact-root assessment disposition scheduler-steps]}
+        (scheduler/demo-retry-path! db/default-db-path)]
+    (println (str "Enqueued task " (:task/id task) " for " (:task/work-key task)))
+    (println (str "Created run " (:run/id run) " attempt " (:run/attempt run)))
+    (println (str "Mock worker produced artifact " artifact-root))
+    (println (str "Assessment rejected: " (:assessment/notes assessment)))
+    (println (str "Disposition " (:disposition/action disposition)))
     (println (str "Task " (:task/id task) " -> " (:task/state task)))
     (println (str "Run " (:run/id run) " -> " (:run/state run)))
     (println (str "Scheduler steps: " scheduler-steps))))
@@ -117,11 +147,18 @@
     (= args ["defs" "validate"])
     (run-defs-validate!)
 
+    (and (>= (count args) 1)
+         (= "enqueue" (first args)))
+    (run-enqueue! args)
+
     (= args ["scheduler" "once"])
     (run-scheduler-once!)
 
     (= args ["demo" "happy-path"])
     (run-demo-happy-path!)
+
+    (= args ["demo" "retry-path"])
+    (run-demo-retry-path!)
 
     (and (>= (count args) 2)
          (= ["inspect" "task"] (subvec args 0 2)))

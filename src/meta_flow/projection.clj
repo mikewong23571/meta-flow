@@ -6,7 +6,9 @@
   (load-scheduler-snapshot [reader now])
   (list-runnable-task-ids [reader now limit])
   (list-awaiting-validation-run-ids [reader now limit])
-  (list-expired-lease-run-ids [reader now limit]))
+  (list-expired-lease-run-ids [reader now limit])
+  (list-active-run-ids [reader now limit])
+  (count-active-runs [reader now]))
 
 (def ^:private snapshot-list-limit 100)
 
@@ -42,10 +44,19 @@
                              "JOIN runs r ON r.run_id = l.run_id "
                              "WHERE l.state = ':lease.state/active' "
                              "AND l.lease_expires_at <= ? "
-                             "AND r.state NOT IN (':run.state/awaiting-validation', ':run.state/finalized') "
+                             "AND r.state NOT IN (':run.state/awaiting-validation', ':run.state/finalized', ':run.state/retryable-failed') "
                              "ORDER BY l.lease_expires_at ASC, l.run_id ASC "
                              "LIMIT ?")
                         [now limit])))
+
+(defn- active-run-ids-query
+  [connection limit]
+  (mapv :run_id
+        (sql/query-rows connection
+                        (str "SELECT run_id FROM runs "
+                             "WHERE state NOT IN (':run.state/finalized', ':run.state/retryable-failed') "
+                             "ORDER BY updated_at ASC, run_id ASC LIMIT ?")
+                        [limit])))
 
 (defn- query-count
   [connection sql-text params]
@@ -71,8 +82,15 @@
                     "JOIN runs r ON r.run_id = l.run_id "
                     "WHERE l.state = ':lease.state/active' "
                     "AND l.lease_expires_at <= ? "
-                    "AND r.state NOT IN (':run.state/awaiting-validation', ':run.state/finalized')")
+                    "AND r.state NOT IN (':run.state/awaiting-validation', ':run.state/finalized', ':run.state/retryable-failed')")
                [now]))
+
+(defn- active-run-count-query
+  [connection]
+  (query-count connection
+               (str "SELECT COUNT(*) AS item_count FROM runs "
+                    "WHERE state NOT IN (':run.state/finalized', ':run.state/retryable-failed')")
+               []))
 
 (defrecord SQLiteProjectionReader [db-path]
   ProjectionReader
@@ -107,7 +125,15 @@
   (list-expired-lease-run-ids [_ now limit]
     (sql/with-connection db-path
       (fn [connection]
-        (expired-lease-run-ids-query connection now limit)))))
+        (expired-lease-run-ids-query connection now limit))))
+  (list-active-run-ids [_ _ limit]
+    (sql/with-connection db-path
+      (fn [connection]
+        (active-run-ids-query connection limit))))
+  (count-active-runs [_ _]
+    (sql/with-connection db-path
+      (fn [connection]
+        (active-run-count-query connection)))))
 
 (defn sqlite-projection-reader
   ([] (sqlite-projection-reader db/default-db-path))

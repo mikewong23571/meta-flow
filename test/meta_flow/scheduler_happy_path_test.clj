@@ -5,6 +5,7 @@
             [meta-flow.db :as db]
             [meta-flow.defs.loader :as defs.loader]
             [meta-flow.defs.protocol :as defs.protocol]
+            [meta-flow.events :as events]
             [meta-flow.runtime.mock :as runtime.mock]
             [meta-flow.runtime.protocol :as runtime.protocol]
             [meta-flow.runtime.registry :as runtime.registry]
@@ -78,6 +79,40 @@
                                    :task/created-at now
                                    :task/updated-at now})))
 
+(defn- create-expired-leased-run!
+  [db-path task]
+  (let [store (store.sqlite/sqlite-state-store db-path)
+        run-id (str "run-" (java.util.UUID/randomUUID))
+        lease-id (str "lease-" (java.util.UUID/randomUUID))
+        created-at "2026-04-01T00:00:00Z"
+        leased-at "2026-04-01T00:01:00Z"
+        run {:run/id run-id
+             :run/attempt 1
+             :run/run-fsm-ref (:task/run-fsm-ref task)
+             :run/runtime-profile-ref (:task/runtime-profile-ref task)
+             :run/state :run.state/leased
+             :run/created-at created-at
+             :run/updated-at created-at}
+        lease {:lease/id lease-id
+               :lease/run-id run-id
+               :lease/token (str lease-id "-token")
+               :lease/state :lease.state/active
+               :lease/expires-at "2026-04-01T00:05:00Z"
+               :lease/created-at created-at
+               :lease/updated-at created-at}]
+    (store.protocol/create-run! store task run lease)
+    (store.protocol/transition-task! store (:task/id task)
+                                     {:transition/from :task.state/queued
+                                      :transition/to :task.state/leased}
+                                     leased-at)
+    {:run-id run-id
+     :lease-id lease-id}))
+
+(defn- advance-scheduler!
+  [db-path steps]
+  (dotimes [_ steps]
+    (scheduler/run-scheduler-step db-path)))
+
 (deftest demo-happy-path-completes-and-persists-structured-control-data
   (let [{:keys [db-path artifacts-dir runs-dir]} (temp-system)]
     (binding [runtime.mock/*artifact-root-dir* artifacts-dir
@@ -89,10 +124,11 @@
             run-view (scheduler/inspect-run! db-path run-id)
             collection-view (scheduler/inspect-collection! db-path)]
         (testing "the demo converges to the Phase 1 happy path terminal states"
-          (is (= 2 scheduler-steps))
+          (is (= 5 scheduler-steps))
           (is (= :task.state/completed (:task/state task)))
           (is (= :run.state/finalized (:run/state run)))
-          (is (= 8 (:run/event-count run-view))))
+          (is (= 9 (:run/event-count run-view)))
+          (is (string? (:run/last-heartbeat run-view))))
         (testing "artifact files are written under the run-scoped artifact root"
           (is (= artifact-root (:run/artifact-root run-view)))
           (is (.exists (io/file artifact-root)))
@@ -115,6 +151,11 @@
           (is (= {:definition/id :resource-policy/default
                   :definition/version 1}
                  (:collection/resource-policy-ref collection-view))))
+        (testing "dispatch persists a durable execution handle on the run"
+          (is (= "polling"
+                 (get-in run-view [:run/execution-handle :runtime-run/dispatch])))
+          (is (str/starts-with? (get-in run-view [:run/execution-handle :runtime-run/workdir])
+                                (str runs-dir "/"))))
         (testing "the demo bootstraps persisted collection state"
           (is (= {:item_count 1}
                  (select-keys (query-one db-path
@@ -162,7 +203,54 @@
             (is (empty? (:created-runs step-result)))
             (is (= :task.state/completed (:task/state task-after)))
             (is (= :run.state/finalized (:run/state run-after)))
-            (is (= 8 (:run/event-count run-after)))))))))
+            (is (= 9 (:run/event-count run-after)))
+            (is (= (:run/last-heartbeat run-view)
+                   (:run/last-heartbeat run-after)))))))))
+
+(deftest demo-retry-path-rejects-the-artifact-and-records-the-current-decision
+  (let [{:keys [db-path artifacts-dir runs-dir]} (temp-system)]
+    (binding [runtime.mock/*artifact-root-dir* artifacts-dir
+              runtime.mock/*run-root-dir* runs-dir]
+      (let [{:keys [task run artifact-root assessment disposition scheduler-steps]}
+            (scheduler/demo-retry-path! db-path)
+            run-view (scheduler/inspect-run! db-path (:run/id run))]
+        (is (= 5 scheduler-steps))
+        (is (= :task.state/retryable-failed (:task/state task)))
+        (is (= :run.state/retryable-failed (:run/state run)))
+        (is (= :assessment/rejected (:assessment/outcome assessment)))
+        (is (= :disposition/rejected (:disposition/action disposition)))
+        (is (str/includes? (:assessment/notes assessment) "notes.md"))
+        (is (= artifact-root
+               (:run/artifact-root run-view)))
+        (is (= 1
+               (:item_count (query-one db-path
+                                       (str "SELECT COUNT(*) AS item_count "
+                                            "FROM assessments WHERE run_id = ? AND assessment_key = ?")
+                                       [(:run/id run) "validation/current"]))))
+        (is (= 1
+               (:item_count (query-one db-path
+                                       (str "SELECT COUNT(*) AS item_count "
+                                            "FROM dispositions WHERE run_id = ? AND disposition_key = ?")
+                                       [(:run/id run) "decision/current"]))))))))
+
+(deftest demo-commands-converge-even-when-earlier-queued-mock-work-exists
+  (let [{:keys [db-path artifacts-dir runs-dir]} (temp-system)]
+    (binding [runtime.mock/*artifact-root-dir* artifacts-dir
+              runtime.mock/*run-root-dir* runs-dir]
+      (enqueue-demo-task! db-path)
+      (let [{happy-task :task
+             happy-run :run
+             happy-steps :scheduler-steps} (scheduler/demo-happy-path! db-path)
+            _ (enqueue-demo-task! db-path)
+            {retry-task :task
+             retry-run :run
+             retry-steps :scheduler-steps} (scheduler/demo-retry-path! db-path)]
+        (is (> happy-steps 5))
+        (is (> retry-steps 5))
+        (is (= :task.state/completed (:task/state happy-task)))
+        (is (= :run.state/finalized (:run/state happy-run)))
+        (is (= :task.state/retryable-failed (:task/state retry-task)))
+        (is (= :run.state/retryable-failed (:run/state retry-run)))))))
 
 (deftest rejected-validation-is-recorded-once-per-run
   (let [{:keys [db-path artifacts-dir runs-dir]} (temp-system)]
@@ -170,7 +258,7 @@
               runtime.mock/*run-root-dir* runs-dir]
       (let [task (enqueue-demo-task! db-path)
             task-id (:task/id task)
-            _ (scheduler/run-scheduler-step db-path)
+            _ (advance-scheduler! db-path 4)
             run-id (:run_id (query-one db-path
                                        "SELECT run_id FROM runs WHERE task_id = ? ORDER BY attempt DESC LIMIT 1"
                                        [task-id]))
@@ -184,9 +272,10 @@
                 run-after (scheduler/inspect-run! db-path run-id)]
             (is (empty? (:created-runs first-step)))
             (is (empty? (:created-runs second-step)))
-            (is (= :task.state/awaiting-validation (:task/state task-after)))
-            (is (= :run.state/awaiting-validation (:run/state run-after)))
-            (is (= 6 (:run/event-count run-after)))
+            (is (= :task.state/retryable-failed (:task/state task-after)))
+            (is (= :run.state/retryable-failed (:run/state run-after)))
+            (is (= 9 (:run/event-count run-after)))
+            (is (string? (:run/last-heartbeat run-after)))
             (is (= {:status ":assessment/rejected"
                     :item_count 1}
                    (select-keys (query-one db-path
@@ -199,7 +288,159 @@
                                            (str "SELECT disposition_type, COUNT(*) AS item_count "
                                                 "FROM dispositions WHERE run_id = ? GROUP BY disposition_type")
                                            [run-id])
-                                [:disposition_type :item_count])))))))))
+                                [:disposition_type :item_count])))
+            (is (= [events/run-dispatched
+                    events/task-worker-started
+                    events/run-worker-started
+                    events/run-worker-heartbeat
+                    events/run-worker-exited
+                    events/run-artifact-ready
+                    events/task-artifact-ready
+                    events/run-assessment-rejected
+                    events/task-assessment-rejected]
+                   (mapv :event/type
+                         (store.protocol/list-run-events (store.sqlite/sqlite-state-store db-path) run-id))))))))))
+
+(deftest awaiting-validation-retries-reuse-the-same-assessment-and-disposition-records
+  (let [{:keys [db-path artifacts-dir runs-dir]} (temp-system)]
+    (binding [runtime.mock/*artifact-root-dir* artifacts-dir
+              runtime.mock/*run-root-dir* runs-dir]
+      (let [task (enqueue-demo-task! db-path)
+            task-id (:task/id task)
+            _ (advance-scheduler! db-path 4)
+            run-id (:run_id (query-one db-path
+                                       "SELECT run_id FROM runs WHERE task_id = ? ORDER BY attempt DESC LIMIT 1"
+                                       [task-id]))]
+        (with-redefs-fn {#'meta-flow.scheduler/emit-event! (fn [& _] nil)}
+          (fn []
+            (scheduler/run-scheduler-step db-path)
+            (let [task-before (scheduler/inspect-task! db-path task-id)
+                  run-before (scheduler/inspect-run! db-path run-id)]
+              (testing "the seed scheduler step reaches awaiting-validation"
+                (is (= :task.state/awaiting-validation
+                       (:task/state task-before)))
+                (is (= :run.state/awaiting-validation
+                       (:run/state run-before))))
+              (scheduler/run-scheduler-step db-path)
+              (scheduler/run-scheduler-step db-path)
+              (testing "repeated scheduler passes reuse one semantic validation round"
+                (is (= {:item_count 1
+                        :assessment_key "validation/current"
+                        :status ":assessment/accepted"}
+                       (select-keys (query-one db-path
+                                               (str "SELECT COUNT(*) AS item_count, assessment_key, status "
+                                                    "FROM assessments WHERE run_id = ? GROUP BY assessment_key, status")
+                                               [run-id])
+                                    [:item_count :assessment_key :status])))
+                (is (= {:item_count 1
+                        :disposition_key "decision/current"
+                        :disposition_type ":disposition/accepted"}
+                       (select-keys (query-one db-path
+                                               (str "SELECT COUNT(*) AS item_count, disposition_key, disposition_type "
+                                                    "FROM dispositions WHERE run_id = ? GROUP BY disposition_key, disposition_type")
+                                               [run-id])
+                                    [:item_count :disposition_key :disposition_type])))
+                (is (= :task.state/awaiting-validation
+                       (:task/state (scheduler/inspect-task! db-path task-id))))
+                (is (= :run.state/awaiting-validation
+                       (:run/state (scheduler/inspect-run! db-path run-id))))
+                (is (= (:task/updated-at task-before)
+                       (:updated_at (query-one db-path
+                                               "SELECT updated_at FROM tasks WHERE task_id = ?"
+                                               [task-id]))))
+                (is (= (:run/updated-at run-before)
+                       (:updated_at (query-one db-path
+                                               "SELECT updated_at FROM runs WHERE run_id = ?"
+                                               [run-id]))))))))))))
+
+(deftest expired-lease-recovery-releases-the-lease-and-stops-reprocessing
+  (let [{:keys [db-path artifacts-dir runs-dir]} (temp-system)
+        task (enqueue-demo-task! db-path)
+        task-id (:task/id task)
+        {:keys [run-id lease-id]} (create-expired-leased-run! db-path task)
+        store (store.sqlite/sqlite-state-store db-path)]
+    (binding [runtime.mock/*artifact-root-dir* artifacts-dir
+              runtime.mock/*run-root-dir* runs-dir]
+      (let [first-step (scheduler/run-scheduler-step db-path)
+            task-after-first (scheduler/inspect-task! db-path task-id)
+            run-after-first (scheduler/inspect-run! db-path run-id)
+            first-events (store.protocol/list-run-events store run-id)]
+        (testing "the first scheduler step converts the expired lease into retryable failure"
+          (is (empty? (:created-runs first-step)))
+          (is (empty? (:task-errors first-step)))
+          (is (= :task.state/retryable-failed (:task/state task-after-first)))
+          (is (= :run.state/retryable-failed (:run/state run-after-first)))
+          (is (= {:state ":lease.state/released"}
+                 (select-keys (query-one db-path
+                                         "SELECT state FROM leases WHERE lease_id = ?"
+                                         [lease-id])
+                              [:state])))
+          (is (= [events/run-lease-expired
+                  events/task-lease-expired]
+                 (mapv :event/type first-events))))
+        (testing "a later scheduler step does not re-emit expiry events"
+          (let [second-step (scheduler/run-scheduler-step db-path)
+                task-after-second (scheduler/inspect-task! db-path task-id)
+                run-after-second (scheduler/inspect-run! db-path run-id)
+                second-events (store.protocol/list-run-events store run-id)]
+            (is (empty? (:created-runs second-step)))
+            (is (empty? (:task-errors second-step)))
+            (is (= :task.state/retryable-failed (:task/state task-after-second)))
+            (is (= :run.state/retryable-failed (:run/state run-after-second)))
+            (is (= first-events second-events))))))))
+
+(deftest expired-lease-recovery-rolls-back-when-atomic-recovery-fails
+  (let [{:keys [db-path artifacts-dir runs-dir]} (temp-system)
+        task (enqueue-demo-task! db-path)
+        task-id (:task/id task)
+        {:keys [run-id lease-id]} (create-expired-leased-run! db-path task)
+        store (store.sqlite/sqlite-state-store db-path)
+        reader (projection/sqlite-projection-reader db-path)
+        original-ingest! store.sqlite/ingest-run-event-via-connection!]
+    (binding [runtime.mock/*artifact-root-dir* artifacts-dir
+              runtime.mock/*run-root-dir* runs-dir]
+      (testing "a failure in the recovery transaction leaves the lease and states untouched"
+        (is (thrown-with-msg? clojure.lang.ExceptionInfo
+                              #"synthetic ingest failure"
+                              (with-redefs-fn {#'meta-flow.store.sqlite/ingest-run-event-via-connection!
+                                               (fn [connection event-intent]
+                                                 (if (= events/task-lease-expired (:event/type event-intent))
+                                                   (throw (ex-info "synthetic ingest failure"
+                                                                   {:event-intent event-intent}))
+                                                   (original-ingest! connection event-intent)))}
+                                (fn []
+                                  (scheduler/run-scheduler-step db-path)))))
+        (is (= :task.state/leased
+               (:task/state (scheduler/inspect-task! db-path task-id))))
+        (is (= :run.state/leased
+               (:run/state (scheduler/inspect-run! db-path run-id))))
+        (is (= {:state ":lease.state/active"}
+               (select-keys (query-one db-path
+                                       "SELECT state FROM leases WHERE lease_id = ?"
+                                       [lease-id])
+                            [:state])))
+        (is (= 0
+               (:item_count (query-one db-path
+                                       "SELECT COUNT(*) AS item_count FROM run_events WHERE run_id = ?"
+                                       [run-id]))))
+        (is (= [run-id]
+               (projection/list-expired-lease-run-ids reader "2026-04-01T00:06:00Z" 10))))
+      (testing "the same expired lease can be recovered on a later scheduler pass"
+        (let [step-result (scheduler/run-scheduler-step db-path)]
+          (is (empty? (:created-runs step-result)))
+          (is (empty? (:task-errors step-result)))
+          (is (= :task.state/retryable-failed
+                 (:task/state (scheduler/inspect-task! db-path task-id))))
+          (is (= :run.state/retryable-failed
+                 (:run/state (scheduler/inspect-run! db-path run-id))))
+          (is (= {:state ":lease.state/released"}
+                 (select-keys (query-one db-path
+                                         "SELECT state FROM leases WHERE lease_id = ?"
+                                         [lease-id])
+                              [:state])))
+          (is (= [events/run-lease-expired
+                  events/task-lease-expired]
+                 (mapv :event/type (store.protocol/list-run-events store run-id)))))))))
 
 (deftest unsupported-runtime-adapter-does-not-persist-a-leased-run
   (let [{:keys [db-path artifacts-dir runs-dir]} (temp-system)]
@@ -270,7 +511,7 @@
                                 [:state]))))
           (testing "a later scheduler pass can create a fresh run and complete the task"
             (let [second-step (scheduler/run-scheduler-step db-path)
-                  _ (scheduler/run-scheduler-step db-path)
+                  _ (advance-scheduler! db-path 4)
                   latest-run-id (:run_id (query-one db-path
                                                     "SELECT run_id FROM runs WHERE task_id = ? ORDER BY attempt DESC LIMIT 1"
                                                     [task-id]))
@@ -284,6 +525,59 @@
                                              [task-id]))))
               (is (= :task.state/completed (:task/state task-after)))
               (is (= :run.state/finalized (:run/state run-after))))))))))
+
+(deftest startup-failure-after-an-emitted-event-does-not-compensate-the-claim
+  (let [{:keys [db-path artifacts-dir runs-dir]} (temp-system)
+        fail-once? (atom true)
+        delegate (runtime.mock/mock-runtime)]
+    (binding [runtime.mock/*artifact-root-dir* artifacts-dir
+              runtime.mock/*run-root-dir* runs-dir]
+      (let [task (enqueue-demo-task! db-path)
+            task-id (:task/id task)
+            eventful-adapter (reify runtime.protocol/RuntimeAdapter
+                               (adapter-id [_]
+                                 (runtime.protocol/adapter-id delegate))
+                               (prepare-run! [_ ctx task run]
+                                 (runtime.protocol/prepare-run! delegate ctx task run))
+                               (dispatch-run! [_ ctx task run]
+                                 (let [result (runtime.protocol/dispatch-run! delegate ctx task run)]
+                                   (if (compare-and-set! fail-once? true false)
+                                     (throw (ex-info "synthetic post-dispatch failure"
+                                                     {:run-id (:run/id run)}))
+                                     result)))
+                               (poll-run! [_ ctx run now]
+                                 (runtime.protocol/poll-run! delegate ctx run now))
+                               (cancel-run! [_ ctx run reason]
+                                 (runtime.protocol/cancel-run! delegate ctx run reason)))]
+        (with-redefs [runtime.registry/runtime-adapter (fn [_] eventful-adapter)]
+          (let [first-step (scheduler/run-scheduler-step db-path)
+                run-id (:run_id (query-one db-path
+                                           "SELECT run_id FROM runs WHERE task_id = ? ORDER BY attempt DESC LIMIT 1"
+                                           [task-id]))]
+            (testing "the first failure replays emitted startup events so the run does not stay parked in leased"
+              (is (= 1 (count (:task-errors first-step))))
+              (is (= "synthetic post-dispatch failure"
+                     (get-in first-step [:task-errors 0 :error/message])))
+              (is (= :task.state/leased
+                     (:task/state (scheduler/inspect-task! db-path task-id))))
+              (is (= :run.state/dispatched
+                     (:run/state (scheduler/inspect-run! db-path run-id))))
+              (is (= {:state ":lease.state/active"}
+                     (select-keys (query-one db-path
+                                             "SELECT state FROM leases WHERE lease_id = (SELECT lease_id FROM runs WHERE run_id = ?)"
+                                             [run-id])
+                                  [:state])))
+              (is (= 1
+                     (:run/last-applied-event-seq (scheduler/inspect-run! db-path run-id))))
+              (is (= [events/run-dispatched]
+                     (mapv :event/type
+                           (store.protocol/list-run-events (store.sqlite/sqlite-state-store db-path) run-id)))))
+            (testing "later scheduler passes can continue from the partially-started run"
+              (advance-scheduler! db-path 4)
+              (is (= :task.state/completed
+                     (:task/state (scheduler/inspect-task! db-path task-id))))
+              (is (= :run.state/finalized
+                     (:run/state (scheduler/inspect-run! db-path run-id)))))))))))
 
 (deftest mock-runtime-prepares-each-run-once
   (let [{:keys [db-path artifacts-dir runs-dir]} (temp-system)
@@ -301,13 +595,92 @@
                 expected-prefix (str runs-dir "/")]
             (is (= 1 (count (:created-runs step-result))))
             (is (empty? (:task-errors step-result)))
-            (is (= 4
+            (is (= 6
                    (count (filter #(str/starts-with? % expected-prefix)
                                   @metadata-writes))))
-            (is (= #{"definitions.edn" "task.edn" "run.edn" "runtime-profile.edn"}
+            (is (= #{"definitions.edn" "task.edn" "run.edn" "runtime-profile.edn" "runtime-state.edn"}
                    (set (map #(last (str/split % #"/"))
                              (filter #(str/starts-with? % expected-prefix)
                                      @metadata-writes)))))))))))
+
+(deftest mock-runtime-polls-progressively-and-can-be-cancelled
+  (let [{:keys [db-path artifacts-dir runs-dir]} (temp-system)
+        store (store.sqlite/sqlite-state-store db-path)
+        adapter (runtime.mock/mock-runtime)
+        task (enqueue-demo-task! db-path)
+        now "2026-04-01T00:00:00Z"
+        {:keys [run]} (store.protocol/create-run! store
+                                                  task
+                                                  {:run/id "run-runtime-test"
+                                                   :run/attempt 1
+                                                   :run/run-fsm-ref (:task/run-fsm-ref task)
+                                                   :run/runtime-profile-ref (:task/runtime-profile-ref task)
+                                                   :run/state :run.state/leased
+                                                   :run/created-at now
+                                                   :run/updated-at now}
+                                                  {:lease/id "lease-runtime-test"
+                                                   :lease/run-id "run-runtime-test"
+                                                   :lease/token "lease-runtime-test-token"
+                                                   :lease/state :lease.state/active
+                                                   :lease/expires-at "2026-04-01T00:30:00Z"
+                                                   :lease/created-at now
+                                                   :lease/updated-at now})
+        ctx {:db-path db-path
+             :store store
+             :repository (defs.loader/filesystem-definition-repository)
+             :now now}]
+    (binding [runtime.mock/*artifact-root-dir* artifacts-dir
+              runtime.mock/*run-root-dir* runs-dir]
+      (runtime.protocol/prepare-run! adapter ctx task run)
+      (runtime.protocol/dispatch-run! adapter ctx task run)
+      (testing "poll advances the mock run in phases"
+        (is (= [events/run-dispatched]
+               (mapv :event/type (store.protocol/list-run-events store (:run/id run)))))
+        (is (= [events/task-worker-started
+                events/run-worker-started]
+               (mapv :event/type (runtime.protocol/poll-run! adapter ctx run now))))
+        (is (= [events/run-worker-heartbeat]
+               (mapv :event/type (runtime.protocol/poll-run! adapter ctx run now))))
+        (is (= [events/run-worker-exited]
+               (mapv :event/type (runtime.protocol/poll-run! adapter ctx run now))))
+        (is (= [events/run-artifact-ready
+                events/task-artifact-ready]
+               (mapv :event/type (runtime.protocol/poll-run! adapter ctx run now))))
+        (is (empty? (runtime.protocol/poll-run! adapter ctx run now))))
+      (testing "cancel requests convert the next poll into an exit without artifacts"
+        (let [cancel-task (enqueue-demo-task! db-path)
+              {:keys [run]} (store.protocol/create-run! store
+                                                        cancel-task
+                                                        {:run/id "run-runtime-cancel"
+                                                         :run/attempt 2
+                                                         :run/run-fsm-ref (:task/run-fsm-ref cancel-task)
+                                                         :run/runtime-profile-ref (:task/runtime-profile-ref cancel-task)
+                                                         :run/state :run.state/leased
+                                                         :run/created-at "2026-04-01T00:01:00Z"
+                                                         :run/updated-at "2026-04-01T00:01:00Z"}
+                                                        {:lease/id "lease-runtime-cancel"
+                                                         :lease/run-id "run-runtime-cancel"
+                                                         :lease/token "lease-runtime-cancel-token"
+                                                         :lease/state :lease.state/active
+                                                         :lease/expires-at "2026-04-01T00:31:00Z"
+                                                         :lease/created-at "2026-04-01T00:01:00Z"
+                                                         :lease/updated-at "2026-04-01T00:01:00Z"})
+              cancel-ctx (assoc ctx :now "2026-04-01T00:01:00Z")]
+          (runtime.protocol/prepare-run! adapter cancel-ctx cancel-task run)
+          (runtime.protocol/dispatch-run! adapter cancel-ctx cancel-task run)
+          (is (= {:status :cancel-requested}
+                 (runtime.protocol/cancel-run! adapter cancel-ctx run {:reason :test/cancel})))
+          (is (= [events/run-worker-exited]
+                 (mapv :event/type (runtime.protocol/poll-run! adapter cancel-ctx run "2026-04-01T00:02:00Z"))))
+          (is (empty? (runtime.protocol/poll-run! adapter cancel-ctx run "2026-04-01T00:03:00Z")))
+          (is (= 1
+                 (:item_count (query-one db-path
+                                         "SELECT COUNT(*) AS item_count FROM artifacts WHERE run_id = ?"
+                                         ["run-runtime-test"]))))
+          (is (= 0
+                 (:item_count (query-one db-path
+                                         "SELECT COUNT(*) AS item_count FROM artifacts WHERE run_id = ?"
+                                         ["run-runtime-cancel"])))))))))
 
 (deftest stale-runnable-ids-do-not-consume-dispatch-capacity
   (let [{:keys [db-path artifacts-dir runs-dir]} (temp-system)]
@@ -324,7 +697,7 @@
                    (:item_count (query-one db-path
                                            "SELECT COUNT(*) AS item_count FROM runs WHERE task_id = ?"
                                            [task-id]))))
-            (is (= :task.state/awaiting-validation
+            (is (= :task.state/leased
                    (:task/state (scheduler/inspect-task! db-path task-id))))))))))
 
 (deftest scheduler-continues-past-runnable-tasks-that-fail-to-dispatch
@@ -348,9 +721,9 @@
                    (:task-errors step-result)))
             (is (= :task.state/queued
                    (:task/state (scheduler/inspect-task! db-path (:task/id blocked-task)))))
-            (is (= :task.state/awaiting-validation
+            (is (= :task.state/leased
                    (:task/state (scheduler/inspect-task! db-path (:task/id runnable-task)))))
-            (is (= :run.state/awaiting-validation
+            (is (= :run.state/dispatched
                    (:run/state (scheduler/inspect-run! db-path run-id))))))))))
 
 (deftest demo-happy-path-isolated-from-shared-queue-failures
@@ -359,6 +732,21 @@
               runtime.mock/*run-root-dir* runs-dir]
       (enqueue-codex-task! db-path)
       (let [{:keys [task run scheduler-steps]} (scheduler/demo-happy-path! db-path)]
-        (is (= 2 scheduler-steps))
+        (is (= 5 scheduler-steps))
         (is (= :task.state/completed (:task/state task)))
         (is (= :run.state/finalized (:run/state run)))))))
+
+(deftest demo-happy-path-runs-through-public-scheduler-step
+  (let [{:keys [db-path artifacts-dir runs-dir]} (temp-system)
+        scheduler-calls (atom 0)
+        original-run-scheduler-step @#'scheduler/run-scheduler-step]
+    (binding [runtime.mock/*artifact-root-dir* artifacts-dir
+              runtime.mock/*run-root-dir* runs-dir]
+      (with-redefs [scheduler/run-scheduler-step (fn [db-path*]
+                                                   (swap! scheduler-calls inc)
+                                                   (original-run-scheduler-step db-path*))]
+        (let [{:keys [task run scheduler-steps]} (scheduler/demo-happy-path! db-path)]
+          (is (= 5 scheduler-steps))
+          (is (= 5 @scheduler-calls))
+          (is (= :task.state/completed (:task/state task)))
+          (is (= :run.state/finalized (:run/state run))))))))

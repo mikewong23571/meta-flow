@@ -1,0 +1,18 @@
+(ns meta-flow.events)
+
+(def run-lease-granted :run.event/lease-granted)
+(def run-dispatched :run.event/dispatched)
+(def run-worker-started :run.event/worker-started)
+(def run-worker-heartbeat :run.event/worker-heartbeat)
+(def run-worker-exited :run.event/worker-exited)
+(def run-lease-expired :run.event/lease-expired)
+(def run-artifact-ready :run.event/artifact-ready)
+(def run-assessment-accepted :run.event/assessment-accepted)
+(def run-assessment-rejected :run.event/assessment-rejected)
+
+(def task-lease-granted :task.event/lease-granted)
+(def task-worker-started :task.event/worker-started)
+(def task-lease-expired :task.event/lease-expired)
+(def task-artifact-ready :task.event/artifact-ready)
+(def task-assessment-accepted :task.event/assessment-accepted)
+(def task-assessment-rejected :task.event/assessment-rejected)
