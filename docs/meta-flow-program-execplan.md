@@ -22,7 +22,7 @@ This document must be maintained in accordance with `.agent/PLANS.md`.
 - [x] (2026-04-01 14:07Z) 完成 Phase 1 / Milestone 1：实现 Malli-backed definitions schema、Filesystem `DefinitionRepository`、`init` / `defs validate` CLI、SQLite bootstrap 初始化，并通过 `clojure -M:test` 与 `clj-kondo` 验证。
 - [x] (2026-04-01 14:29Z) 加固 Milestone 1 基础约束：新增 per-connection SQLite pragma 应用入口、`002_align_keyword_literals.sql` 修复 migration、Codex runtime profile 必填字段校验，以及针对 pragma 和 keyword-state 索引的回归测试。
 - [x] (2026-04-01 14:55Z) 完成 Phase 1 / Milestone 2：落地 `StateStore`、`ProjectionReader` 与统一事件写入口，并通过新增控制面测试证明任务入队去重、单 task 非终态 run 约束、单 run active lease 约束、事件幂等与 event sequence 分配均按计划生效。
-- [ ] 落地最小闭环（已完成：definitions 加载、SQLite store、ProjectionReader、任务入队、run/lease 创建、事件吸收；剩余：FSM 校验、mock worker、artifact 验证、调度一次与状态收敛）。
+- [x] (2026-04-01 16:36Z) 完成 Phase 1 / Milestone 3：修复 FSM 与 mock runtime 的编译/语义漂移，落地 `scheduler once`、`demo happy-path`、`inspect` CLI 与 happy-path 集成测试，证明最小控制面闭环已从 `queued` 收敛到 `completed`。
 - [ ] 接入 Codex runtime adapter，实现项目级 `CODEX_HOME`、prompt 模板、task-scoped tooling 和 worker 事件回写。
 - [ ] 补齐失败、重试、接管、冷却、资源限流、审计查看与测试覆盖。
 
@@ -48,6 +48,9 @@ This document must be maintained in accordance with `.agent/PLANS.md`.
 
 - Observation: 当 task 和 run 真正拆成两条持久化生命周期后，`create-run!` 不能顺手替调用方修改 `task/state`，否则 projection 会被存储层隐式污染。
   Evidence: 新增的 `sqlite_store_test` 只有在显式调用 `transition-task!` 后，`runnable_tasks_v1` 才会只返回仍处于 `:task.state/queued` 的 task。
+
+- Observation: “Milestone 3 文件已经存在” 不等于最小闭环已经可运行；真正打通 happy path 之前，还需要修复代码生成和 definitions 之间的细小漂移。
+  Evidence: `clojure -M -e "(require 'meta-flow.scheduler)"` 一开始因为 `src/meta_flow/fsm.clj` 语法错误而失败；修复后继续发现 mock runtime 发出的 `:run.event/worker-exit` 与 definitions 里 run FSM 的 `:run.event/worker-exited` 不一致，导致 run 无法进入 `:run.state/exited`。
 
 ## Decision Log
 
@@ -107,11 +110,15 @@ This document must be maintained in accordance with `.agent/PLANS.md`.
   Rationale: 当前里程碑要证明的是单机 SQLite 控制面约束和接口边界，而不是 projection 物化策略。沿用现有 schema 可以最小化迁移面，并把测试注意力集中在幂等和唯一约束上。
   Date/Author: 2026-04-01 / Codex
 
+- Decision: Phase 1 的 demo task 保持 `:task-type/cve-investigation` 的 task type pinning，但在任务实例层把 runtime profile 显式覆盖到 `:runtime-profile/mock-worker`。
+  Rationale: 这样能同时满足两条约束：主 plan 继续保留“CVE task type 默认面向 Codex runtime”的真实集成方向；Phase 1 又能在完全本地、无外部 provider 依赖的环境里验证完整控制面闭环。
+  Date/Author: 2026-04-01 / Codex
+
 ## Outcomes & Retrospective
 
-目前已经完成主 plan 的前两个实现落点：仓库从纯文档状态变成了一个可运行的 Clojure 项目骨架，并具备了 Phase 1 所需的 SQLite 控制面读写层。使用者现在不仅可以执行 `clojure -M -m meta-flow.main init` 创建或升级 `var/meta-flow.sqlite3` 与运行目录、执行 `clojure -M -m meta-flow.main defs validate` 验证 definitions schema、交叉引用和版本 pinning，还已经拥有 `StateStore`、`ProjectionReader` 与统一事件写入口的实现。基础单元测试 `clojure -M:test` 与 `clj-kondo --lint src test script` 已通过；其中新增控制面测试已证明应用连接会重新施加 SQLite pragma，Phase 1 的 state 索引与 view 匹配 keyword 文本编码，并且关键的 run/lease/event 数据库不变量已生效。
+目前已经完成主 plan 在 Phase 1 的三个实现落点：仓库从纯文档状态变成了一个可运行的 Clojure 项目骨架，具备了 SQLite 控制面读写层，并已经跑通最小 mock happy path。使用者现在不仅可以执行 `clojure -M -m meta-flow.main init` 创建或升级 `var/meta-flow.sqlite3` 与运行目录、执行 `clojure -M -m meta-flow.main defs validate` 验证 definitions schema、交叉引用和版本 pinning，还可以执行 `clojure -M -m meta-flow.main demo happy-path` 看到 task 从 `:task.state/queued` 收敛到 `:task.state/completed`，run 从 `:run.state/created` 收敛到 `:run.state/finalized`，并在 `var/artifacts/<task-id>/<run-id>/` 下得到 `manifest.json`、`notes.md` 和 `run.log`。
 
-尚未完成的仍是最小控制面闭环最后一段：FSM 服务层、mock runtime、artifact validator、`scheduler once`、`demo happy-path` 和 `inspect` CLI 还没有落地。因此下一个关键回顾点应发生在 mock happy path 首次跑通之后；再下一个关键回顾点应发生在 Codex runtime 成功接入并完成一条真实 happy path 之后。
+当前验证也已经从“存储层不变量成立”推进到“最小控制面闭环成立”：`clojure -M:test` 与 `clj-kondo --lint src test script` 继续通过，新增的 `scheduler_happy_path_test` 进一步证明 structured definition pinning 已落入 `tasks`、`runs`、`artifacts`、`assessments` 和 `dispositions` 表，并且重复执行 `scheduler once` 不会破坏 happy-path 收敛。接下来应把工作转向主 plan 剩余两段：失败/重试/接管矩阵和真实 Codex runtime adapter。
 
 ## Context and Orientation
 
@@ -466,3 +473,5 @@ Codex runtime profile 必须定义清楚这些字段：`CODEX_HOME` 根目录、
 2026-04-01：在 review 后加固 Milestone 1：把 SQLite pragma 应用收敛到统一连接入口，新增 `002_align_keyword_literals.sql` 修复旧 schema 的 state 过滤字面量，并收紧 Codex runtime profile 的 definitions 校验与占位资源要求。
 
 2026-04-01：执行 Phase 1 / Milestone 2 后更新主 plan：新增 SQLite StateStore、只读 ProjectionReader 与统一 event ingestion 入口，并补充 `sqlite_store_test` 作为控制面数据库不变量与 projection 边界的回归测试。
+
+2026-04-01：执行 Phase 1 / Milestone 3 后更新主 plan：修复 `fsm.clj` 与 mock runtime 的 happy-path 漂移，补齐 `scheduler once`、`demo happy-path`、`inspect` CLI，并新增 `scheduler_happy_path_test` 把 artifact contract、状态收敛和结构化 definition pinning 固化为可重复验证的集成测试。
