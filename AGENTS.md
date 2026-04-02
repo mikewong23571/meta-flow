@@ -2,7 +2,7 @@
 
 ## Project Structure & Module Organization
 
-Application code lives in `src/meta_flow/`. Core areas include CLI entrypoints in `main.clj` and `cli.clj`, scheduling/runtime orchestration in `scheduler.clj` and `runtime/`, storage in `db.clj`, `sql.clj`, and `store/`, and definition loading in `defs/`. Tests live in `test/meta_flow/`. Repository data and runtime inputs live under `resources/meta_flow/`: workflow definitions in `defs/*.edn`, SQL migrations in `sql/*.sql`, and prompt assets in `prompts/`. Architecture notes and execution plans are in `docs/`.
+Application code lives in `src/meta_flow/`. CLI entrypoints live in `main.clj` and `cli.clj`. Scheduler code is split between the public facade in `scheduler.clj` and internal implementation namespaces under `scheduler/` such as `step.clj`, `runtime.clj`, `state.clj`, `validation.clj`, `dev.clj`, and `shared.clj`. Runtime adapters live under `runtime/`. Storage code lives in `db.clj`, `sql.clj`, and `store/`. Definition loading and workflow metadata live under `defs/`. Tests live in `test/meta_flow/`. Repository data and runtime inputs live under `resources/meta_flow/`: workflow definitions in `defs/*.edn`, SQL migrations in `sql/*.sql`, and prompt assets in `prompts/`. Architecture notes and execution plans are in `docs/`.
 
 ## Build, Test, and Development Commands
 

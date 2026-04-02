@@ -11,6 +11,7 @@
             [meta-flow.runtime.registry :as runtime.registry]
             [meta-flow.projection :as projection]
             [meta-flow.scheduler :as scheduler]
+            [meta-flow.scheduler.state :as scheduler.state]
             [meta-flow.sql :as sql]
             [meta-flow.store.protocol :as store.protocol]
             [meta-flow.store.sqlite :as store.sqlite]))
@@ -311,7 +312,7 @@
             run-id (:run_id (query-one db-path
                                        "SELECT run_id FROM runs WHERE task_id = ? ORDER BY attempt DESC LIMIT 1"
                                        [task-id]))]
-        (with-redefs-fn {#'meta-flow.scheduler/emit-event! (fn [& _] nil)}
+        (with-redefs-fn {#'scheduler.state/emit-event! (fn [& _] nil)}
           (fn []
             (scheduler/run-scheduler-step db-path)
             (let [task-before (scheduler/inspect-task! db-path task-id)
