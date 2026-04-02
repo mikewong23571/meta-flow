@@ -1,5 +1,7 @@
 (ns meta-flow.scheduler.test-support
   (:require [clojure.java.io :as io]
+            [meta-flow.control.event-ingest :as event-ingest]
+            [meta-flow.control.events :as events]
             [meta-flow.db :as db]
             [meta-flow.defs.loader :as defs.loader]
             [meta-flow.defs.protocol :as defs.protocol]
@@ -98,6 +100,55 @@
                                      {:transition/from :task.state/queued
                                       :transition/to :task.state/leased}
                                      leased-at)
+    {:run-id run-id
+     :lease-id lease-id}))
+
+(defn create-heartbeat-timeout-run!
+  [db-path task]
+  (let [store (store.sqlite/sqlite-state-store db-path)
+        run-id (str "run-" (java.util.UUID/randomUUID))
+        lease-id (str "lease-" (java.util.UUID/randomUUID))
+        created-at "2026-04-01T00:00:00Z"
+        running-at "2026-04-01T00:01:00Z"
+        heartbeat-at "2026-04-01T00:02:00Z"
+        run {:run/id run-id
+             :run/attempt 1
+             :run/run-fsm-ref (:task/run-fsm-ref task)
+             :run/runtime-profile-ref (:task/runtime-profile-ref task)
+             :run/heartbeat-timeout-seconds 60
+             :run/state :run.state/leased
+             :run/created-at created-at
+             :run/updated-at created-at}
+        lease {:lease/id lease-id
+               :lease/run-id run-id
+               :lease/token (str lease-id "-token")
+               :lease/state :lease.state/active
+               :lease/expires-at "2099-04-01T00:30:00Z"
+               :lease/created-at created-at
+               :lease/updated-at created-at}]
+    (store.protocol/create-run! store task run lease)
+    (store.protocol/transition-task! store (:task/id task)
+                                     {:transition/from :task.state/queued
+                                      :transition/to :task.state/running}
+                                     running-at)
+    (store.protocol/transition-run! store run-id
+                                    {:transition/from :run.state/leased
+                                     :transition/to :run.state/running}
+                                    running-at)
+    (event-ingest/ingest-run-event! store {:event/run-id run-id
+                                           :event/type events/run-worker-started
+                                           :event/idempotency-key (str run-id ":worker-started")
+                                           :event/payload {}
+                                           :event/caused-by {:actor/type :worker
+                                                             :actor/id "mock-worker"}
+                                           :event/emitted-at running-at})
+    (event-ingest/ingest-run-event! store {:event/run-id run-id
+                                           :event/type events/run-worker-heartbeat
+                                           :event/idempotency-key (str run-id ":worker-heartbeat")
+                                           :event/payload {:progress/stage :stage/research}
+                                           :event/caused-by {:actor/type :worker
+                                                             :actor/id "mock-worker"}
+                                           :event/emitted-at heartbeat-at})
     {:run-id run-id
      :lease-id lease-id}))
 

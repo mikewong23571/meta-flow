@@ -169,4 +169,4 @@
     (or (store.protocol/find-collection-state store :collection/default)
         {:collection/dispatch {:dispatch/paused? false}
          :collection/resource-policy-ref {:definition/id :resource-policy/default
-                                          :definition/version 2}})))
+                                          :definition/version 3}})))

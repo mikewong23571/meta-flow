@@ -33,7 +33,7 @@
                   :definition/version 1}
                  (:task/task-type-ref task-view)))
           (is (= {:definition/id :run-fsm/cve-worker
-                  :definition/version 1}
+                  :definition/version 2}
                  (:task/run-fsm-ref task-view)))
           (is (= {:definition/id :runtime-profile/mock-worker
                   :definition/version 1}
@@ -42,7 +42,7 @@
                   :definition/version 1}
                  (:run/runtime-profile-ref run-view)))
           (is (= {:definition/id :resource-policy/default
-                  :definition/version 2}
+                  :definition/version 3}
                  (:collection/resource-policy-ref collection-view))))
         (testing "dispatch persists a durable execution handle on the run"
           (is (= "polling"
@@ -63,7 +63,7 @@
                                                  [task-id])
                               [:task_type_id :task_type_version])))
           (is (= {:run_fsm_id ":run-fsm/cve-worker"
-                  :run_fsm_version 1
+                  :run_fsm_version 2
                   :runtime_profile_id ":runtime-profile/mock-worker"
                   :runtime_profile_version 1}
                  (select-keys (support/query-one db-path

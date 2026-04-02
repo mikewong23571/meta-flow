@@ -24,6 +24,7 @@ This document must be maintained in accordance with `.agent/PLANS.md`.
 - [x] (2026-04-01 14:55Z) 完成 Phase 1 / Milestone 2：落地 `StateStore`、`ProjectionReader` 与统一事件写入口，并通过新增控制面测试证明任务入队去重、单 task 非终态 run 约束、单 run active lease 约束、事件幂等与 event sequence 分配均按计划生效。
 - [x] (2026-04-01 16:36Z) 完成 Phase 1 / Milestone 3：修复 FSM 与 mock runtime 的编译/语义漂移，落地 `scheduler once`、`demo happy-path`、`inspect` CLI 与 happy-path 集成测试，证明最小控制面闭环已从 `queued` 收敛到 `completed`。
 - [x] (2026-04-02 08:34Z) 完成 Phase 2 / Milestone 1：扩展 task/resource policy definitions，引入 `max-attempts`、`needs-review`、显式 `requeue` 调度阶段，以及与之对应的 projection、CLI summary 和重试/升级测试，`bb check` 通过。
+- [x] (2026-04-02 09:51Z) 完成 Phase 2 / Milestone 2：将 heartbeat timeout 纳入 resource policy pinning 与 run snapshot，新增只读 timeout projection、scheduler recovery、CLI summary 和超时恢复测试，`bb check` 通过。
 - [ ] 接入 Codex runtime adapter，实现项目级 `CODEX_HOME`、prompt 模板、task-scoped tooling 和 worker 事件回写。
 - [ ] 补齐失败、重试、接管、冷却、资源限流、审计查看与测试覆盖。
 
@@ -52,6 +53,9 @@ This document must be maintained in accordance with `.agent/PLANS.md`.
 
 - Observation: “Milestone 3 文件已经存在” 不等于最小闭环已经可运行；真正打通 happy path 之前，还需要修复代码生成和 definitions 之间的细小漂移。
   Evidence: `clojure -M -e "(require 'meta-flow.scheduler)"` 一开始因为 `src/meta_flow/fsm.clj` 语法错误而失败；修复后继续发现 mock runtime 发出的 `:run.event/worker-exit` 与 definitions 里 run FSM 的 `:run.event/worker-exited` 不一致，导致 run 无法进入 `:run.state/exited`。
+
+- Observation: heartbeat timeout 与 lease expiry 虽然都走“释放 lease 并收敛到 retryable-failed”的同层级恢复路径，但测试夹具必须把两者的时间窗口明确分开，否则 lease expiry 会掩盖 heartbeat timeout。
+  Evidence: 首轮 heartbeat timeout 测试把 lease expiry 时间设得过近，ProjectionReader 先命中了 expired lease 集合；把 lease TTL 拉远后，heartbeat timeout recovery 与 summary 计数按预期稳定出现。
 
 ## Decision Log
 
@@ -115,9 +119,13 @@ This document must be maintained in accordance with `.agent/PLANS.md`.
   Rationale: 这样能同时满足两条约束：主 plan 继续保留“CVE task type 默认面向 Codex runtime”的真实集成方向；Phase 1 又能在完全本地、无外部 provider 依赖的环境里验证完整控制面闭环。
   Date/Author: 2026-04-01 / Codex
 
+- Decision: Phase 2 / Milestone 2 将 heartbeat timeout 的生效预算定义在 resource policy 中，并在 create-run!/claim 时把值 pin 到 `run` 实体；ProjectionReader 只读地结合 pinned run data 与 `run_events` 计算 timeout 候选，而不新增 projection cache。
+  Rationale: 这样既保留了 policy 受 definitions 管理和版本 pinning 的边界，也避免把 definitions lookup 或额外写路径混进 ProjectionReader。
+  Date/Author: 2026-04-02 / Codex
+
 ## Outcomes & Retrospective
 
-目前已经完成主 plan 在 Phase 1 的三个实现落点：仓库从纯文档状态变成了一个可运行的 Clojure 项目骨架，具备了 SQLite 控制面读写层，并已经跑通最小 mock happy path。使用者现在不仅可以执行 `clojure -M -m meta-flow.main init` 创建或升级 `var/meta-flow.sqlite3` 与运行目录、执行 `clojure -M -m meta-flow.main defs validate` 验证 definitions schema、交叉引用和版本 pinning，还可以执行 `clojure -M -m meta-flow.main demo happy-path` 看到 task 从 `:task.state/queued` 收敛到 `:task.state/completed`，run 从 `:run.state/created` 收敛到 `:run.state/finalized`，并在 `var/artifacts/<task-id>/<run-id>/` 下得到 `manifest.json`、`notes.md` 和 `run.log`。
+目前已经完成主 plan 在 Phase 1 的三个实现落点，以及 Phase 2 的前两个里程碑：仓库从纯文档状态变成了一个可运行的 Clojure 项目骨架，具备了 SQLite 控制面读写层，跑通了最小 mock happy path，并已补齐显式 requeue、max-attempts、needs-review 与 heartbeat-timeout recovery。使用者现在不仅可以执行 `clojure -M -m meta-flow.main init` 创建或升级 `var/meta-flow.sqlite3` 与运行目录、执行 `clojure -M -m meta-flow.main defs validate` 验证 definitions schema、交叉引用和版本 pinning，还可以执行 `clojure -M -m meta-flow.main scheduler once` 看到 retry / escalation / expired lease / heartbeat timeout 的 summary，或通过 `demo happy-path`、`demo retry-path` 与 inspect 命令观察 task/run 在成功、验证拒绝和 heartbeat 超时场景下的控制面收敛。
 
 当前验证也已经从“存储层不变量成立”推进到“最小控制面闭环成立”：`clojure -M:test` 与 `clj-kondo --lint src test script` 继续通过，新增的 `scheduler_happy_path_test` 进一步证明 structured definition pinning 已落入 `tasks`、`runs`、`artifacts`、`assessments` 和 `dispositions` 表，并且重复执行 `scheduler once` 不会破坏 happy-path 收敛。接下来应把工作转向主 plan 剩余两段：失败/重试/接管矩阵和真实 Codex runtime adapter。
 
@@ -476,3 +484,5 @@ Codex runtime profile 必须定义清楚这些字段：`CODEX_HOME` 根目录、
 2026-04-01：执行 Phase 1 / Milestone 2 后更新主 plan：新增 SQLite StateStore、只读 ProjectionReader 与统一 event ingestion 入口，并补充 `sqlite_store_test` 作为控制面数据库不变量与 projection 边界的回归测试。
 
 2026-04-01：执行 Phase 1 / Milestone 3 后更新主 plan：修复 `fsm.clj` 与 mock runtime 的 happy-path 漂移，补齐 `scheduler once`、`demo happy-path`、`inspect` CLI，并新增 `scheduler_happy_path_test` 把 artifact contract、状态收敛和结构化 definition pinning 固化为可重复验证的集成测试。
+
+2026-04-02：执行 Phase 2 / Milestone 2 后更新主 plan：heartbeat timeout 已进入 resource policy pinning、run snapshot、ProjectionReader、scheduler recovery 与 CLI summary，并通过新增 projection/recovery/CLI 回归测试和 `bb check` 验证。

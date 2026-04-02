@@ -9,6 +9,10 @@
   [connection task-id]
   (tasks/find-task-row connection task-id))
 
+(defn find-run-row
+  [connection run-id]
+  (runs/find-run-row connection run-id))
+
 (defn next-event-seq
   [connection run-id]
   (run-data/next-event-seq connection run-id))

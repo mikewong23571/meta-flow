@@ -1,5 +1,5 @@
 [{:run-fsm/id :run-fsm/default
-  :run-fsm/version 1
+  :run-fsm/version 2
   :run-fsm/name "Default Phase 1 run lifecycle"
   :run-fsm/initial-state :run.state/created
   :run-fsm/states [:run.state/created
@@ -24,10 +24,16 @@
                         {:transition/event :run.event/lease-expired
                          :transition/from :run.state/dispatched
                          :transition/to :run.state/retryable-failed}
+                        {:transition/event :run.event/heartbeat-timed-out
+                         :transition/from :run.state/dispatched
+                         :transition/to :run.state/retryable-failed}
                         {:transition/event :run.event/worker-started
                          :transition/from :run.state/dispatched
                          :transition/to :run.state/running}
                         {:transition/event :run.event/lease-expired
+                         :transition/from :run.state/running
+                         :transition/to :run.state/retryable-failed}
+                        {:transition/event :run.event/heartbeat-timed-out
                          :transition/from :run.state/running
                          :transition/to :run.state/retryable-failed}
                         {:transition/event :run.event/worker-exited
@@ -46,7 +52,7 @@
                          :transition/from :run.state/awaiting-validation
                          :transition/to :run.state/finalized}]}
  {:run-fsm/id :run-fsm/cve-worker
-  :run-fsm/version 1
+  :run-fsm/version 2
   :run-fsm/name "CVE investigation worker lifecycle"
   :run-fsm/initial-state :run.state/created
   :run-fsm/states [:run.state/created
@@ -71,10 +77,16 @@
                         {:transition/event :run.event/lease-expired
                          :transition/from :run.state/dispatched
                          :transition/to :run.state/retryable-failed}
+                        {:transition/event :run.event/heartbeat-timed-out
+                         :transition/from :run.state/dispatched
+                         :transition/to :run.state/retryable-failed}
                         {:transition/event :run.event/worker-started
                          :transition/from :run.state/dispatched
                          :transition/to :run.state/running}
                         {:transition/event :run.event/lease-expired
+                         :transition/from :run.state/running
+                         :transition/to :run.state/retryable-failed}
+                        {:transition/event :run.event/heartbeat-timed-out
                          :transition/from :run.state/running
                          :transition/to :run.state/retryable-failed}
                         {:transition/event :run.event/worker-exited

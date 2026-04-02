@@ -1,12 +1,14 @@
 [{:resource-policy/id :resource-policy/default
-  :resource-policy/version 2
+  :resource-policy/version 3
   :resource-policy/name "Default single-run policy"
   :resource-policy/max-active-runs 1
   :resource-policy/max-attempts 2
+  :resource-policy/heartbeat-timeout-seconds 120
   :resource-policy/queue-order :resource-policy.queue-order/created-at}
  {:resource-policy/id :resource-policy/serial-cve
-  :resource-policy/version 2
+  :resource-policy/version 3
   :resource-policy/name "Serial CVE policy"
   :resource-policy/max-active-runs 1
   :resource-policy/max-attempts 2
+  :resource-policy/heartbeat-timeout-seconds 120
   :resource-policy/queue-order :resource-policy.queue-order/work-key}]

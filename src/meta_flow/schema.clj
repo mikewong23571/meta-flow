@@ -107,6 +107,7 @@
    [:resource-policy/name string?]
    [:resource-policy/max-active-runs pos-int?]
    [:resource-policy/max-attempts pos-int?]
+   [:resource-policy/heartbeat-timeout-seconds pos-int?]
    [:resource-policy/queue-order keyword?]])
 
 (def workflow-definitions-schema

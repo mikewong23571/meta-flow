@@ -100,9 +100,9 @@
                        "runtime_profile_id, runtime_profile_version, artifact_contract_id, artifact_contract_version, "
                        "validator_id, validator_version, resource_policy_id, resource_policy_version, state, task_edn, created_at, updated_at) "
                        "VALUES "
-                       "('task-1', 'wk-1', ':task-type/default', 1, ':task-fsm/default', 2, "
+                       "('task-1', 'wk-1', ':task-type/default', 1, ':task-fsm/default', 3, "
                        "':runtime-profile/mock-worker', 1, ':artifact-contract/default', 1, "
-                       "':validator/required-paths', 1, ':resource-policy/default', 2, ':task.state/queued', '{}', "
+                       "':validator/required-paths', 1, ':resource-policy/default', 3, ':task.state/queued', '{}', "
                        "'2026-04-01T00:00:00Z', '2026-04-01T00:00:00Z')"))
     (testing "queued task view matches keyword-text state values"
       (is (= "task-1"
@@ -111,7 +111,7 @@
                   (str "INSERT INTO runs "
                        "(run_id, task_id, attempt, run_fsm_id, run_fsm_version, runtime_profile_id, runtime_profile_version, "
                        "state, run_edn, created_at, updated_at) VALUES "
-                       "('run-1', 'task-1', 1, ':run-fsm/default', 1, ':runtime-profile/mock-worker', 1, "
+                       "('run-1', 'task-1', 1, ':run-fsm/default', 2, ':runtime-profile/mock-worker', 1, "
                        "':run.state/created', '{}', '2026-04-01T00:00:00Z', '2026-04-01T00:00:00Z')"))
     (testing "non-terminal run unique index matches keyword-text state values"
       (is (thrown? java.sql.SQLException
@@ -119,7 +119,7 @@
                                  (str "INSERT INTO runs "
                                       "(run_id, task_id, attempt, run_fsm_id, run_fsm_version, runtime_profile_id, runtime_profile_version, "
                                       "state, run_edn, created_at, updated_at) VALUES "
-                                      "('run-2', 'task-1', 2, ':run-fsm/default', 1, ':runtime-profile/mock-worker', 1, "
+                                      "('run-2', 'task-1', 2, ':run-fsm/default', 2, ':runtime-profile/mock-worker', 1, "
                                       "':run.state/created', '{}', '2026-04-01T00:00:00Z', '2026-04-01T00:00:00Z')")))))))
 
 (deftest semantic-idempotency-migration-backfills-current-keys-without-losing-history
@@ -135,15 +135,15 @@
                        "runtime_profile_id, runtime_profile_version, artifact_contract_id, artifact_contract_version, "
                        "validator_id, validator_version, resource_policy_id, resource_policy_version, state, task_edn, created_at, updated_at) "
                        "VALUES "
-                       "('task-1', 'wk-backfill', ':task-type/default', 1, ':task-fsm/default', 2, "
+                       "('task-1', 'wk-backfill', ':task-type/default', 1, ':task-fsm/default', 3, "
                        "':runtime-profile/mock-worker', 1, ':artifact-contract/default', 1, "
-                       "':validator/required-paths', 1, ':resource-policy/default', 2, ':task.state/awaiting-validation', '{}', "
+                       "':validator/required-paths', 1, ':resource-policy/default', 3, ':task.state/awaiting-validation', '{}', "
                        "'2026-04-01T00:00:00Z', '2026-04-01T00:00:00Z')"))
     (execute-sql! db-path
                   (str "INSERT INTO runs "
                        "(run_id, task_id, attempt, run_fsm_id, run_fsm_version, runtime_profile_id, runtime_profile_version, "
                        "state, run_edn, created_at, updated_at) VALUES "
-                       "('run-1', 'task-1', 1, ':run-fsm/default', 1, ':runtime-profile/mock-worker', 1, "
+                       "('run-1', 'task-1', 1, ':run-fsm/default', 2, ':runtime-profile/mock-worker', 1, "
                        "':run.state/awaiting-validation', '{}', '2026-04-01T00:00:00Z', '2026-04-01T00:00:00Z')"))
     (execute-sql! db-path
                   (str "INSERT INTO assessments "

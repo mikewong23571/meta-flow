@@ -136,7 +136,7 @@
                                                     task-entity
                                                     {:run/id "run-recover"
                                                      :run/run-fsm-ref {:definition/id :run-fsm/default
-                                                                       :definition/version 1}
+                                                                       :definition/version 2}
                                                      :run/runtime-profile-ref {:definition/id :runtime-profile/mock-worker
                                                                                :definition/version 1}
                                                      :run/state :run.state/created
@@ -171,7 +171,7 @@
                                                              task-2
                                                              {:run/id "run-recover-skip"
                                                               :run/run-fsm-ref {:definition/id :run-fsm/default
-                                                                                :definition/version 1}
+                                                                                :definition/version 2}
                                                               :run/runtime-profile-ref {:definition/id :runtime-profile/mock-worker
                                                                                         :definition/version 1}
                                                               :run/state :run.state/created

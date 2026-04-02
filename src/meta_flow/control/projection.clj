@@ -1,6 +1,8 @@
 (ns meta-flow.control.projection
   (:require [meta-flow.db :as db]
-            [meta-flow.sql :as sql]))
+            [meta-flow.control.events :as events]
+            [meta-flow.sql :as sql]
+            [meta-flow.store.sqlite.shared :as shared]))
 
 (defprotocol ProjectionReader
   (load-scheduler-snapshot [reader now])
@@ -8,6 +10,7 @@
   (list-retryable-failed-task-ids [reader now limit])
   (list-awaiting-validation-run-ids [reader now limit])
   (list-expired-lease-run-ids [reader now limit])
+  (list-heartbeat-timeout-run-ids [reader now limit])
   (list-active-run-ids [reader now limit])
   (count-active-runs [reader now]))
 
@@ -68,6 +71,75 @@
                              "ORDER BY updated_at ASC, run_id ASC LIMIT ?")
                         [limit])))
 
+(defn- heartbeat-timeout-run-rows-query
+  [connection now]
+  (sql/query-rows connection
+                  (str "SELECT r.run_id, r.task_id, r.attempt, r.state, r.lease_id, r.artifact_id, "
+                       "r.run_edn, r.created_at, r.updated_at, "
+                       "MAX(CASE WHEN e.event_type IN (?, ?) THEN e.created_at END) AS last_progress_at "
+                       "FROM runs r "
+                       "JOIN leases l ON l.run_id = r.run_id "
+                       "LEFT JOIN run_events e ON e.run_id = r.run_id "
+                       "WHERE l.state = ':lease.state/active' "
+                       "AND l.lease_expires_at > ? "
+                       "AND r.state IN (':run.state/dispatched', ':run.state/running') "
+                       "GROUP BY r.run_id, r.task_id, r.attempt, r.state, r.lease_id, r.artifact_id, "
+                       "r.run_edn, r.created_at, r.updated_at "
+                       "ORDER BY COALESCE(MAX(CASE WHEN e.event_type IN (?, ?) THEN e.created_at END), r.updated_at) ASC, "
+                       "r.run_id ASC")
+                  [(db/keyword-text events/run-worker-started)
+                   (db/keyword-text events/run-worker-heartbeat)
+                   now
+                   (db/keyword-text events/run-worker-started)
+                   (db/keyword-text events/run-worker-heartbeat)]))
+
+(defn- heartbeat-timeout-seconds
+  [run]
+  (long (or (:run/heartbeat-timeout-seconds run) 0)))
+
+(defn- heartbeat-observed-at
+  [run last-progress-at]
+  (or last-progress-at
+      (when (contains? #{:run.state/dispatched
+                         :run.state/running}
+                       (:run/state run))
+        (:run/updated-at run))))
+
+(defn- timed-out-at?
+  [observed-at timeout-seconds now]
+  (and observed-at
+       (pos? timeout-seconds)
+       (not (.isAfter (.plusSeconds (java.time.Instant/parse observed-at)
+                                    timeout-seconds)
+                      (java.time.Instant/parse now)))))
+
+(defn- heartbeat-timeout-run-ids-query
+  [connection now limit]
+  (->> (heartbeat-timeout-run-rows-query connection now)
+       (keep (fn [row]
+               (let [run (shared/run-row->entity row)
+                     timeout-seconds (heartbeat-timeout-seconds run)
+                     observed-at (heartbeat-observed-at run (:last_progress_at row))]
+                 (when (timed-out-at? observed-at timeout-seconds now)
+                   (:run/id run)))))
+       (take limit)
+       vec))
+
+(defn- summarize-heartbeat-timeout-runs
+  [connection now limit]
+  (reduce (fn [{:keys [run-ids timeout-count] :as summary} row]
+            (let [run (shared/run-row->entity row)
+                  timeout-seconds (heartbeat-timeout-seconds run)
+                  observed-at (heartbeat-observed-at run (:last_progress_at row))]
+              (if (timed-out-at? observed-at timeout-seconds now)
+                {:run-ids (cond-> run-ids
+                            (< (count run-ids) limit) (conj (:run/id run)))
+                 :timeout-count (inc timeout-count)}
+                summary)))
+          {:run-ids []
+           :timeout-count 0}
+          (heartbeat-timeout-run-rows-query connection now)))
+
 (defn- query-count
   [connection sql-text params]
   (long (or (:item_count (sql/query-one connection sql-text params)) 0)))
@@ -118,6 +190,7 @@
               retryable-failed-task-ids (retryable-failed-task-ids-query connection snapshot-list-limit)
               awaiting-validation-run-ids (awaiting-validation-run-ids-query connection snapshot-list-limit)
               expired-lease-run-ids (expired-lease-run-ids-query connection now snapshot-list-limit)
+              {:keys [run-ids timeout-count]} (summarize-heartbeat-timeout-runs connection now snapshot-list-limit)
               runnable-count (runnable-task-count-query connection)
               retryable-failed-count (retryable-failed-task-count-query connection)
               awaiting-validation-count (awaiting-validation-run-count-query connection)
@@ -130,10 +203,12 @@
            :snapshot/retryable-failed-task-ids retryable-failed-task-ids
            :snapshot/awaiting-validation-run-ids awaiting-validation-run-ids
            :snapshot/expired-lease-run-ids expired-lease-run-ids
+           :snapshot/heartbeat-timeout-run-ids run-ids
            :snapshot/runnable-count runnable-count
            :snapshot/retryable-failed-count retryable-failed-count
            :snapshot/awaiting-validation-count awaiting-validation-count
-           :snapshot/expired-lease-count expired-lease-count}))))
+           :snapshot/expired-lease-count expired-lease-count
+           :snapshot/heartbeat-timeout-count timeout-count}))))
   (list-runnable-task-ids [_ _ limit]
     (sql/with-connection db-path
       (fn [connection]
@@ -150,6 +225,10 @@
     (sql/with-connection db-path
       (fn [connection]
         (expired-lease-run-ids-query connection now limit))))
+  (list-heartbeat-timeout-run-ids [_ now limit]
+    (sql/with-connection db-path
+      (fn [connection]
+        (heartbeat-timeout-run-ids-query connection now limit))))
   (list-active-run-ids [_ _ limit]
     (sql/with-connection db-path
       (fn [connection]

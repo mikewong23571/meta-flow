@@ -33,7 +33,7 @@
   (or (store.protocol/find-collection-state store :collection/default)
       (let [default-policy (defs.protocol/find-resource-policy defs-repo
                                                                :resource-policy/default
-                                                               2)
+                                                               3)
             initial {:collection/id :collection/default
                      :collection/dispatch {:dispatch/paused? false}
                      :collection/resource-policy-ref {:definition/id (:resource-policy/id default-policy)
@@ -54,3 +54,7 @@
   (defs.protocol/find-resource-policy defs-repo
                                       (get-in task [:task/resource-policy-ref :definition/id])
                                       (get-in task [:task/resource-policy-ref :definition/version])))
+
+(defn task-heartbeat-timeout-seconds
+  [defs-repo task]
+  (:resource-policy/heartbeat-timeout-seconds (task-policy defs-repo task)))
