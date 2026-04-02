@@ -232,7 +232,7 @@
     (testing "idempotency keys collapse duplicates onto one stored event"
       (let [first-event (event-ingest/ingest-run-event! store heartbeat)
             duplicate-event (event-ingest/ingest-run-event! store (assoc heartbeat
-                                                                          :event/payload {:progress/stage :stage/ignored}))
+                                                                         :event/payload {:progress/stage :stage/ignored}))
             second-event (event-ingest/ingest-run-event! store exit-event)
             stored-events (store.protocol/list-run-events store "run-1")]
         (is (= 1 (:event/seq first-event)))

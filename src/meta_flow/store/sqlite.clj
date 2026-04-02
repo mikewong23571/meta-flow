@@ -64,7 +64,7 @@
    (let [created-at (or existing-created-at
                         (:collection/created-at collection-state)
                         (sql/utc-now))
-        updated-at (or (:collection/updated-at collection-state) created-at)]
+         updated-at (or (:collection/updated-at collection-state) created-at)]
      (sql/canonicalize-edn
       (assoc collection-state
              :collection/created-at created-at
@@ -504,20 +504,20 @@
         (fn [connection]
           (let [task-id (require-run-task-id! connection run-id)
                 _ (require-matching-value! artifact :artifact/task-id task-id)]
-          (sql/execute-update! connection
-                               (str "INSERT INTO artifacts "
-                                    "(artifact_id, run_id, task_id, artifact_contract_id, artifact_contract_version, root_path, artifact_edn, created_at) "
-                                    "VALUES (?, ?, ?, ?, ?, ?, ?, ?)")
-                               [(require-key! artifact :artifact/id)
-                                (require-key! artifact :artifact/run-id)
-                                (require-key! artifact :artifact/task-id)
-                                (ref-id artifact :artifact/contract-ref)
-                                (ref-version artifact :artifact/contract-ref)
-                                root-path
-                                (sql/edn->text (assoc artifact :artifact/root-path root-path))
-                                (:artifact/created-at artifact)])
-          (update-run-artifact! connection run-id (:artifact/id artifact))
-          (assoc artifact :artifact/root-path root-path))))))
+            (sql/execute-update! connection
+                                 (str "INSERT INTO artifacts "
+                                      "(artifact_id, run_id, task_id, artifact_contract_id, artifact_contract_version, root_path, artifact_edn, created_at) "
+                                      "VALUES (?, ?, ?, ?, ?, ?, ?, ?)")
+                                 [(require-key! artifact :artifact/id)
+                                  (require-key! artifact :artifact/run-id)
+                                  (require-key! artifact :artifact/task-id)
+                                  (ref-id artifact :artifact/contract-ref)
+                                  (ref-version artifact :artifact/contract-ref)
+                                  root-path
+                                  (sql/edn->text (assoc artifact :artifact/root-path root-path))
+                                  (:artifact/created-at artifact)])
+            (update-run-artifact! connection run-id (:artifact/id artifact))
+            (assoc artifact :artifact/root-path root-path))))))
   (record-assessment! [_ assessment]
     (let [assessment (normalize-assessment assessment)]
       (sql/with-transaction db-path

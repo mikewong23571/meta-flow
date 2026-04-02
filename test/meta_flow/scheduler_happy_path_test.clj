@@ -272,8 +272,8 @@
             (let [second-step (scheduler/run-scheduler-step db-path)
                   _ (scheduler/run-scheduler-step db-path)
                   latest-run-id (:run_id (query-one db-path
-                                                   "SELECT run_id FROM runs WHERE task_id = ? ORDER BY attempt DESC LIMIT 1"
-                                                   [task-id]))
+                                                    "SELECT run_id FROM runs WHERE task_id = ? ORDER BY attempt DESC LIMIT 1"
+                                                    [task-id]))
                   task-after (scheduler/inspect-task! db-path task-id)
                   run-after (scheduler/inspect-run! db-path latest-run-id)]
               (is (= 1 (count (:created-runs second-step))))
@@ -287,7 +287,7 @@
 
 (deftest mock-runtime-prepares-each-run-once
   (let [{:keys [db-path artifacts-dir runs-dir]} (temp-system)
-        task (enqueue-demo-task! db-path)
+        _ (enqueue-demo-task! db-path)
         metadata-writes (atom [])
         original-write-edn! @#'meta-flow.runtime.mock/write-edn-file!]
     (binding [runtime.mock/*artifact-root-dir* artifacts-dir

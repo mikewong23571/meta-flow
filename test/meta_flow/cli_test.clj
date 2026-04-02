@@ -14,12 +14,12 @@
                                                                  (throw (ex-info "definitions should not load during inspect" {})))
                   db/initialize-database! (fn
                                             ([] (swap! bootstrap-calls conj :db-init)
-                                             (throw (ex-info "db init should not run during inspect" {})))
+                                                (throw (ex-info "db init should not run during inspect" {})))
                                             ([_] (swap! bootstrap-calls conj :db-init)
-                                             (throw (ex-info "db init should not run during inspect" {}))))
+                                                 (throw (ex-info "db init should not run during inspect" {}))))
                   db/ensure-runtime-directories! (fn []
-                                                  (swap! bootstrap-calls conj :runtime-dirs)
-                                                  (throw (ex-info "runtime dirs should not be created during inspect" {})))
+                                                   (swap! bootstrap-calls conj :runtime-dirs)
+                                                   (throw (ex-info "runtime dirs should not be created during inspect" {})))
                   scheduler/inspect-task! (fn [_ task-id]
                                             {:task/id task-id
                                              :task/state :task.state/completed})

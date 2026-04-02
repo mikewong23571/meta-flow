@@ -77,7 +77,7 @@
       {:runtime-run/workdir workdir
        :runtime-run/artifact-root artifact-path
        :runtime-run/log-path log-path}))
-  (dispatch-run! [this ctx task run]
+  (dispatch-run! [_ ctx task run]
     (let [{:keys [store now]} ctx
           run-id (:run/id run)
           task-id (:task/id task)
@@ -93,7 +93,7 @@
       (.mkdirs (io/file artifact-root))
       (spit run-log-path (str "mock worker for task " task-id "; run " run-id "\n"))
       (spit manifest-path (cheshire/generate-string (artifact-content task run)
-                                                   {:pretty true}))
+                                                    {:pretty true}))
       (spit notes-path (str "Run " run-id " completed for task " task-id "\n"))
       (emit-event! store run :run.event/dispatched "dispatched" {} now)
       (emit-event! store run :task.event/worker-started "worker-started" {} now)
@@ -104,20 +104,20 @@
                                         :artifact/run-id run-id
                                         :artifact/task-id task-id
                                         :artifact/contract-ref {:definition/id contract-id
-                                                               :definition/version contract-version}
+                                                                :definition/version contract-version}
                                         :artifact/location artifact-path
                                         :artifact/created-at now})
       (emit-event! store run :run.event/artifact-ready "artifact-ready"
                    {:artifact/id artifact-id
                     :artifact/root-path artifact-root
                     :artifact/contract-ref {:definition/id contract-id
-                                           :definition/version contract-version}}
+                                            :definition/version contract-version}}
                    now)
       (emit-event! store run :task.event/artifact-ready "task-artifact-ready"
                    {:artifact/id artifact-id
                     :artifact/root-path artifact-root
                     :artifact/contract-ref {:definition/id contract-id
-                                           :definition/version contract-version}}
+                                            :definition/version contract-version}}
                    now)
       {:runtime-run/dispatch "synchronous"
        :runtime-run/workdir (run-workdir run-id)

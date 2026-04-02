@@ -22,7 +22,7 @@
   [fsm entity-kind entity-id from-state event-type]
   (or (transition-to fsm from-state event-type)
       (throw (ex-info (str "Invalid " (name entity-kind) " transition: no transition for event " event-type
-                          " from state " from-state)
+                           " from state " from-state)
                       {:entity-kind entity-kind
                        :entity-id entity-id
                        :state from-state

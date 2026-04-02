@@ -9,15 +9,15 @@
   [artifact-root artifact-contract]
   (let [required-paths (:artifact-contract/required-paths artifact-contract)
         missing-paths (vec (remove #(-> artifact-root
-                                       (artifact-path %)
-                                       .exists)
+                                        (artifact-path %)
+                                        .exists)
                                    required-paths))]
     {:assessment/outcome (if (empty? missing-paths)
-                          :assessment/accepted
-                          :assessment/rejected)
+                           :assessment/accepted
+                           :assessment/rejected)
      :assessment/missing-paths missing-paths
      :assessment/checks {:artifact-root artifact-root
-                        :required-paths required-paths}
+                         :required-paths required-paths}
      :assessment/notes (if (empty? missing-paths)
                          "All required artifact paths were present"
                          (str "Missing required artifact files: " (pr-str missing-paths)))}))

@@ -256,16 +256,16 @@
         {:keys [run]} (store.protocol/create-run! store task run lease)
         run-lease-transition {:transition/from (:run/state run)
                               :transition/to (fsm/ensure-transition! (run-fsm defs-repo run)
-                                                                      :run
-                                                                      (:run/id run)
-                                                                      (:run/state run)
-                                                                      :run.event/lease-granted)}
+                                                                     :run
+                                                                     (:run/id run)
+                                                                     (:run/state run)
+                                                                     :run.event/lease-granted)}
         task-lease-transition {:transition/from (:task/state task)
                                :transition/to (fsm/ensure-transition! (task-fsm defs-repo task)
-                                                                       :task
-                                                                       (:task/id task)
-                                                                       (:task/state task)
-                                                                       :task.event/lease-granted)}
+                                                                      :task
+                                                                      (:task/id task)
+                                                                      (:task/state task)
+                                                                      :task.event/lease-granted)}
         leased-run (or (store.protocol/transition-run! store (:run/id run) run-lease-transition now-value)
                        run)
         leased-task (or (store.protocol/transition-task! store (:task/id task) task-lease-transition now-value)
@@ -308,15 +308,15 @@
                          (store.protocol/record-assessment! store recorded)
                          recorded))
         disposition (or existing-disposition
-                       (let [recorded {:disposition/id (new-id)
-                                       :disposition/run-id run-id
-                                       :disposition/decided-at now-value
-                                       :disposition/action (if (= :assessment/accepted (:assessment/outcome assessment))
-                                                             :disposition/accepted
-                                                             :disposition/rejected)
-                                       :disposition/notes (:assessment/notes assessment)}]
-                         (store.protocol/record-disposition! store recorded)
-                         recorded))]
+                        (let [recorded {:disposition/id (new-id)
+                                        :disposition/run-id run-id
+                                        :disposition/decided-at now-value
+                                        :disposition/action (if (= :assessment/accepted (:assessment/outcome assessment))
+                                                              :disposition/accepted
+                                                              :disposition/rejected)
+                                        :disposition/notes (:assessment/notes assessment)}]
+                          (store.protocol/record-disposition! store recorded)
+                          recorded))]
     (when (= :assessment/accepted (:assessment/outcome assessment))
       (emit-event! store run :run.event/assessment-accepted {:artifact/id (:run/artifact-id run)} now-value)
       (emit-event! store run :task.event/assessment-accepted {:artifact/id (:run/artifact-id run)} now-value)
@@ -354,24 +354,24 @@
       (loop [remaining (max 0 (- max-active active-count))
              runnable-ids (projection/list-runnable-task-ids reader now-value 100)]
         (when (and (pos? remaining) (seq runnable-ids))
-          (let [task-id (first runnable-ids)]
-            (let [created-run (when-let [task (store.protocol/find-task store task-id)]
-                                (when (= :task.state/queued (:task/state task))
-                                  (try
-                                    (let [run (create-run! db-path store defs-repo task)]
-                                      (swap! created-runs conj run)
-                                      run)
-                                    (catch Throwable throwable
-                                      (swap! task-errors conj
-                                             {:task/id (:task/id task)
-                                              :task/work-key (:task/work-key task)
-                                              :error/message (.getMessage throwable)
-                                              :error/data (ex-data throwable)})
-                                      nil))))]
-              (recur (if created-run
-                       (dec remaining)
-                       remaining)
-                     (rest runnable-ids)))))))
+          (let [task-id (first runnable-ids)
+                created-run (when-let [task (store.protocol/find-task store task-id)]
+                              (when (= :task.state/queued (:task/state task))
+                                (try
+                                  (let [run (create-run! db-path store defs-repo task)]
+                                    (swap! created-runs conj run)
+                                    run)
+                                  (catch Throwable throwable
+                                    (swap! task-errors conj
+                                           {:task/id (:task/id task)
+                                            :task/work-key (:task/work-key task)
+                                            :error/message (.getMessage throwable)
+                                            :error/data (ex-data throwable)})
+                                    nil))))]
+            (recur (if created-run
+                     (dec remaining)
+                     remaining)
+                   (rest runnable-ids))))))
     {:created-runs @created-runs
      :task-errors @task-errors
      :snapshot snapshot

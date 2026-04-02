@@ -1,10 +1,51 @@
 {:tasks
- {init {:doc "Initialize SQLite and runtime directories"
-        :requires ([babashka.tasks :refer [shell]])
-        :task (shell "clojure -M -m meta-flow.main init")}
-  defs-validate {:doc "Validate workflow definitions"
-                 :requires ([babashka.tasks :refer [shell]])
-                 :task (shell "clojure -M -m meta-flow.main defs validate")}
-  test {:doc "Run the test suite"
-        :requires ([babashka.tasks :refer [shell]])
-        :task (shell "clojure -M:test")}}}
+ {;; -- runtime ops ---------------------------------------------------------
+  init
+  {:doc "Initialize SQLite and runtime directories"
+   :requires ([babashka.tasks :refer [shell]])
+   :task (shell "clojure -M -m meta-flow.main init")}
+
+  defs:validate
+  {:doc "Validate workflow definitions"
+   :requires ([babashka.tasks :refer [shell]])
+   :task (shell "clojure -M -m meta-flow.main defs validate")}
+
+  ;; -- dev toolchain -------------------------------------------------------
+  repl
+  {:doc "Start nREPL server on port 7888"
+   :override-builtin true
+   :requires ([babashka.tasks :refer [shell]])
+   :task (shell "clojure -M:nrepl")}
+
+  test
+  {:doc "Run test suite once (kaocha); extra args forwarded, e.g. bb test --focus my.ns"
+   :requires ([babashka.tasks :refer [shell]])
+   :task (apply shell "clojure -M:kaocha" *command-line-args*)}
+
+  test:watch
+  {:doc "Run tests in watch mode -- reruns on file change"
+   :requires ([babashka.tasks :refer [shell]])
+   :task (shell "clojure -M:kaocha --watch")}
+
+  lint
+  {:doc "Static analysis via clj-kondo"
+   :requires ([babashka.tasks :refer [shell]])
+   :task (shell "clojure -M:lint")}
+
+  fmt
+  {:doc "Reformat source files in place (cljfmt fix)"
+   :requires ([babashka.tasks :refer [shell]])
+   :task (shell "clojure -M:fmt")}
+
+  fmt:check
+  {:doc "Check formatting without modifying files (cljfmt check)"
+   :requires ([babashka.tasks :refer [shell]])
+   :task (shell "clojure -M:fmt/check")}
+
+  ;; -- CI entry point ------------------------------------------------------
+  check
+  {:doc "Run all checks: fmt:check -> lint -> test"
+   :requires ([babashka.tasks :refer [run]])
+   :task (do (run 'fmt:check)
+             (run 'lint)
+             (run 'test))}}}

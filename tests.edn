@@ -1,0 +1,4 @@
+#kaocha/v1
+{:tests [{:kaocha/test-paths ["test"]}]
+ :color?     true
+ :randomize? true}
