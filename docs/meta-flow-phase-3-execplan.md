@@ -32,7 +32,7 @@ Phase 3 的工作是在这条基线上继续前进：实现 `meta-flow.runtime.c
 - [x] (2026-04-03 00:12Z) 将 Codex adapter 接入 `meta-flow.runtime.registry`，使 scheduler 在 codex profile 下能解析到真实 adapter，而不再把 codex task 当成“缺失 adapter”路径。
 - [x] (2026-04-03 00:12Z) 实现项目级 `CODEX_HOME` 模板安装命令 `runtime init-codex-home`，在现有 `var/codex-home/` 目录基线上幂等写入模板并保留已有用户文件。
 - [x] (2026-04-03 03:20Z) 完成 Phase 3 / Milestone 2：实现 `script/worker_api.bb` 到 `meta-flow.runtime.codex.worker-api` 的 helper 桥接、外部 stub worker dispatch、helper 事件回写，以及基于 durable `process.json` 的 poller 兜底恢复与去重测试。
-- [ ] 实现 opt-in 的 Codex smoke 命令 / 测试，并覆盖环境缺失时的可解释失败。
+- [x] (2026-04-03 10:26Z) 完成 Phase 3 / Milestone 3：新增显式 opt-in 的 `demo codex-smoke` CLI、真实 `codex exec` wrapper worker、launch support / provider guardrail、`codex_smoke_test`，并通过 `bb fmt:check`、`bb lint`、`bb test`、`bb coverage`、`bb check`；默认 gate 继续不依赖外部 Codex 环境。
 
 ## Surprises & Discoveries
 
@@ -75,7 +75,7 @@ Phase 3 的工作是在这条基线上继续前进：实现 `meta-flow.runtime.c
 
 ## Outcomes & Retrospective
 
-Phase 3 目前已完成 Milestone 1 和 2，仅剩 Milestone 3。当前代码库已经从 “Codex runtime assembled but not yet executing real worker callbacks” 推进到 “Codex runtime 已具备外部 managed worker、helper 事件回写与 poller recovery，但还未跑真实 `codex exec` smoke” 的状态：Codex adapter 已按既有 runtime seam 接入，scheduler 能为 codex profile 任务写出真实 run snapshot 与 durable `process.json` handle，项目级 `CODEX_HOME` 模板可通过 CLI 幂等安装，外部 stub worker 也已能通过 helper 把 `worker-started`、heartbeat/progress、`worker-exited`、`artifact-ready` 回写到统一 ingestion API；剩余问题只收敛到真实 Codex CLI smoke path、环境缺失时的可解释失败，以及新增 helper / worker namespace 的覆盖率 warning。
+Phase 3 已全部完成。当前代码库已经从 “Codex runtime assembled but not yet executing real worker callbacks” 推进到 “Codex runtime 既能维持默认 stub-worker gate，也能在显式 opt-in 时跑真实 `codex exec` smoke” 的状态：Codex adapter 继续沿既有 runtime seam 写真实 run snapshot 与 durable `process.json` handle，`demo codex-smoke` 会在启用 `META_FLOW_ENABLE_CODEX_SMOKE=1` 后切到真实 launch mode，并在 `codex` 缺失或 provider 凭证缺失时给出可解释失败；同时默认 `bb test` / `bb check` 仍只依赖本地 gate，不被外部 provider 环境污染。新增的 smoke/launch/worker 测试也把 launch mode、`CODEX_HOME`、env allowlist、web search 标志和真实 worker wrapper 行为固定为可重复验证的边界。
 
 ## Context and Orientation
 

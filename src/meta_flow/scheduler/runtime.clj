@@ -66,15 +66,16 @@
   (timeout/heartbeat-timed-out? run last-progress-at now))
 
 (defn- ensure-dispatch-supported!
-  [adapter task]
+  [defs-repo adapter task]
   (case (runtime.protocol/adapter-id adapter)
-    :runtime.adapter/codex (runtime.codex/ensure-launch-supported! task)
+    :runtime.adapter/codex (runtime.codex/ensure-launch-supported!
+                            (runtime-profile defs-repo (:task/runtime-profile-ref task)))
     nil))
 
 (defn create-run!
   [{:keys [store defs-repo now] :as env} task]
   (let [adapter (runtime-adapter-for-task defs-repo task)
-        _ (ensure-dispatch-supported! adapter task)
+        _ (ensure-dispatch-supported! defs-repo adapter task)
         run-id (str "run-" (shared/new-id))
         lease-id (str "lease-" (shared/new-id))
         run (cond-> {:run/id run-id

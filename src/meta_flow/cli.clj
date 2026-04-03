@@ -4,7 +4,9 @@
             [meta-flow.db :as db]
             [meta-flow.defs.loader :as defs.loader]
             [meta-flow.defs.protocol :as defs.protocol]
+            [meta-flow.runtime.codex :as runtime.codex]
             [meta-flow.runtime.codex.home :as codex.home]
+            [meta-flow.runtime.codex.process :as codex.process]
             [meta-flow.scheduler :as scheduler]))
 
 (def usage-text
@@ -18,6 +20,7 @@
     "  clojure -M -m meta-flow.main scheduler once"
     "  clojure -M -m meta-flow.main demo happy-path"
     "  clojure -M -m meta-flow.main demo retry-path"
+    "  META_FLOW_ENABLE_CODEX_SMOKE=1 clojure -M -m meta-flow.main demo codex-smoke"
     "  clojure -M -m meta-flow.main inspect task --task-id <task-id>"
     "  clojure -M -m meta-flow.main inspect run --run-id <run-id>"
     "  clojure -M -m meta-flow.main inspect collection"]))
@@ -157,6 +160,29 @@
     (println (str "Run " (:run/id run) " -> " (:run/state run)))
     (println (str "Scheduler steps: " scheduler-steps))))
 
+(defn- run-demo-codex-smoke!
+  []
+  (let [repository (ensure-system-ready!)]
+    (when-not (codex.process/smoke-enabled?)
+      (throw (ex-info "Codex smoke test cannot start: set META_FLOW_ENABLE_CODEX_SMOKE=1"
+                      {:env/name "META_FLOW_ENABLE_CODEX_SMOKE"})))
+    (let [runtime-profile (or (defs.protocol/find-runtime-profile repository
+                                                                  :runtime-profile/codex-worker
+                                                                  1)
+                              (throw (ex-info "Codex runtime profile not found"
+                                              {:runtime-profile/id :runtime-profile/codex-worker
+                                               :runtime-profile/version 1})))
+          _ (runtime.codex/ensure-launch-supported! runtime-profile)
+          {:keys [task run artifact-root scheduler-steps]} (scheduler/demo-codex-smoke! db/default-db-path)]
+      (println (str "Enqueued task " (:task/id task) " for " (:task/work-key task)))
+      (println (str "Created run " (:run/id run) " attempt " (:run/attempt run)))
+      (println "Dispatched codex worker with :runtime-profile/codex-worker")
+      (println (str "Codex worker produced artifact " artifact-root))
+      (println "Assessment accepted")
+      (println (str "Task " (:task/id task) " -> " (:task/state task)))
+      (println (str "Run " (:run/id run) " -> " (:run/state run)))
+      (println (str "Scheduler steps: " scheduler-steps)))))
+
 (defn- print-inspect!
   [value]
   (pprint/pprint value))
@@ -199,6 +225,9 @@
 
     (= args ["demo" "retry-path"])
     (run-demo-retry-path!)
+
+    (= args ["demo" "codex-smoke"])
+    (run-demo-codex-smoke!)
 
     (and (>= (count args) 2)
          (= ["inspect" "task"] (subvec args 0 2)))

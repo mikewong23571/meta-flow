@@ -71,6 +71,13 @@
                                  (codex.helper/artifact-root ctx options)
                                  (codex.helper/artifact-id ctx options)))
 
+(defn- run-codex-worker!
+  [_ ctx options]
+  (codex.worker/run-codex-worker! ctx
+                                  (require-option! options :db-path)
+                                  (codex.helper/artifact-root ctx options)
+                                  (codex.helper/artifact-id ctx options)))
+
 (defn -main
   [& argv]
   (let [[command & rest-args] argv
@@ -86,6 +93,7 @@
       "worker-exit" (emit-worker-exit! store ctx options)
       "artifact-ready" (emit-artifact-ready! store ctx options)
       "stub-worker" (run-stub-worker! store ctx options)
+      "codex-worker" (run-codex-worker! store ctx options)
       (throw (ex-info "Unsupported worker API command"
                       {:command command
                        :argv argv})))))

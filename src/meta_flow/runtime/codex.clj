@@ -1,10 +1,11 @@
 (ns meta-flow.runtime.codex
   (:require [meta-flow.runtime.codex.execution :as execution]
+            [meta-flow.runtime.codex.process :as process]
             [meta-flow.runtime.protocol :as runtime.protocol]))
 
 (defn ensure-launch-supported!
-  [task]
-  (execution/ensure-launch-supported! task))
+  [runtime-profile]
+  (process/ensure-launch-supported! runtime-profile))
 
 (defrecord CodexRuntimeAdapter []
   runtime.protocol/RuntimeAdapter

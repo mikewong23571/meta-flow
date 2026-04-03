@@ -20,6 +20,10 @@
   [db-path]
   (dev/demo-retry-path! db-path run-scheduler-step))
 
+(defn demo-codex-smoke!
+  [db-path]
+  (dev/demo-codex-smoke! db-path run-scheduler-step))
+
 (defn inspect-task!
   [db-path task-id]
   (dev/inspect-task! db-path task-id))

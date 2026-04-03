@@ -2,9 +2,12 @@
   (:require [clojure.java.io :as io]
             [clojure.string :as str]
             [clojure.test :refer [deftest is testing]]
+            [meta-flow.defs.loader :as defs.loader]
+            [meta-flow.defs.protocol :as defs.protocol]
             [meta-flow.runtime.mock.fs :as runtime.mock.fs]
             [meta-flow.runtime.registry :as runtime.registry]
             [meta-flow.scheduler :as scheduler]
+            [meta-flow.scheduler.dev :as scheduler.dev]
             [meta-flow.scheduler.support.test-support :as support]))
 
 (deftest demo-happy-path-completes-and-persists-structured-control-data
@@ -176,3 +179,13 @@
           (is (= 5 @scheduler-calls))
           (is (= :task.state/completed (:task/state task)))
           (is (= :run.state/finalized (:run/state run))))))))
+
+(deftest codex-smoke-step-budget-comes-from-the-runtime-profile-timeout
+  (let [defs-repo (defs.loader/filesystem-definition-repository)
+        runtime-profile (defs.protocol/find-runtime-profile defs-repo
+                                                            :runtime-profile/codex-worker
+                                                            1)]
+    (is (> (scheduler.dev/codex-smoke-max-steps runtime-profile)
+           300))
+    (is (= 18300
+           (scheduler.dev/codex-smoke-max-steps runtime-profile)))))

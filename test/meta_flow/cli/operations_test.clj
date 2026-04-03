@@ -6,7 +6,9 @@
             [meta-flow.db :as db]
             [meta-flow.defs.loader :as defs.loader]
             [meta-flow.defs.protocol :as defs.protocol]
+            [meta-flow.runtime.codex :as runtime.codex]
             [meta-flow.runtime.codex.home :as codex.home]
+            [meta-flow.runtime.codex.process :as codex.process]
             [meta-flow.runtime.mock.fs :as runtime.mock.fs]
             [meta-flow.scheduler :as scheduler]))
 
@@ -169,3 +171,57 @@
     (is (str/includes? happy-output "Assessment accepted"))
     (is (str/includes? happy-output "Task task-1 -> :task.state/completed"))
     (is (str/includes? happy-output "Run run-1 -> :run.state/finalized"))))
+
+(deftest codex-smoke-command-requires-opt-in-and-prints-a-summary-when-enabled
+  (let [repository ::repository]
+    (is (thrown-with-msg? clojure.lang.ExceptionInfo
+                          #"Codex smoke test cannot start: set META_FLOW_ENABLE_CODEX_SMOKE=1"
+                          (with-redefs [db/default-db-path "var/meta-flow.sqlite3"
+                                        defs.loader/filesystem-definition-repository (fn []
+                                                                                       repository)
+                                        defs.protocol/load-workflow-defs (fn [_]
+                                                                           {:workflow :loaded})
+                                        db/initialize-database! (fn
+                                                                  ([] {:db-path "var/meta-flow.sqlite3"
+                                                                       :pragmas {:journal_mode "wal"
+                                                                                 :busy_timeout 5000}})
+                                                                  ([_] {:db-path "var/meta-flow.sqlite3"
+                                                                        :pragmas {:journal_mode "wal"
+                                                                                  :busy_timeout 5000}}))
+                                        db/ensure-runtime-directories! (fn []
+                                                                         ["var/artifacts" "var/runs" "var/codex-home"])
+                                        codex.process/smoke-enabled? (constantly false)]
+                            (cli/dispatch-command! ["demo" "codex-smoke"]))))
+    (let [output (with-out-str
+                   (with-redefs [db/default-db-path "var/meta-flow.sqlite3"
+                                 defs.loader/filesystem-definition-repository (fn []
+                                                                                repository)
+                                 defs.protocol/load-workflow-defs (fn [_]
+                                                                    {:workflow :loaded})
+                                 defs.protocol/find-runtime-profile (fn [_ runtime-profile-id version]
+                                                                      {:runtime-profile/id runtime-profile-id
+                                                                       :runtime-profile/version version})
+                                 db/initialize-database! (fn
+                                                           ([] {:db-path "var/meta-flow.sqlite3"
+                                                                :pragmas {:journal_mode "wal"
+                                                                          :busy_timeout 5000}})
+                                                           ([_] {:db-path "var/meta-flow.sqlite3"
+                                                                 :pragmas {:journal_mode "wal"
+                                                                           :busy_timeout 5000}}))
+                                 db/ensure-runtime-directories! (fn []
+                                                                  ["var/artifacts" "var/runs" "var/codex-home"])
+                                 codex.process/smoke-enabled? (constantly true)
+                                 runtime.codex/ensure-launch-supported! (fn [_] {:launch/ready? true})
+                                 scheduler/demo-codex-smoke! (fn [_]
+                                                               {:task {:task/id "task-9"
+                                                                       :task/work-key "wk-codex"
+                                                                       :task/state :task.state/completed}
+                                                                :run {:run/id "run-9"
+                                                                      :run/attempt 1
+                                                                      :run/state :run.state/finalized}
+                                                                :artifact-root "var/artifacts/run-9"
+                                                                :scheduler-steps 8})]
+                     (cli/dispatch-command! ["demo" "codex-smoke"])))]
+      (is (str/includes? output "Dispatched codex worker with :runtime-profile/codex-worker"))
+      (is (str/includes? output "Task task-9 -> :task.state/completed"))
+      (is (str/includes? output "Run run-9 -> :run.state/finalized")))))

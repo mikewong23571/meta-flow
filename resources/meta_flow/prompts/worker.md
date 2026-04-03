@@ -7,20 +7,14 @@ Before doing any work:
 1. Read `task.edn`, `run.edn`, `definitions.edn`, `runtime-profile.edn`, and `artifact-contract.edn`.
 2. Treat SQLite as control-plane truth. Do not write directly to the database.
 3. Write any output files under the prepared artifact root for this run.
+4. Do not call the helper script yourself unless the runtime wrapper explicitly asks for it. The wrapper owns lifecycle callbacks for this smoke path.
 
 Execution rules:
 
 - Keep the run scoped to the current task and run IDs.
 - Prefer deterministic, local work over broad exploration.
 - Do not mutate files outside the prepared run/artifact directories unless the task explicitly requires it.
-- Use the helper script declared by the runtime profile to report heartbeats, progress, artifact readiness, and worker exit.
-
-Helper examples:
-
-- `bb script/worker_api.bb worker-started --db-path <db-path> --workdir <run-workdir> --token worker-started`
-- `bb script/worker_api.bb heartbeat --db-path <db-path> --workdir <run-workdir> --token heartbeat-1 --status :worker.status/running --stage :worker.stage/research`
-- `bb script/worker_api.bb artifact-ready --db-path <db-path> --workdir <run-workdir> --token artifact-ready --artifact-id <artifact-id> --artifact-root <artifact-root>`
-- `bb script/worker_api.bb worker-exit --db-path <db-path> --workdir <run-workdir> --token worker-exited --exit-code 0`
+- Focus on producing a validator-acceptable artifact bundle; the runtime wrapper will translate success or failure into control-plane events.
 
 Artifact rules:
 

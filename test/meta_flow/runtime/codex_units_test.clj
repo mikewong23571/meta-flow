@@ -74,7 +74,9 @@
                   codex.helper/artifact-id (fn [_ options]
                                              (or (:artifact-id options) "artifact-default"))
                   codex.worker/run-stub-worker! (fn [ctx db-path artifact-root artifact-id]
-                                                  (swap! calls conj [:stub-worker ctx db-path artifact-root artifact-id]))]
+                                                  (swap! calls conj [:stub-worker ctx db-path artifact-root artifact-id]))
+                  codex.worker/run-codex-worker! (fn [ctx db-path artifact-root artifact-id]
+                                                   (swap! calls conj [:codex-worker ctx db-path artifact-root artifact-id]))]
       (codex.worker-api/-main "worker-started"
                               "--db-path" "var/test.sqlite3"
                               "--workdir" "/tmp/work"
@@ -102,6 +104,10 @@
                               "--db-path" "var/test.sqlite3"
                               "--workdir" "/tmp/work"
                               "--artifact-id" "artifact-5")
+      (codex.worker-api/-main "codex-worker"
+                              "--db-path" "var/test.sqlite3"
+                              "--workdir" "/tmp/work"
+                              "--artifact-id" "artifact-6")
       (is (= [[:worker-started {:db-path "var/test.sqlite3"} {:workdir "/tmp/work"
                                                               :run {:run/id "run-1"}
                                                               :task {:task/id "task-1"}}
@@ -134,7 +140,13 @@
                              :task {:task/id "task-1"}}
                "var/test.sqlite3"
                "/artifacts/artifact-5"
-               "artifact-5"]]
+               "artifact-5"]
+              [:codex-worker {:workdir "/tmp/work"
+                              :run {:run/id "run-1"}
+                              :task {:task/id "task-1"}}
+               "var/test.sqlite3"
+               "/artifacts/artifact-6"
+               "artifact-6"]]
              @calls))))
   (testing "command parsing rejects malformed or incomplete argv"
     (is (thrown-with-msg? clojure.lang.ExceptionInfo

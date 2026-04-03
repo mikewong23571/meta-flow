@@ -11,9 +11,29 @@
 (def max-demo-scheduler-steps
   20)
 
+(def codex-smoke-sleep-ms
+  100)
+
+(def codex-smoke-timeout-grace-seconds
+  30)
+
 (def demo-runtime-profile-ref
   {:definition/id :runtime-profile/mock-worker
    :definition/version 1})
+
+(def codex-runtime-profile-ref
+  {:definition/id :runtime-profile/codex-worker
+   :definition/version 1})
+
+(defn codex-smoke-max-steps
+  [runtime-profile]
+  (let [worker-timeout-seconds (long (or (:runtime-profile/worker-timeout-seconds runtime-profile)
+                                         300))
+        total-ms (* 1000 (+ worker-timeout-seconds
+                            codex-smoke-timeout-grace-seconds))]
+    (max 300
+         (long (Math/ceil (/ (double total-ms)
+                             (double codex-smoke-sleep-ms)))))))
 
 (defn build-demo-task
   [defs-repo {:keys [task-id work-key runtime-profile-ref]
@@ -128,6 +148,40 @@
                                 tampered?)]
             (run-scheduler-step-fn db-path)
             (recur (inc step) tampered-now?)))))))
+
+(defn demo-codex-smoke!
+  [db-path run-scheduler-step-fn]
+  (let [store (store.sqlite/sqlite-state-store db-path)
+        defs-repo (defs.loader/filesystem-definition-repository)
+        runtime-profile (defs.protocol/find-runtime-profile defs-repo
+                                                            (:definition/id codex-runtime-profile-ref)
+                                                            (:definition/version codex-runtime-profile-ref))
+        max-steps (codex-smoke-max-steps runtime-profile)
+        task (:task (enqueue-demo-task! db-path {:runtime-profile-ref codex-runtime-profile-ref
+                                                 :work-key (str "CVE-2024-CODEX-SMOKE-" (subs (shared/new-id) 0 8))}))]
+    (loop [step 0]
+      (let [task-now (store.protocol/find-task store (:task/id task))
+            run-now (shared/latest-run store (:task/id task))]
+        (cond
+          (happy-path-complete? task-now run-now)
+          {:task task-now
+           :run run-now
+           :artifact-root (shared/run-artifact-root store run-now)
+           :scheduler-steps step}
+
+          (>= step max-steps)
+          (throw (ex-info "Codex smoke demo did not converge within the expected scheduler steps"
+                          {:task task-now
+                           :run run-now
+                           :scheduler-steps step
+                           :max-steps max-steps
+                           :worker-timeout-seconds (:runtime-profile/worker-timeout-seconds runtime-profile)}))
+
+          :else
+          (do
+            (run-scheduler-step-fn db-path)
+            (Thread/sleep codex-smoke-sleep-ms)
+            (recur (inc step))))))))
 
 (defn inspect-task!
   [db-path task-id]

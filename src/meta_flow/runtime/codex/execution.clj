@@ -1,71 +1,15 @@
 (ns meta-flow.runtime.codex.execution
   (:require [clojure.java.io :as io]
-            [meta-flow.control.event-ingest :as event-ingest]
             [meta-flow.control.events :as events]
             [meta-flow.db :as db]
-            [meta-flow.defs.protocol :as defs.protocol]
+            [meta-flow.runtime.codex.execution.dispatch :as dispatch]
             [meta-flow.runtime.codex.events :as codex.events]
             [meta-flow.runtime.codex.fs :as fs]
-            [meta-flow.runtime.codex.home :as codex.home]
             [meta-flow.runtime.codex.process :as codex.process]
             [meta-flow.sql :as sql]
             [meta-flow.store.protocol :as store.protocol]))
 (def ^:private helper-recovery-grace-seconds
   (inc (long (Math/ceil (/ (double (:busy_timeout db/sqlite-pragmas)) 1000.0)))))
-(defn- runtime-profile
-  [repository runtime-profile-ref]
-  (defs.protocol/find-runtime-profile repository
-                                      (:definition/id runtime-profile-ref)
-                                      (:definition/version runtime-profile-ref)))
-(defn- artifact-contract
-  [repository artifact-contract-ref]
-  (defs.protocol/find-artifact-contract repository
-                                        (:definition/id artifact-contract-ref)
-                                        (:definition/version artifact-contract-ref)))
-(defn- pinned-definitions
-  [repository task run]
-  (let [workflow-defs (defs.protocol/load-workflow-defs repository)]
-    {:workflow (:workflow workflow-defs)
-     :task-type (defs.protocol/find-task-type-def repository
-                                                  (get-in task [:task/task-type-ref :definition/id])
-                                                  (get-in task [:task/task-type-ref :definition/version]))
-     :task-fsm (defs.protocol/find-task-fsm-def repository
-                                                (get-in task [:task/task-fsm-ref :definition/id])
-                                                (get-in task [:task/task-fsm-ref :definition/version]))
-     :run-fsm (defs.protocol/find-run-fsm-def repository
-                                              (get-in run [:run/run-fsm-ref :definition/id])
-                                              (get-in run [:run/run-fsm-ref :definition/version]))
-     :artifact-contract (artifact-contract repository (:task/artifact-contract-ref task))
-     :validator (defs.protocol/find-validator-def repository
-                                                  (get-in task [:task/validator-ref :definition/id])
-                                                  (get-in task [:task/validator-ref :definition/version]))
-     :runtime-profile (runtime-profile repository (:task/runtime-profile-ref task))
-     :resource-policy (defs.protocol/find-resource-policy repository
-                                                          (get-in task [:task/resource-policy-ref :definition/id])
-                                                          (get-in task [:task/resource-policy-ref :definition/version]))}))
-
-(defn- render-worker-prompt
-  [prompt-resource-path task run artifact-root log-path]
-  (let [template (if-let [resource (io/resource prompt-resource-path)]
-                   (slurp resource)
-                   (throw (ex-info (str "Missing worker prompt resource " prompt-resource-path)
-                                   {:resource-path prompt-resource-path})))]
-    (str template
-         "\n\n## Prepared Run\n"
-         "- Task ID: `" (:task/id task) "`\n"
-         "- Run ID: `" (:run/id run) "`\n"
-         "- Artifact root: `" (fs/absolute-path artifact-root) "`\n"
-         "- Run log path: `" (fs/absolute-path log-path) "`\n"
-         "- Snapshot files: `task.edn`, `run.edn`, `definitions.edn`, `runtime-profile.edn`, `artifact-contract.edn`, `worker-prompt.md`\n")))
-(defn- prepared-runtime-profile
-  [runtime-profile run-id]
-  (-> runtime-profile
-      (assoc :runtime-profile/codex-home-root
-             (codex.home/codex-home-root runtime-profile))
-      (assoc :runtime-profile/helper-script-path
-             (fs/absolute-path (:runtime-profile/helper-script-path runtime-profile)))
-      (assoc :runtime-profile/worker-prompt-path
-             (fs/absolute-path (fs/worker-prompt-path run-id)))))
 (defn- artifact-contract-ready?
   [process-state contract]
   (and (:artifactRoot process-state)
@@ -183,71 +127,14 @@
                                              :artifact/contract-ref (:task/artifact-contract-ref task)}
                                             now)))))
 
-(defn ensure-launch-supported! [_] nil)
-(defn- launch-process!
-  [{:keys [repository db-path]} run process-state now]
-  (let [runtime-profile (runtime-profile repository (:run/runtime-profile-ref run))
-        task (fs/read-edn-file (str (workdir-path run process-state) "/task.edn"))
-        home-install {:codex-home/root (codex.home/codex-home-root runtime-profile)}
-        command (codex.process/launch-command db-path (:run/id run) runtime-profile)
-        process (.start (codex.process/build-process-builder command
-                                                             runtime-profile
-                                                             home-install
-                                                             task
-                                                             run))
-        process-path (codex.process/process-path-for-run run)]
-    (fs/update-json-file! process-path #(codex.process/merge-started-process-state % command now process))))
 (defn prepare-run!
   [{:keys [repository]} task run]
-  (let [task-id (:task/id task)
-        run-id (:run/id run)
-        workdir (fs/run-workdir run-id)
-        artifact-root (fs/artifact-root-path task-id run-id)
-        log-path (fs/run-log-path task-id run-id)
-        runtime-profile (runtime-profile repository (:task/runtime-profile-ref task))
-        prepared-profile (prepared-runtime-profile runtime-profile run-id)
-        definitions (pinned-definitions repository task run)
-        artifact-contract-now (artifact-contract repository (:task/artifact-contract-ref task))]
-    (fs/ensure-directory! workdir)
-    (fs/ensure-directory! artifact-root)
-    (fs/write-edn-file! (fs/definitions-path run-id) definitions)
-    (fs/write-edn-file! (fs/task-path run-id) task)
-    (fs/write-edn-file! (fs/run-path run-id) run)
-    (fs/write-edn-file! (fs/runtime-profile-path run-id) prepared-profile)
-    (fs/write-edn-file! (fs/artifact-contract-path run-id) artifact-contract-now)
-    (fs/write-text-file! (fs/worker-prompt-path run-id)
-                         (render-worker-prompt (:runtime-profile/worker-prompt-path runtime-profile)
-                                               task
-                                               run
-                                               artifact-root
-                                               log-path))
-    (fs/append-text-file! log-path
-                          (str "prepared codex run " run-id " for task " task-id "\n"))
-    {:runtime-run/workdir (fs/absolute-path workdir)
-     :runtime-run/artifact-root (fs/absolute-path artifact-root)
-     :runtime-run/log-path (fs/absolute-path log-path)}))
+  (dispatch/prepare-run! repository task run))
+
 (defn dispatch-run!
-  [{:keys [repository now store db-path]} task run]
-  (let [runtime-profile (runtime-profile repository (:task/runtime-profile-ref task))
-        home-install (codex.home/install-home! runtime-profile)
-        process-path (fs/process-path (:run/id run))
-        process-state (codex.process/base-process-state runtime-profile home-install task run now)
-        command (codex.process/launch-command db-path (:run/id run) runtime-profile)]
-    (fs/write-json-file! process-path process-state)
-    (event-ingest/ingest-run-event! store
-                                    (codex.events/runtime-event-intent run
-                                                                       events/run-dispatched
-                                                                       "dispatched"
-                                                                       {:launch/mode "stub-worker"
-                                                                        :launch/status :launch.status/pending}
-                                                                       now))
-    {:runtime-run/dispatch "external-process"
-     :runtime-run/process-path (fs/absolute-path process-path)
-     :runtime-run/workdir (fs/absolute-path (fs/run-workdir (:run/id run)))
-     :runtime-run/artifact-root (fs/absolute-path (fs/artifact-root-path (:task/id task)
-                                                                         (:run/id run)))
-     :runtime-run/command command
-     :runtime-run/launch-mode :launch.mode/stub-worker}))
+  [ctx task run]
+  (dispatch/dispatch-run! ctx task run))
+
 (defn poll-run!
   [{:keys [store repository db-path]} run now]
   (let [process-path (codex.process/process-path-for-run run)
@@ -262,7 +149,11 @@
                                                                 fs/read-json-file fs/write-json-file!
                                                                 fs/with-file-lock!)]
             (try
-              (launch-process! {:repository repository :db-path db-path} run claimed-state now)
+              (dispatch/launch-process! {:repository repository :db-path db-path}
+                                        run
+                                        claimed-state
+                                        (workdir-path run claimed-state)
+                                        now)
               (catch Throwable throwable
                 (codex.process/persist-launch-failure! process-path
                                                        claimed-state
