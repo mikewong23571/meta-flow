@@ -28,9 +28,9 @@ Phase 3 的工作是在这条基线上继续前进：实现 `meta-flow.runtime.c
 - [x] (2026-04-02 00:00Z) 确认 mock runtime 已经实现 workdir snapshot 与 durable execution handle 模式，可作为 Codex adapter 的结构模板。
 - [x] (2026-04-02 17:00Z) 复核当前代码事实并确认仓库已具备 Phase 3 开工条件：runtime seam、definitions pinning、`var/codex-home/` 目录基线与 durable handle 都已存在，不需要额外插入一个“Phase 2.5”清理阶段。
 - [x] (2026-04-02 17:00Z) 收紧本阶段起点定义：当前 prompt/helper 资源仍是 placeholder，runtime registry 尚未接入 Codex，CLI 尚无 `runtime init-codex-home` / `demo codex-smoke` 入口；这些都应作为本阶段交付，而不是视为已完成基线。
-- [ ] 实现 `src/meta_flow/runtime/codex.clj` 及其必要的按职责拆分子模块。
-- [ ] 将 Codex adapter 接入 `meta-flow.runtime.registry`，使 scheduler 在 codex profile 下能解析到真实 adapter。
-- [ ] 实现项目级 `CODEX_HOME` 模板安装命令，使其在现有 `var/codex-home/` 目录基线上写入所需模板，而不是只停留在目录存在。
+- [x] (2026-04-03 00:12Z) 完成 Phase 3 / Milestone 1：实现 `src/meta_flow/runtime/codex.clj` 及 `runtime/codex/{fs,home,events,execution}.clj`，让 Codex runtime 按现有 seam 写真实 run snapshot 和 durable `process.json` handle。
+- [x] (2026-04-03 00:12Z) 将 Codex adapter 接入 `meta-flow.runtime.registry`，使 scheduler 在 codex profile 下能解析到真实 adapter，而不再把 codex task 当成“缺失 adapter”路径。
+- [x] (2026-04-03 00:12Z) 实现项目级 `CODEX_HOME` 模板安装命令 `runtime init-codex-home`，在现有 `var/codex-home/` 目录基线上幂等写入模板并保留已有用户文件。
 - [ ] 实现 `script/worker_api.bb` 与 Codex worker 事件回写路径。
 - [ ] 实现 opt-in 的 Codex smoke 命令 / 测试，并覆盖环境缺失时的可解释失败。
 
@@ -68,7 +68,7 @@ Phase 3 的工作是在这条基线上继续前进：实现 `meta-flow.runtime.c
 
 ## Outcomes & Retrospective
 
-本阶段尚未完成。当前代码库已经达到 “Phase 3 ready but not implemented” 的状态：runtime seam、definitions pinning、`var/codex-home/` 目录基线和 durable execution handle 都已经存在，但 Codex adapter、本地 helper 语义、模板安装命令和 smoke path 仍未落地。完成时，本节应回答四个问题：一，Codex adapter 是否以现有 runtime seam 为边界接入；二，helper / poller 是否在幂等前提下协作；三，外部执行句柄是否真正可由 fresh scheduler 恢复；四，新增实现是否在保持 `bb check` 通过的同时遵守当前目录和治理规则。
+Phase 3 目前已完成 Milestone 1，尚未完成 Milestone 2 和 3。当前代码库已经从 “Phase 3 ready but not implemented” 推进到 “Codex runtime assembled but not yet executing real worker callbacks” 的状态：Codex adapter 已按既有 runtime seam 接入，scheduler 能为 codex profile 任务写出真实 run snapshot 与 durable `process.json` handle，项目级 `CODEX_HOME` 模板也可通过 CLI 幂等安装；但 helper 回写语义、真实 `codex exec` 启动包装、poller 兜底吸收与 opt-in smoke 仍未落地。后续实现仍需回答四个问题：一，helper / poller 是否在幂等前提下协作；二，外部执行句柄是否真正可由 fresh scheduler 恢复；三，真实 worker 失败与退出是否能收敛回现有控制面；四，新增实现是否在保持 `bb check` 通过的同时遵守当前目录和治理规则。
 
 ## Context and Orientation
 

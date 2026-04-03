@@ -1,0 +1,5 @@
+{:managed-by :meta-flow/runtime-init-codex-home
+ :templates-version 1
+ :notes ["Project-scoped CODEX_HOME for meta-flow Codex workers."
+         "This file is safe to keep under local runtime state."
+         "Re-running the installer only fills in missing templates."]}

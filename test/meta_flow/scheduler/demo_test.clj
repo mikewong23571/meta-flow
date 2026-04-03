@@ -3,6 +3,7 @@
             [clojure.string :as str]
             [clojure.test :refer [deftest is testing]]
             [meta-flow.runtime.mock.fs :as runtime.mock.fs]
+            [meta-flow.runtime.registry :as runtime.registry]
             [meta-flow.scheduler :as scheduler]
             [meta-flow.scheduler.support.test-support :as support]))
 
@@ -149,11 +150,17 @@
   (let [{:keys [db-path artifacts-dir runs-dir]} (support/temp-system)]
     (binding [runtime.mock.fs/*artifact-root-dir* artifacts-dir
               runtime.mock.fs/*run-root-dir* runs-dir]
-      (support/enqueue-codex-task! db-path)
-      (let [{:keys [task run scheduler-steps]} (scheduler/demo-happy-path! db-path)]
-        (is (= 5 scheduler-steps))
-        (is (= :task.state/completed (:task/state task)))
-        (is (= :run.state/finalized (:run/state run)))))))
+      (let [original-runtime-adapter runtime.registry/runtime-adapter]
+        (support/enqueue-codex-task! db-path)
+        (with-redefs [runtime.registry/runtime-adapter (fn [adapter-id]
+                                                         (if (= adapter-id :runtime.adapter/codex)
+                                                           (throw (ex-info (str "Unsupported runtime adapter " adapter-id)
+                                                                           {:adapter-id adapter-id}))
+                                                           (original-runtime-adapter adapter-id)))]
+          (let [{:keys [task run scheduler-steps]} (scheduler/demo-happy-path! db-path)]
+            (is (= 5 scheduler-steps))
+            (is (= :task.state/completed (:task/state task)))
+            (is (= :run.state/finalized (:run/state run)))))))))
 
 (deftest demo-happy-path-runs-through-public-scheduler-step
   (let [{:keys [db-path artifacts-dir runs-dir]} (support/temp-system)

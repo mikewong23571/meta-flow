@@ -2,6 +2,7 @@
   (:require [clojure.test :refer [deftest is]]
             [meta-flow.control.projection :as projection]
             [meta-flow.runtime.mock.fs :as runtime.mock.fs]
+            [meta-flow.runtime.registry :as runtime.registry]
             [meta-flow.scheduler :as scheduler]
             [meta-flow.scheduler.support.test-support :as support]
             [meta-flow.store.protocol :as store.protocol]
@@ -30,10 +31,16 @@
     (binding [runtime.mock.fs/*artifact-root-dir* artifacts-dir
               runtime.mock.fs/*run-root-dir* runs-dir]
       (let [blocked-task (support/enqueue-codex-task! db-path {:work-key "CVE-2024-AAAA-BLOCKED"})
-            runnable-task (support/enqueue-demo-task! db-path {:work-key "CVE-2024-ZZZZ-RUNNABLE"})]
+            runnable-task (support/enqueue-demo-task! db-path {:work-key "CVE-2024-ZZZZ-RUNNABLE"})
+            original-runtime-adapter runtime.registry/runtime-adapter]
         (with-redefs [projection/list-runnable-task-ids (fn [_ _ _]
                                                           [(:task/id blocked-task)
-                                                           (:task/id runnable-task)])]
+                                                           (:task/id runnable-task)])
+                      runtime.registry/runtime-adapter (fn [adapter-id]
+                                                         (if (= adapter-id :runtime.adapter/codex)
+                                                           (throw (ex-info (str "Unsupported runtime adapter " adapter-id)
+                                                                           {:adapter-id adapter-id}))
+                                                           (original-runtime-adapter adapter-id)))]
           (let [step-result (scheduler/run-scheduler-step db-path)
                 run-id (:run_id (support/query-one db-path
                                                    "SELECT run_id FROM runs WHERE task_id = ? ORDER BY attempt DESC LIMIT 1"

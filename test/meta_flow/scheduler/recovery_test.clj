@@ -101,25 +101,28 @@
                   events/task-lease-expired]
                  (mapv :event/type (store.protocol/list-run-events store run-id)))))))))
 
-(deftest unsupported-runtime-adapter-does-not-persist-a-leased-run
+(deftest adapter-resolution-failure-does-not-persist-a-leased-run
   (let [{:keys [db-path artifacts-dir runs-dir]} (support/temp-system)]
     (binding [runtime.mock.fs/*artifact-root-dir* artifacts-dir
               runtime.mock.fs/*run-root-dir* runs-dir]
       (let [task (support/enqueue-codex-task! db-path)
             task-id (:task/id task)]
-        (testing "scheduler records adapter resolution failures and leaves the task runnable"
-          (let [step-result (scheduler/run-scheduler-step db-path)]
-            (is (= [{:task/id task-id
-                     :task/work-key (:task/work-key task)
-                     :error/message "Unsupported runtime adapter :runtime.adapter/codex"
-                     :error/data {:adapter-id :runtime.adapter/codex}}]
-                   (:task-errors step-result))))
-          (is (= :task.state/queued
-                 (:task/state (scheduler/inspect-task! db-path task-id))))
-          (is (= 0
-                 (:item_count (support/query-one db-path
-                                                 "SELECT COUNT(*) AS item_count FROM runs WHERE task_id = ?"
-                                                 [task-id])))))))))
+        (with-redefs [runtime.registry/runtime-adapter (fn [adapter-id]
+                                                         (throw (ex-info (str "Unsupported runtime adapter " adapter-id)
+                                                                         {:adapter-id adapter-id})))]
+          (testing "scheduler records adapter resolution failures and leaves the task runnable"
+            (let [step-result (scheduler/run-scheduler-step db-path)]
+              (is (= [{:task/id task-id
+                       :task/work-key (:task/work-key task)
+                       :error/message "Unsupported runtime adapter :runtime.adapter/codex"
+                       :error/data {:adapter-id :runtime.adapter/codex}}]
+                     (:task-errors step-result))))
+            (is (= :task.state/queued
+                   (:task/state (scheduler/inspect-task! db-path task-id))))
+            (is (= 0
+                   (:item_count (support/query-one db-path
+                                                   "SELECT COUNT(*) AS item_count FROM runs WHERE task_id = ?"
+                                                   [task-id]))))))))))
 
 (deftest startup-failure-recovers-leased-state-and-allows-a-retry
   (let [{:keys [db-path artifacts-dir runs-dir]} (support/temp-system)

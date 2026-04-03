@@ -17,13 +17,16 @@
         root (.toFile temp-dir)
         db-path (str root "/meta-flow.sqlite3")
         artifacts-dir (str root "/artifacts")
-        runs-dir (str root "/runs")]
+        runs-dir (str root "/runs")
+        codex-home-dir (str root "/codex-home")]
     (.mkdirs (io/file artifacts-dir))
     (.mkdirs (io/file runs-dir))
+    (.mkdirs (io/file codex-home-dir))
     (db/initialize-database! db-path)
     {:db-path db-path
      :artifacts-dir artifacts-dir
-     :runs-dir runs-dir}))
+     :runs-dir runs-dir
+     :codex-home-dir codex-home-dir}))
 
 (defn query-one
   [db-path sql-text params]

@@ -2,6 +2,7 @@
   (:require [meta-flow.control.event-ingest :as event-ingest]
             [meta-flow.control.fsm :as fsm]
             [meta-flow.defs.protocol :as defs.protocol]
+            [meta-flow.runtime.codex :as runtime.codex]
             [meta-flow.runtime.protocol :as runtime.protocol]
             [meta-flow.runtime.registry :as runtime.registry]
             [meta-flow.scheduler.shared :as shared]
@@ -60,9 +61,16 @@
   [env run task timeout-value]
   (timeout/recover-heartbeat-timeout! env run task timeout-value))
 
+(defn- ensure-dispatch-supported!
+  [adapter task]
+  (case (runtime.protocol/adapter-id adapter)
+    :runtime.adapter/codex (runtime.codex/ensure-launch-supported! task)
+    nil))
+
 (defn create-run!
   [{:keys [store defs-repo now] :as env} task]
   (let [adapter (runtime-adapter-for-task defs-repo task)
+        _ (ensure-dispatch-supported! adapter task)
         run-id (str "run-" (shared/new-id))
         lease-id (str "lease-" (shared/new-id))
         run (cond-> {:run/id run-id

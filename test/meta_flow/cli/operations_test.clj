@@ -6,6 +6,7 @@
             [meta-flow.db :as db]
             [meta-flow.defs.loader :as defs.loader]
             [meta-flow.defs.protocol :as defs.protocol]
+            [meta-flow.runtime.codex.home :as codex.home]
             [meta-flow.runtime.mock.fs :as runtime.mock.fs]
             [meta-flow.scheduler :as scheduler]))
 
@@ -66,6 +67,22 @@
                                                                        :run-fsms 4
                                                                        :runtime-profiles 5})]
                         (cli/dispatch-command! ["defs" "validate"])))
+        codex-home-output (with-out-str
+                            (with-redefs [defs.loader/filesystem-definition-repository (fn []
+                                                                                         repository)
+                                          defs.protocol/load-workflow-defs (fn [_]
+                                                                             {:workflow :loaded})
+                                          defs.protocol/find-runtime-profile (fn [_ runtime-profile-id version]
+                                                                               {:runtime-profile/id runtime-profile-id
+                                                                                :runtime-profile/version version
+                                                                                :runtime-profile/codex-home-root "var/codex-home"})
+                                          db/ensure-runtime-directories! (fn []
+                                                                           ["var/artifacts" "var/runs" "var/codex-home"])
+                                          codex.home/install-home! (fn [_]
+                                                                     {:codex-home/root "var/codex-home"
+                                                                      :codex-home/installed-paths ["var/codex-home/README.md"]
+                                                                      :codex-home/skipped-paths ["var/codex-home/config.edn"]})]
+                              (cli/dispatch-command! ["runtime" "init-codex-home"])))
         scheduler-output (with-out-str
                            (with-redefs [db/default-db-path "var/meta-flow.sqlite3"
                                          defs.loader/filesystem-definition-repository (fn []
@@ -130,6 +147,10 @@
     (is (str/includes? init-output "Loaded workflow definitions"))
     (is (str/includes? defs-output "Definitions valid"))
     (is (str/includes? defs-output "Task types: 2"))
+    (is (str/includes? codex-home-output "Ensured project CODEX_HOME at var/codex-home"))
+    (is (str/includes? codex-home-output "Installed runtime templates for codex worker"))
+    (is (str/includes? codex-home-output "Templates installed: 1"))
+    (is (str/includes? codex-home-output "Templates preserved: 1"))
     (is (str/includes? scheduler-output "Created runs: 1"))
     (is (str/includes? scheduler-output "Requeued tasks: 1"))
     (is (str/includes? scheduler-output "Escalated tasks: 1"))

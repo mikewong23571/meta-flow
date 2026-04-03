@@ -4,6 +4,7 @@
             [meta-flow.db :as db]
             [meta-flow.defs.loader :as defs.loader]
             [meta-flow.defs.protocol :as defs.protocol]
+            [meta-flow.runtime.codex.home :as codex.home]
             [meta-flow.scheduler :as scheduler]))
 
 (def usage-text
@@ -12,6 +13,7 @@
    ["Usage:"
     "  clojure -M -m meta-flow.main init"
     "  clojure -M -m meta-flow.main defs validate"
+    "  clojure -M -m meta-flow.main runtime init-codex-home"
     "  clojure -M -m meta-flow.main enqueue [--work-key <work-key>]"
     "  clojure -M -m meta-flow.main scheduler once"
     "  clojure -M -m meta-flow.main demo happy-path"
@@ -67,6 +69,24 @@
     (println (str "Task FSMs: " (:task-fsms summary)))
     (println (str "Run FSMs: " (:run-fsms summary)))
     (println (str "Runtime profiles: " (:runtime-profiles summary)))))
+
+(defn- run-runtime-init-codex-home!
+  []
+  (let [repository (defs.loader/filesystem-definition-repository)
+        _ (defs.protocol/load-workflow-defs repository)
+        _ (db/ensure-runtime-directories!)
+        runtime-profile (or (defs.protocol/find-runtime-profile repository
+                                                                :runtime-profile/codex-worker
+                                                                1)
+                            (throw (ex-info "Codex runtime profile not found"
+                                            {:runtime-profile/id :runtime-profile/codex-worker
+                                             :runtime-profile/version 1})))
+        {:keys [codex-home/root codex-home/installed-paths codex-home/skipped-paths]}
+        (codex.home/install-home! runtime-profile)]
+    (println (str "Ensured project CODEX_HOME at " root))
+    (println "Installed runtime templates for codex worker")
+    (println (str "Templates installed: " (count installed-paths)))
+    (println (str "Templates preserved: " (count skipped-paths)))))
 
 (defn- run-scheduler-once!
   []
@@ -163,6 +183,9 @@
 
     (= args ["defs" "validate"])
     (run-defs-validate!)
+
+    (= args ["runtime" "init-codex-home"])
+    (run-runtime-init-codex-home!)
 
     (and (>= (count args) 1)
          (= "enqueue" (first args)))

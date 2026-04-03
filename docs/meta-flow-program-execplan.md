@@ -26,7 +26,7 @@ This document must be maintained in accordance with `.agent/PLANS.md`.
 - [x] (2026-04-02 08:34Z) 完成 Phase 2 / Milestone 1：扩展 task/resource policy definitions，引入 `max-attempts`、`needs-review`、显式 `requeue` 调度阶段，以及与之对应的 projection、CLI summary 和重试/升级测试，`bb check` 通过。
 - [x] (2026-04-02 09:51Z) 完成 Phase 2 / Milestone 2：将 heartbeat timeout 纳入 resource policy pinning 与 run snapshot，新增只读 timeout projection、scheduler recovery、CLI summary 和超时恢复测试，`bb check` 通过。
 - [x] (2026-04-02 16:53Z) 完成 Phase 2 / Milestone 3：扩展 collection-level dispatch cooldown、按 task resource policy `queue-order` 的优先级排序、按 pinned `resource-policy-ref` 的 resource ceiling 统计，并同步补齐 scheduler summary、CLI 和测试；`bb test` 通过。
-- [ ] 接入 Codex runtime adapter，实现项目级 `CODEX_HOME`、prompt 模板、task-scoped tooling 和 worker 事件回写。
+- [x] (2026-04-03 00:12Z) 完成 Phase 3 / Milestone 1：接入 `:runtime.adapter/codex` registry wiring，落地真实 run workdir snapshot、项目级 `CODEX_HOME` 模板安装与 `runtime init-codex-home` CLI，并把 Codex worker prompt 从 placeholder 收敛为受控运行说明；`bb fmt:check`、`bb lint`、`bb test` 通过。
 - [ ] 补齐失败、重试、接管、冷却、资源限流、审计查看与测试覆盖。
 
 ## Surprises & Discoveries
@@ -129,7 +129,7 @@ This document must be maintained in accordance with `.agent/PLANS.md`.
 
 ## Outcomes & Retrospective
 
-目前已经完成主 plan 在 Phase 1 的三个实现落点，以及 Phase 2 的前两个里程碑：仓库从纯文档状态变成了一个可运行的 Clojure 项目骨架，具备了 SQLite 控制面读写层，跑通了最小 mock happy path，并已补齐显式 requeue、max-attempts、needs-review 与 heartbeat-timeout recovery。使用者现在不仅可以执行 `clojure -M -m meta-flow.main init` 创建或升级 `var/meta-flow.sqlite3` 与运行目录、执行 `clojure -M -m meta-flow.main defs validate` 验证 definitions schema、交叉引用和版本 pinning，还可以执行 `clojure -M -m meta-flow.main scheduler once` 看到 retry / escalation / expired lease / heartbeat timeout 的 summary，或通过 `demo happy-path`、`demo retry-path` 与 inspect 命令观察 task/run 在成功、验证拒绝和 heartbeat 超时场景下的控制面收敛。
+目前已经完成主 plan 在 Phase 1 的三个实现落点、Phase 2 的三个里程碑，以及 Phase 3 的第一个里程碑：仓库从纯文档状态变成了一个可运行的 Clojure 项目骨架，具备了 SQLite 控制面读写层，跑通了最小 mock happy path，并已补齐显式 requeue、max-attempts、needs-review、heartbeat-timeout recovery 与 Codex runtime 的基础装配边界。使用者现在不仅可以执行 `clojure -M -m meta-flow.main init` 创建或升级 `var/meta-flow.sqlite3` 与运行目录、执行 `clojure -M -m meta-flow.main defs validate` 验证 definitions schema、交叉引用和版本 pinning，还可以执行 `clojure -M -m meta-flow.main runtime init-codex-home` 安装项目级 `CODEX_HOME` 模板、执行 `clojure -M -m meta-flow.main scheduler once` 让 codex profile 任务创建真实 snapshot / durable handle，或通过 `demo happy-path`、`demo retry-path` 与 inspect 命令观察 task/run 在成功、验证拒绝和 heartbeat 超时场景下的控制面收敛。
 
 当前验证也已经从“存储层不变量成立”推进到“最小控制面闭环成立”：`clojure -M:test` 与 `clj-kondo --lint src test script` 继续通过，新增的 `scheduler_happy_path_test` 进一步证明 structured definition pinning 已落入 `tasks`、`runs`、`artifacts`、`assessments` 和 `dispositions` 表，并且重复执行 `scheduler once` 不会破坏 happy-path 收敛。接下来应把工作转向主 plan 剩余两段：失败/重试/接管矩阵和真实 Codex runtime adapter。
 
