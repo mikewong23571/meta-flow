@@ -27,6 +27,14 @@
   (is (= :warning (coverage/classify-line-coverage 85.0)))
   (is (= :error (coverage/classify-line-coverage 84.99))))
 
+(deftest counts-from-totals-extracts-kaocha-keys
+  (is (= {:tests 3 :passes 10 :errors 1 :failures 2 :pending 0}
+         (coverage/counts-from-totals {:kaocha.result/count 3
+                                       :kaocha.result/pass 10
+                                       :kaocha.result/error 1
+                                       :kaocha.result/fail 2
+                                       :kaocha.result/pending 0}))))
+
 (deftest issue-message-explains-coverage-governance-intent
   (testing "warning copy explains that coverage drift should trigger responsibility review"
     (let [message (coverage/issue-message {:line-coverage 87.71
@@ -49,3 +57,22 @@
       (is (str/includes? message "ERROR [coverage-governance]"))
       (is (str/includes? message "threshold of 85.00%"))
       (is (str/includes? message "blocks coverage governance")))))
+
+(deftest main-finishes-with-expected-exit-code
+  (let [calls (atom [])]
+    (with-redefs [coverage/evaluate-coverage (fn []
+                                               {:exit 0
+                                                :summary (coverage/parse-summary sample-output)})
+                  coverage/finish-process! (fn [exit-code]
+                                             (swap! calls conj exit-code))]
+      (coverage/-main)
+      (is (= [nil] @calls))))
+  (let [calls (atom [])]
+    (with-redefs [coverage/evaluate-coverage (fn []
+                                               {:exit 0
+                                                :summary (coverage/parse-summary
+                                                          (str/replace sample-output "87.71" "84.50"))})
+                  coverage/finish-process! (fn [exit-code]
+                                             (swap! calls conj exit-code))]
+      (coverage/-main)
+      (is (= [1] @calls)))))

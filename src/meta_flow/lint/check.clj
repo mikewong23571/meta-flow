@@ -1,75 +1,92 @@
 (ns meta-flow.lint.check
   (:gen-class)
-  (:require [cheshire.core :as json]
-            [clojure.string :as str]
-            [meta-flow.lint.check.report :as report]
+  (:require [meta-flow.lint.check.report :as report]
             [meta-flow.lint.check.shared :as shared]
             [meta-flow.lint.coverage :as coverage]
             [meta-flow.lint.file-length :as file-length]))
 
-(def fmt-command
-  ["clojure" "-M:fmt/check"])
+(def default-source-roots
+  ["src" "test"])
 
-(def kondo-command
-  ["clojure" "-M:lint" "--config" "{:output {:format :json}}"])
+(defn resolve-var!
+  [sym]
+  (or (requiring-resolve sym)
+      (throw (ex-info (str "Missing governance dependency for " sym)
+                      {:symbol sym}))))
 
-(def test-command
-  ["clojure" "-M:kaocha"])
+(defn parse-kondo-targets
+  [extra-args]
+  (cond
+    (empty? extra-args) default-source-roots
+    (= "--lint" (first extra-args)) (vec (rest extra-args))
+    :else (vec extra-args)))
 
 (defn run-format-check!
-  ([] (run-format-check! []))
-  ([extra-paths]
-   (let [{:keys [exit combined] :as result} (shared/run-command! (into fmt-command extra-paths))
-         incorrect-files (->> (shared/non-blank-lines combined)
-                              (keep (fn [line]
-                                      (when-let [[_ path] (re-find #"^(.*?) has incorrect formatting$" line)]
-                                        path)))
-                              distinct
+  ([] (run-format-check! default-source-roots))
+  ([paths]
+   (let [load-config (var-get (resolve-var! 'cljfmt.config/load-config))
+         reporter (var-get (resolve-var! 'cljfmt.report/clojure))
+         check-no-config (var-get (resolve-var! 'cljfmt.tool/check-no-config))
+         summary (with-bindings {(resolve-var! 'cljfmt.report/*no-output*) true}
+                   (check-no-config (merge (load-config)
+                                           {:paths (if (seq paths) (vec paths) default-source-roots)
+                                            :report reporter})))
+         results (:results summary)
+         counts (:counts results)
+         incorrect-files (->> (keys (:incorrect-files results))
+                              sort
                               vec)
-         headline (if (zero? exit)
-                    "all tracked source roots are formatted"
-                    (or (shared/first-matching-line combined #"formatted incorrectly")
-                        (shared/first-matching-line combined #"incorrect formatting")
-                        "format drift detected"))]
-     (assoc result
-            :gate :format-hygiene
-            :label "format-hygiene"
-            :status (if (zero? exit) :pass :error)
-            :headline headline
-            :incorrect-files incorrect-files
-            :action "Run `bb fmt` and rerun the governance gate."))))
+         error-count (:error counts 0)
+         incorrect-count (:incorrect counts 0)
+         headline (cond
+                    (pos? error-count)
+                    (str error-count " file(s) could not be parsed for formatting")
 
-(defn parse-kondo-json
-  [output]
-  (when-not (str/blank? output)
-    (json/parse-string output true)))
+                    (pos? incorrect-count)
+                    (str incorrect-count " file(s) formatted incorrectly")
+
+                    :else
+                    "all tracked source roots are formatted")]
+     {:gate :format-hygiene
+      :label "format-hygiene"
+      :status (if (or (pos? error-count) (pos? incorrect-count))
+                :error
+                :pass)
+      :headline headline
+      :incorrect-files incorrect-files
+      :action "Run `bb fmt` and rerun the governance gate."})))
 
 (defn run-static-analysis!
   ([] (run-static-analysis! []))
   ([extra-args]
-   (let [{:keys [exit out] :as result} (shared/run-command! (into kondo-command extra-args))
-         parsed (parse-kondo-json out)
-         findings (vec (:findings parsed))
-         summary (:summary parsed)
-         top-findings (->> findings
-                           (sort-by (juxt :filename :row :col :type))
-                           (take 5)
-                           vec)
-         headline (cond
-                    (nil? parsed) "static analysis output was not parseable as JSON"
-                    (zero? exit) "no static-analysis findings"
-                    :else (str (count findings) " static-analysis finding(s) require attention"))]
-     (assoc result
-            :gate :static-analysis
-            :label "static-analysis"
-            :status (cond
-                      (nil? parsed) :error
-                      (zero? exit) :pass
-                      :else :error)
-            :headline headline
-            :summary summary
-            :findings top-findings
-            :action "Fix the reported clj-kondo findings before trusting downstream behavior checks."))))
+   (try
+     (let [run-kondo! (var-get (resolve-var! 'clj-kondo.core/run!))
+           lint-targets (parse-kondo-targets extra-args)
+           result (run-kondo! {:lint lint-targets
+                               :config {:output {:summary true}}})
+           findings (vec (:findings result))
+           summary (:summary result)
+           top-findings (->> findings
+                             (sort-by (juxt :filename :row :col :type))
+                             (take 5)
+                             vec)
+           headline (if (seq findings)
+                      (str (count findings) " static-analysis finding(s) require attention")
+                      "no static-analysis findings")]
+       {:gate :static-analysis
+        :label "static-analysis"
+        :status (if (seq findings) :error :pass)
+        :headline headline
+        :summary summary
+        :findings top-findings
+        :action "Fix the reported clj-kondo findings before trusting downstream behavior checks."})
+     (catch Throwable throwable
+       {:gate :static-analysis
+        :label "static-analysis"
+        :status :error
+        :headline "static analysis failed before producing a valid result"
+        :cause (.getMessage throwable)
+        :action "Fix the static-analysis runner before trusting downstream behavior checks."}))))
 
 (defn structure-headline
   [issues]
@@ -141,11 +158,9 @@
       (shared/first-matching-line text #"^FAIL in ")
       (shared/first-matching-line text #"^ERROR in ")))
 
-(defn run-test-check!
-  []
-  (let [{:keys [exit combined] :as result} (shared/run-command! test-command)
-        counts (parse-test-counts combined)
-        failure-type (when-not (zero? exit)
+(defn test-gate-from-coverage
+  [{:keys [exit counts combined]}]
+  (let [failure-type (when-not (zero? exit)
                        (classify-test-failure combined))
         headline (if (zero? exit)
                    (if counts
@@ -156,44 +171,34 @@
                      :assertion-failure "test suite reported assertion failures"
                      :runtime-error "test suite reported runtime errors"
                      "test suite failed"))]
-    (assoc result
-           :gate :executable-correctness
-           :label "executable-correctness"
-           :status (if (zero? exit) :pass :error)
-           :headline headline
-           :counts counts
-           :failure-type failure-type
-           :cause (when-not (zero? exit)
-                    (first-cause-line combined))
-           :action "Fix test load, compile, or runtime breakage before trusting coverage governance.")))
+    {:gate :executable-correctness
+     :label "executable-correctness"
+     :status (if (zero? exit) :pass :error)
+     :headline headline
+     :counts counts
+     :failure-type failure-type
+     :cause (when-not (zero? exit)
+              (first-cause-line combined))
+     :action "Fix test load, compile, or runtime breakage before trusting coverage governance."}))
 
-(defn run-coverage-check!
-  []
-  (let [{:keys [exit err summary]} (coverage/evaluate-coverage)]
-    (cond
-      (not (zero? exit))
-      {:gate :coverage-governance
-       :label "coverage-governance"
-       :status :error
-       :headline "coverage command failed before producing a valid governance result"
-       :cause (or (first-cause-line err) "review the coverage command output")
-       :action "Fix the failing coverage command or test runtime before relying on coverage governance."}
+(defn coverage-gate-from-result
+  [{:keys [summary]}]
+  (cond
+    (nil? summary)
+    {:gate :coverage-governance
+     :label "coverage-governance"
+     :status :error
+     :headline "coverage output could not be parsed into a governance summary"
+     :action "Update the coverage parser or governance runner before trusting this gate."}
 
-      (nil? summary)
-      {:gate :coverage-governance
-       :label "coverage-governance"
-       :status :error
-       :headline "coverage output could not be parsed into a governance summary"
-       :action "Update the coverage parser or the coverage command format before trusting this gate."}
-
-      :else
-      {:gate :coverage-governance
-       :label "coverage-governance"
-       :status (or (:level summary) :pass)
-       :headline (str "overall line coverage "
-                      (format "%.2f%%" (:line-coverage summary)))
-       :summary summary
-       :action "Add or split tests around low-coverage responsibilities before they drift further."})))
+    :else
+    {:gate :coverage-governance
+     :label "coverage-governance"
+     :status (or (:level summary) :pass)
+     :headline (str "overall line coverage "
+                    (format "%.2f%%" (:line-coverage summary)))
+     :summary summary
+     :action "Add or split tests around low-coverage responsibilities before they drift further."}))
 
 (defn skipped-coverage-gate
   []
@@ -203,25 +208,36 @@
    :headline "skipped because executable-correctness is not green"
    :action "Recover the test gate first, then rerun coverage governance."})
 
+(defn execution-gates-from-coverage
+  [result]
+  (let [test-gate (test-gate-from-coverage result)]
+    [test-gate
+     (if (= :pass (:status test-gate))
+       (coverage-gate-from-result result)
+       (skipped-coverage-gate))]))
+
 (defn check-gates
   []
-  (let [gates [(run-format-check!)
-               (run-static-analysis!)
-               (run-structure-governance!)
-               (run-test-check!)]
-        test-gate (last gates)
-        coverage-gate (if (= :pass (:status test-gate))
-                        (run-coverage-check!)
-                        (skipped-coverage-gate))]
-    (conj (vec gates) coverage-gate)))
+  (let [execution-result (coverage/evaluate-coverage)
+        execution-gates (execution-gates-from-coverage execution-result)]
+    (into [(run-format-check!)
+           (run-static-analysis!)
+           (run-structure-governance!)]
+          execution-gates)))
 
 (def overall-status report/overall-status)
 (def print-report! report/print-report!)
+
+(defn finish-process!
+  [exit-code]
+  (shutdown-agents)
+  (when (some? exit-code)
+    (System/exit exit-code)))
 
 (defn -main
   [& _]
   (let [gates (check-gates)
         status (report/overall-status gates)]
     (print-report! gates)
-    (when (= :blocked status)
-      (System/exit 1))))
+    (finish-process! (when (= :blocked status)
+                       1))))

@@ -59,7 +59,7 @@
       (let [result (check/run-static-analysis! ["--lint" (.toString root)])]
         (is (= :error (:status result)))
         (is (= 1 (get-in result [:summary :error])))
-        (is (= "unresolved-symbol" (:type (first (:findings result)))))
+        (is (= :unresolved-symbol (:type (first (:findings result)))))
         (is (str/includes? (:message (first (:findings result))) "missing-symbol")))
       (finally
         (delete-tree! root)))))
@@ -96,3 +96,32 @@
   (is (= :pass
          (check/overall-status [{:status :pass}
                                 {:status :skipped}]))))
+
+(deftest execution-gates-share-one-coverage-result
+  (let [[test-gate coverage-gate]
+        (check/execution-gates-from-coverage {:exit 0
+                                              :counts {:tests 154}
+                                              :combined ""
+                                              :summary {:line-coverage 88.94
+                                                        :level nil
+                                                        :lowest-namespaces []}})]
+    (is (= :pass (:status test-gate)))
+    (is (= "154 tests passed" (:headline test-gate)))
+    (is (= :pass (:status coverage-gate)))
+    (is (= "overall line coverage 88.94%" (:headline coverage-gate)))))
+
+(deftest main-finishes-with-expected-exit-code
+  (let [calls (atom [])]
+    (with-redefs [check/check-gates (fn [] [{:status :pass}])
+                  check/print-report! (fn [_])
+                  check/finish-process! (fn [exit-code]
+                                          (swap! calls conj exit-code))]
+      (check/-main)
+      (is (= [nil] @calls))))
+  (let [calls (atom [])]
+    (with-redefs [check/check-gates (fn [] [{:status :error}])
+                  check/print-report! (fn [_])
+                  check/finish-process! (fn [exit-code]
+                                          (swap! calls conj exit-code))]
+      (check/-main)
+      (is (= [1] @calls)))))
