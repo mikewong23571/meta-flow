@@ -48,8 +48,7 @@
 (defn retryable-event-ingest-exception?
   [throwable]
   (let [message (some-> throwable .getMessage str/lower-case)]
-    (boolean (or (and message (str/includes? message "database is locked"))
-                 (and message (str/includes? message "busy"))
+    (boolean (or (sql/retryable-write-exception? throwable)
                  (and message (str/includes? message "run_events.run_id, run_events.event_seq"))))))
 
 (defn ingest-run-event-via-connection!

@@ -31,7 +31,7 @@ Phase 3 的工作是在这条基线上继续前进：实现 `meta-flow.runtime.c
 - [x] (2026-04-03 00:12Z) 完成 Phase 3 / Milestone 1：实现 `src/meta_flow/runtime/codex.clj` 及 `runtime/codex/{fs,home,events,execution}.clj`，让 Codex runtime 按现有 seam 写真实 run snapshot 和 durable `process.json` handle。
 - [x] (2026-04-03 00:12Z) 将 Codex adapter 接入 `meta-flow.runtime.registry`，使 scheduler 在 codex profile 下能解析到真实 adapter，而不再把 codex task 当成“缺失 adapter”路径。
 - [x] (2026-04-03 00:12Z) 实现项目级 `CODEX_HOME` 模板安装命令 `runtime init-codex-home`，在现有 `var/codex-home/` 目录基线上幂等写入模板并保留已有用户文件。
-- [ ] 实现 `script/worker_api.bb` 与 Codex worker 事件回写路径。
+- [x] (2026-04-03 03:20Z) 完成 Phase 3 / Milestone 2：实现 `script/worker_api.bb` 到 `meta-flow.runtime.codex.worker-api` 的 helper 桥接、外部 stub worker dispatch、helper 事件回写，以及基于 durable `process.json` 的 poller 兜底恢复与去重测试。
 - [ ] 实现 opt-in 的 Codex smoke 命令 / 测试，并覆盖环境缺失时的可解释失败。
 
 ## Surprises & Discoveries
@@ -47,6 +47,9 @@ Phase 3 的工作是在这条基线上继续前进：实现 `meta-flow.runtime.c
 
 - Observation: 现有 CLI 和开发演示默认仍围绕 mock runtime 设计，因此 Phase 3 应新增显式 opt-in 路径，而不是把现有 happy-path / retry-path 演示直接改成默认走 Codex。
   Evidence: `src/meta_flow/cli.clj` 当前只有 `init`、`defs validate`、`enqueue`、`scheduler once`、`demo happy-path`、`demo retry-path` 和 inspect 命令；`src/meta_flow/scheduler/dev.clj` 里的 demo task builder 仍默认把 runtime profile override 到 `:runtime-profile/mock-worker`。
+
+- Observation: helper 与 poller 都能观测到 `artifact-ready` 这个物理事实时，只靠“event type 是否已存在”判断不够，会在 helper 刚写完 run-level event、task-level event 还未落库的瞬间制造重复 task 事件。
+  Evidence: Milestone 2 初版在 `bb test` 的 `meta-flow.runtime.codex-test/scheduler-codex-managed-worker-completes-through-the-existing-control-plane` 中出现第二条 `:task.event/artifact-ready`，其幂等键前缀分别为 `codex-helper:` 与 `codex-poll:`；修复方式是让 helper 在写 artifact-ready 事件前先把 `process.json` 的 `helperEvents.artifactReady` 置位，并让 poller 在看到该 ownership 标记后放弃补发 artifact-ready。
 
 ## Decision Log
 
@@ -66,9 +69,13 @@ Phase 3 的工作是在这条基线上继续前进：实现 `meta-flow.runtime.c
   Rationale: 当前 demo 和测试已经把 mock runtime 作为默认闭环锁定。继续保留这条稳定基线，才能让 Codex smoke 成为 opt-in 集成验证，而不是把默认 gate 变成依赖外部 provider 的路径。
   Date/Author: 2026-04-02 / Codex
 
+- Decision: Milestone 2 先把 Codex adapter 的“外部执行 + helper + poller”闭环建立在受控 stub worker 上，而不是把真实 `codex exec` 启动作为默认测试路径。
+  Rationale: 这一阶段的首要目标是证明 control plane seam、durable handle、helper 回写与 poller recovery 已经成立，并保持默认 `bb test` / `bb check` 不依赖 provider 凭证。真实 `codex exec` smoke 留给 Milestone 3 的显式 opt-in 路径。
+  Date/Author: 2026-04-03 / Codex
+
 ## Outcomes & Retrospective
 
-Phase 3 目前已完成 Milestone 1，尚未完成 Milestone 2 和 3。当前代码库已经从 “Phase 3 ready but not implemented” 推进到 “Codex runtime assembled but not yet executing real worker callbacks” 的状态：Codex adapter 已按既有 runtime seam 接入，scheduler 能为 codex profile 任务写出真实 run snapshot 与 durable `process.json` handle，项目级 `CODEX_HOME` 模板也可通过 CLI 幂等安装；但 helper 回写语义、真实 `codex exec` 启动包装、poller 兜底吸收与 opt-in smoke 仍未落地。后续实现仍需回答四个问题：一，helper / poller 是否在幂等前提下协作；二，外部执行句柄是否真正可由 fresh scheduler 恢复；三，真实 worker 失败与退出是否能收敛回现有控制面；四，新增实现是否在保持 `bb check` 通过的同时遵守当前目录和治理规则。
+Phase 3 目前已完成 Milestone 1 和 2，仅剩 Milestone 3。当前代码库已经从 “Codex runtime assembled but not yet executing real worker callbacks” 推进到 “Codex runtime 已具备外部 managed worker、helper 事件回写与 poller recovery，但还未跑真实 `codex exec` smoke” 的状态：Codex adapter 已按既有 runtime seam 接入，scheduler 能为 codex profile 任务写出真实 run snapshot 与 durable `process.json` handle，项目级 `CODEX_HOME` 模板可通过 CLI 幂等安装，外部 stub worker 也已能通过 helper 把 `worker-started`、heartbeat/progress、`worker-exited`、`artifact-ready` 回写到统一 ingestion API；剩余问题只收敛到真实 Codex CLI smoke path、环境缺失时的可解释失败，以及新增 helper / worker namespace 的覆盖率 warning。
 
 ## Context and Orientation
 

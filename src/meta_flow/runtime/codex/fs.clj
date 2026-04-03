@@ -1,7 +1,11 @@
 (ns meta-flow.runtime.codex.fs
   (:require [cheshire.core :as cheshire]
             [clojure.edn :as edn]
-            [clojure.java.io :as io]))
+            [clojure.java.io :as io])
+  (:import (java.nio.channels FileChannel)
+           (java.nio.file Paths StandardOpenOption)))
+
+(declare with-file-lock!)
 
 (def ^:dynamic *artifact-root-dir*
   "var/artifacts")
@@ -89,3 +93,29 @@
   [path]
   (when (.exists (io/file path))
     (cheshire/parse-string (slurp path) true)))
+
+(defn read-json-file-locked
+  [path]
+  (with-file-lock! path
+    #(read-json-file path)))
+
+(defn update-json-file!
+  [path f]
+  (with-file-lock! path
+    (fn []
+      (let [current (or (read-json-file path) {})
+            updated (f current)]
+        (write-json-file! path updated)
+        updated))))
+
+(defn with-file-lock!
+  [path f]
+  (let [lock-path (str path ".lock")]
+    (when-let [parent (.getParentFile (io/file lock-path))]
+      (.mkdirs parent))
+    (with-open [channel (FileChannel/open (Paths/get lock-path (make-array String 0))
+                                          (into-array StandardOpenOption
+                                                      [StandardOpenOption/CREATE
+                                                       StandardOpenOption/WRITE]))]
+      (with-open [_ (.lock channel)]
+        (f)))))

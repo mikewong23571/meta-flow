@@ -15,6 +15,13 @@ Execution rules:
 - Do not mutate files outside the prepared run/artifact directories unless the task explicitly requires it.
 - Use the helper script declared by the runtime profile to report heartbeats, progress, artifact readiness, and worker exit.
 
+Helper examples:
+
+- `bb script/worker_api.bb worker-started --db-path <db-path> --workdir <run-workdir> --token worker-started`
+- `bb script/worker_api.bb heartbeat --db-path <db-path> --workdir <run-workdir> --token heartbeat-1 --status :worker.status/running --stage :worker.stage/research`
+- `bb script/worker_api.bb artifact-ready --db-path <db-path> --workdir <run-workdir> --token artifact-ready --artifact-id <artifact-id> --artifact-root <artifact-root>`
+- `bb script/worker_api.bb worker-exit --db-path <db-path> --workdir <run-workdir> --token worker-exited --exit-code 0`
+
 Artifact rules:
 
 - Satisfy every required artifact path from `artifact-contract.edn`.

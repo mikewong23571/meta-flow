@@ -1,12 +1,15 @@
 (ns meta-flow.runtime.codex-test
   (:require [clojure.edn :as edn]
             [clojure.java.io :as io]
+            [clojure.string :as str]
             [clojure.test :refer [deftest is testing]]
+            [meta-flow.control.events :as events]
             [meta-flow.defs.loader :as defs.loader]
             [meta-flow.defs.protocol :as defs.protocol]
             [meta-flow.runtime.codex :as codex]
             [meta-flow.runtime.codex.fs :as codex.fs]
             [meta-flow.runtime.codex.home :as codex.home]
+            [meta-flow.runtime.codex.process :as codex.process]
             [meta-flow.runtime.protocol :as runtime.protocol]
             [meta-flow.scheduler :as scheduler]
             [meta-flow.store.protocol :as store.protocol]
@@ -39,6 +42,48 @@
         (assoc :runtime-profile/codex-home-root codex-home-dir)))
     (find-resource-policy [_ resource-policy-id version]
       (defs.protocol/find-resource-policy repository resource-policy-id version))))
+
+(def ^:private max-terminal-codex-run-attempts
+  300)
+
+(defn- wait-for-terminal-codex-run!
+  [db-path task-id]
+  (loop [attempt 0]
+    (let [result (try
+                   {:status :ok
+                    :task (scheduler/inspect-task! db-path task-id)
+                    :run (some->> (:run_id (support/query-one db-path
+                                                              (str "SELECT run_id FROM runs "
+                                                                   "WHERE task_id = ? ORDER BY attempt DESC LIMIT 1")
+                                                              [task-id]))
+                                  (scheduler/inspect-run! db-path))}
+                   (catch org.sqlite.SQLiteException ex
+                     (if (re-find #"database is locked" (.getMessage ex))
+                       {:status :busy}
+                       (throw ex))))]
+      (cond
+        (= :busy (:status result))
+        (do
+          (Thread/sleep 100)
+          (recur attempt))
+
+        (and (:run result)
+             (= :task.state/completed (get-in result [:task :task/state]))
+             (= :run.state/finalized (get-in result [:run :run/state])))
+        {:task (:task result)
+         :run (:run result)}
+
+        (>= attempt max-terminal-codex-run-attempts)
+        (throw (ex-info "Codex managed worker did not converge"
+                        {:task (:task result)
+                         :run (:run result)
+                         :attempt attempt}))
+
+        :else
+        (do
+          (Thread/sleep 100)
+          (scheduler/run-scheduler-step db-path)
+          (recur (inc attempt)))))))
 
 (deftest codex-home-install-is-idempotent-and-preserves-existing-files
   (let [{:keys [codex-home-dir]} (support/temp-system)
@@ -114,7 +159,7 @@
                                                                           "run.log"))
                                               "`")))))))))
 
-(deftest scheduler-codex-launch-gap-does-not-create-unbounded-attempts
+(deftest scheduler-codex-managed-worker-completes-through-the-existing-control-plane
   (let [{:keys [db-path artifacts-dir runs-dir codex-home-dir]} (support/temp-system)
         repository (repository-with-temp-codex-home (defs.loader/filesystem-definition-repository)
                                                     codex-home-dir)]
@@ -123,26 +168,47 @@
       (with-redefs [defs.loader/filesystem-definition-repository (fn
                                                                    ([] repository)
                                                                    ([_] repository))]
-        (let [task (support/enqueue-codex-task! db-path {:work-key "CVE-2024-CODEX-SMOKE"})
+        (let [task (support/enqueue-codex-task! db-path {:work-key "CVE-2024-CODEX-MANAGED"})
               first-step (scheduler/run-scheduler-step db-path)
-              second-step (scheduler/run-scheduler-step db-path)
-              task-view (scheduler/inspect-task! db-path (:task/id task))]
-          (testing "scheduler reports the launch gap without claiming the task"
-            (is (= 1 (count (:task-errors first-step))))
-            (is (= 1 (count (:task-errors second-step))))
-            (is (= "Codex runtime launch is not implemented yet"
-                   (get-in first-step [:task-errors 0 :error/message])))
-            (is (= "Codex runtime launch is not implemented yet"
-                   (get-in second-step [:task-errors 0 :error/message])))
-            (is (= :task.state/queued (:task/state task-view))))
-          (testing "repeated scheduler passes do not create runs or workdirs"
-            (is (= 0
-                   (:item_count (support/query-one db-path
-                                                   "SELECT COUNT(*) AS item_count FROM runs WHERE task_id = ?"
-                                                   [(:task/id task)]))))
-            (is (= 0
-                   (count (filter #(.startsWith (.getName %) "run-")
-                                  (or (seq (.listFiles (io/file runs-dir))) [])))))))))))
+              created-run-id (get-in first-step [:created-runs 0 :run :run/id])
+              process-path (some-> created-run-id codex.fs/process-path)
+              pending-process-state (codex.fs/read-json-file process-path)
+              {task-view :task run-view :run} (wait-for-terminal-codex-run! db-path (:task/id task))
+              event-types (mapv :event/type
+                                (store.protocol/list-run-events (store.sqlite/sqlite-state-store db-path)
+                                                                (:run/id run-view)))
+              process-state (codex.fs/read-json-file process-path)]
+          (testing "dispatch persists a durable external execution handle"
+            (is (= 1 (count (:created-runs first-step))))
+            (is (empty? (:task-errors first-step)))
+            (is (= "external-process"
+                   (get-in (first (:created-runs first-step))
+                           [:run :run/execution-handle :runtime-run/dispatch])))
+            (is (string? (get-in run-view [:run/execution-handle :runtime-run/process-path])))
+            (is (= "launch-pending" (:status pending-process-state)))
+            (is (vector? (get-in run-view [:run/execution-handle :runtime-run/command]))))
+          (testing "the managed worker converges through the same event-driven states as mock"
+            (is (= :task.state/completed (:task/state task-view)))
+            (is (= :run.state/finalized (:run/state run-view)))
+            (is (contains? #{"exited" "completed"} (:status process-state)))
+            (is (pos-int? (int (:pid process-state))))
+            (is (str/starts-with? (:artifactRoot process-state)
+                                  (str artifacts-dir "/")))
+            (is (= [events/run-dispatched
+                    events/task-worker-started
+                    events/run-worker-started
+                    events/run-worker-heartbeat
+                    events/run-worker-heartbeat
+                    events/run-worker-exited
+                    events/run-artifact-ready
+                    events/task-artifact-ready
+                    events/run-assessment-accepted
+                    events/task-assessment-accepted]
+                   event-types)))
+          (testing "the managed worker writes a validator-acceptable artifact bundle"
+            (is (.exists (io/file (:run/artifact-root run-view) "manifest.json")))
+            (is (.exists (io/file (:run/artifact-root run-view) "notes.md")))
+            (is (.exists (io/file (:run/artifact-root run-view) "run.log")))))))))
 
 (deftest cancel-run-updates-process-handle-with-consistent-keys
   (let [{:keys [runs-dir]} (support/temp-system)
@@ -178,3 +244,51 @@
                                            :status "prepared"})
       (is (= []
              (runtime.protocol/poll-run! adapter {} run "2026-04-03T00:00:00Z"))))))
+
+(deftest launch-failures-are-persisted-without-recrashing-later-polls
+  (let [{:keys [db-path artifacts-dir runs-dir codex-home-dir]} (support/temp-system)
+        repository (repository-with-temp-codex-home (defs.loader/filesystem-definition-repository)
+                                                    codex-home-dir)
+        adapter (codex/codex-runtime)
+        store (store.sqlite/sqlite-state-store db-path)]
+    (binding [codex.fs/*artifact-root-dir* artifacts-dir
+              codex.fs/*run-root-dir* runs-dir]
+      (with-redefs [defs.loader/filesystem-definition-repository (fn
+                                                                   ([] repository)
+                                                                   ([_] repository))]
+        (let [task (support/enqueue-codex-task! db-path {:work-key "CVE-2024-CODEX-LAUNCH-FAIL"})
+              first-step (scheduler/run-scheduler-step db-path)
+              run-id (get-in first-step [:created-runs 0 :run :run/id])
+              run (store.protocol/find-run store run-id)
+              process-path (codex.fs/process-path run-id)
+              poll-result (with-redefs [codex.process/build-process-builder (fn [& _]
+                                                                              (throw (ex-info "synthetic launch failure"
+                                                                                              {:error/type :test/launch-failure
+                                                                                               :run-id run-id})))]
+                            (runtime.protocol/poll-run! adapter
+                                                        {:store store
+                                                         :repository repository
+                                                         :db-path db-path}
+                                                        run
+                                                        "2026-04-03T00:00:01Z"))
+              failed-state (codex.fs/read-json-file process-path)]
+          (testing "launch exceptions are persisted as a failed launch instead of escaping"
+            (is (= [] poll-result))
+            (is (= "launch-failed" (:status failed-state)))
+            (is (= 1 (:exitCode failed-state)))
+            (is (= "2026-04-03T00:00:01Z" (:launchFailedAt failed-state)))
+            (is (= "synthetic launch failure"
+                   (get-in failed-state [:launchError :message]))))
+          (testing "later polls and scheduler passes do not retry the same launch crash"
+            (is (= []
+                   (runtime.protocol/poll-run! adapter
+                                               {:store store
+                                                :repository repository
+                                                :db-path db-path}
+                                               run
+                                               "2026-04-03T00:00:02Z")))
+            (is (empty? (:task-errors (scheduler/run-scheduler-step db-path))))
+            (is (= :run.state/dispatched
+                   (:run/state (store.protocol/find-run store run-id))))
+            (is (= :task.state/leased
+                   (:task/state (store.protocol/find-task store (:task/id task)))))))))))

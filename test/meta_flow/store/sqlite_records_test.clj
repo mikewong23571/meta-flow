@@ -99,6 +99,38 @@
            (support/query-single-value db-path "SELECT COUNT(*) FROM artifacts")))
     (is (nil? (support/query-single-value db-path "SELECT artifact_id FROM runs WHERE run_id = 'run-2'")))))
 
+(deftest attach-artifact-rejects-artifact-id-collision-across-runs
+  (let [{:keys [db-path store]} (support/test-system)
+        now "2026-04-01T00:00:00Z"
+        task-1 (store.protocol/enqueue-task! store (support/task "task-1" "work/cve-artifact-collision-1" now))
+        task-2 (store.protocol/enqueue-task! store (support/task "task-2" "work/cve-artifact-collision-2" now))]
+    (store.protocol/create-run! store task-1
+                                (support/run "run-1" 1 now)
+                                (support/lease "lease-1" "run-1" "2026-04-01T00:10:00Z" now))
+    (store.protocol/create-run! store task-2
+                                (support/run "run-2" 1 now)
+                                (support/lease "lease-2" "run-2" "2026-04-01T00:11:00Z" now))
+    (is (= "run-1"
+           (:artifact/run-id (store.protocol/attach-artifact! store "run-1"
+                                                              {:artifact/id "artifact-collision"
+                                                               :artifact/run-id "run-1"
+                                                               :artifact/task-id "task-1"
+                                                               :artifact/contract-ref {:definition/id :artifact-contract/default
+                                                                                       :definition/version 1}
+                                                               :artifact/location "/tmp/artifact-collision"
+                                                               :artifact/created-at "2026-04-01T00:20:00Z"}))))
+    (is (thrown-with-msg? clojure.lang.ExceptionInfo
+                          #"Artifact id already belongs to another run"
+                          (store.protocol/attach-artifact! store "run-2"
+                                                           {:artifact/id "artifact-collision"
+                                                            :artifact/run-id "run-2"
+                                                            :artifact/task-id "task-2"
+                                                            :artifact/contract-ref {:definition/id :artifact-contract/default
+                                                                                    :definition/version 1}
+                                                            :artifact/location "/tmp/artifact-collision-2"
+                                                            :artifact/created-at "2026-04-01T00:21:00Z"})))
+    (is (nil? (support/query-single-value db-path "SELECT artifact_id FROM runs WHERE run_id = 'run-2'")))))
+
 (deftest record-assessment-is-idempotent-by-run-and-assessment-key
   (let [{:keys [db-path store]} (support/test-system)
         now "2026-04-01T00:00:00Z"
