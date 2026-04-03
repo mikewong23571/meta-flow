@@ -1,6 +1,6 @@
 (ns meta-flow.cli
-  (:require [clojure.pprint :as pprint]
-            [clojure.string :as str]
+  (:require [clojure.string :as str]
+            [meta-flow.cli.inspect :as cli.inspect]
             [meta-flow.db :as db]
             [meta-flow.defs.loader :as defs.loader]
             [meta-flow.defs.protocol :as defs.protocol]
@@ -183,24 +183,6 @@
       (println (str "Run " (:run/id run) " -> " (:run/state run)))
       (println (str "Scheduler steps: " scheduler-steps)))))
 
-(defn- print-inspect!
-  [value]
-  (pprint/pprint value))
-
-(defn- run-inspect-task!
-  [args]
-  (print-inspect! (scheduler/inspect-task! db/default-db-path
-                                           (require-option! args "--task-id"))))
-
-(defn- run-inspect-run!
-  [args]
-  (print-inspect! (scheduler/inspect-run! db/default-db-path
-                                          (require-option! args "--run-id"))))
-
-(defn- run-inspect-collection!
-  []
-  (print-inspect! (scheduler/inspect-collection! db/default-db-path)))
-
 (defn dispatch-command!
   [args]
   (cond
@@ -231,14 +213,14 @@
 
     (and (>= (count args) 2)
          (= ["inspect" "task"] (subvec args 0 2)))
-    (run-inspect-task! args)
+    (cli.inspect/run-task! (require-option! args "--task-id"))
 
     (and (>= (count args) 2)
          (= ["inspect" "run"] (subvec args 0 2)))
-    (run-inspect-run! args)
+    (cli.inspect/run-run! (require-option! args "--run-id"))
 
     (= args ["inspect" "collection"])
-    (run-inspect-collection!)
+    (cli.inspect/run-collection!)
 
     :else
     (do
