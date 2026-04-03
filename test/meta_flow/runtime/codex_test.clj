@@ -8,7 +8,7 @@
             [meta-flow.runtime.codex :as codex]
             [meta-flow.runtime.codex.fs :as codex.fs]
             [meta-flow.runtime.codex.home :as codex.home]
-            [meta-flow.runtime.codex.process :as codex.process]
+            [meta-flow.runtime.codex.process.launch :as codex.launch]
             [meta-flow.runtime.protocol :as runtime.protocol]
             [meta-flow.scheduler :as scheduler]
             [meta-flow.store.protocol :as store.protocol]
@@ -262,10 +262,10 @@
               run-id (get-in first-step [:created-runs 0 :run :run/id])
               run (store.protocol/find-run store run-id)
               process-path (codex.fs/process-path run-id)
-              poll-result (with-redefs [codex.process/build-process-builder (fn [& _]
-                                                                              (throw (ex-info "synthetic launch failure"
-                                                                                              {:error/type :test/launch-failure
-                                                                                               :run-id run-id})))]
+              poll-result (with-redefs [codex.launch/build-process-builder (fn [& _]
+                                                                             (throw (ex-info "synthetic launch failure"
+                                                                                             {:error/type :test/launch-failure
+                                                                                              :run-id run-id})))]
                             (runtime.protocol/poll-run! adapter
                                                         {:store store
                                                          :repository repository

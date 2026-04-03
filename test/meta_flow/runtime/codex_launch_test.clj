@@ -7,7 +7,7 @@
             [meta-flow.defs.protocol :as defs.protocol]
             [meta-flow.runtime.codex :as codex]
             [meta-flow.runtime.codex.fs :as codex.fs]
-            [meta-flow.runtime.codex.process :as codex.process]
+            [meta-flow.runtime.codex.process.launch :as codex.launch]
             [meta-flow.runtime.codex-worker-api-test :as worker-api]
             [meta-flow.runtime.protocol :as runtime.protocol]
             [meta-flow.scheduler :as scheduler]
@@ -46,7 +46,7 @@
               run-id (get-in first-step [:created-runs 0 :run :run/id])
               run (store.protocol/find-run store run-id)
               process-path (codex.fs/process-path run-id)]
-          (with-redefs [codex.process/build-process-builder
+          (with-redefs [codex.launch/build-process-builder
                         (fn [& _]
                           (swap! launch-count inc)
                           (reset! observed-state (codex.fs/read-json-file process-path))
@@ -94,7 +94,7 @@
                                             :status "launching"
                                             :launchClaimedAt "2026-04-03T01:14:00Z"
                                             :launchClaimToken "stale-claim"))
-          (with-redefs [codex.process/build-process-builder
+          (with-redefs [codex.launch/build-process-builder
                         (fn [& _]
                           (swap! launch-count inc)
                           (reset! observed-state (codex.fs/read-json-file process-path))
@@ -171,7 +171,7 @@
               run-id (get-in first-step [:created-runs 0 :run :run/id])
               run (store.protocol/find-run store run-id)
               process-path (codex.fs/process-path run-id)]
-          (with-redefs [codex.process/build-process-builder
+          (with-redefs [codex.launch/build-process-builder
                         (fn [& _]
                           (runtime.protocol/cancel-run! adapter {} run {:reason :test/cancel})
                           (throw (ex-info "synthetic cancelled launch failure"

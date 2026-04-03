@@ -4,7 +4,7 @@
             [clojure.string :as str]
             [meta-flow.runtime.codex.helper :as codex.helper]
             [meta-flow.runtime.codex.fs :as fs]
-            [meta-flow.runtime.codex.process :as codex.process]
+            [meta-flow.runtime.codex.process.launch :as process.launch]
             [meta-flow.sql :as sql]
             [meta-flow.store.sqlite :as store.sqlite]))
 
@@ -47,7 +47,7 @@
 
 (defn- start-codex-process!
   [workdir runtime-profile input]
-  (let [builder (doto (ProcessBuilder. (codex.process/codex-exec-command workdir runtime-profile))
+  (let [builder (doto (ProcessBuilder. (process.launch/codex-exec-command workdir runtime-profile))
                   (.directory (io/file workdir))
                   (.redirectOutput java.lang.ProcessBuilder$Redirect/INHERIT)
                   (.redirectError java.lang.ProcessBuilder$Redirect/INHERIT))
@@ -59,7 +59,7 @@
 (defn- record-codex-child-process!
   [workdir runtime-profile ^Process proc]
   (let [child-pid (.pid proc)
-        child-command (codex.process/codex-exec-command workdir runtime-profile)]
+        child-command (process.launch/codex-exec-command workdir runtime-profile)]
     (codex.helper/update-process-state! workdir
                                         (fn [current]
                                           (let [wrapper-pid (:pid current)

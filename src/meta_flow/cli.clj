@@ -6,7 +6,7 @@
             [meta-flow.defs.protocol :as defs.protocol]
             [meta-flow.runtime.codex :as runtime.codex]
             [meta-flow.runtime.codex.home :as codex.home]
-            [meta-flow.runtime.codex.process :as codex.process]
+            [meta-flow.runtime.codex.process.launch :as codex.launch]
             [meta-flow.scheduler :as scheduler]))
 
 (def usage-text
@@ -163,7 +163,7 @@
 (defn- run-demo-codex-smoke!
   []
   (let [repository (ensure-system-ready!)]
-    (when-not (codex.process/smoke-enabled?)
+    (when-not (codex.launch/smoke-enabled?)
       (throw (ex-info "Codex smoke test cannot start: set META_FLOW_ENABLE_CODEX_SMOKE=1"
                       {:env/name "META_FLOW_ENABLE_CODEX_SMOKE"})))
     (let [runtime-profile (or (defs.protocol/find-runtime-profile repository

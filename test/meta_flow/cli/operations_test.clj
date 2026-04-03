@@ -8,7 +8,7 @@
             [meta-flow.defs.protocol :as defs.protocol]
             [meta-flow.runtime.codex :as runtime.codex]
             [meta-flow.runtime.codex.home :as codex.home]
-            [meta-flow.runtime.codex.process :as codex.process]
+            [meta-flow.runtime.codex.process.launch :as codex.launch]
             [meta-flow.runtime.mock.fs :as runtime.mock.fs]
             [meta-flow.scheduler :as scheduler]))
 
@@ -190,7 +190,7 @@
                                                                                   :busy_timeout 5000}}))
                                         db/ensure-runtime-directories! (fn []
                                                                          ["var/artifacts" "var/runs" "var/codex-home"])
-                                        codex.process/smoke-enabled? (constantly false)]
+                                        codex.launch/smoke-enabled? (constantly false)]
                             (cli/dispatch-command! ["demo" "codex-smoke"]))))
     (let [output (with-out-str
                    (with-redefs [db/default-db-path "var/meta-flow.sqlite3"
@@ -210,7 +210,7 @@
                                                                            :busy_timeout 5000}}))
                                  db/ensure-runtime-directories! (fn []
                                                                   ["var/artifacts" "var/runs" "var/codex-home"])
-                                 codex.process/smoke-enabled? (constantly true)
+                                 codex.launch/smoke-enabled? (constantly true)
                                  runtime.codex/ensure-launch-supported! (fn [_] {:launch/ready? true})
                                  scheduler/demo-codex-smoke! (fn [_]
                                                                {:task {:task/id "task-9"

@@ -5,7 +5,8 @@
             [meta-flow.runtime.codex.execution.dispatch :as dispatch]
             [meta-flow.runtime.codex.events :as codex.events]
             [meta-flow.runtime.codex.fs :as fs]
-            [meta-flow.runtime.codex.process :as codex.process]
+            [meta-flow.runtime.codex.process.launch :as process.launch]
+            [meta-flow.runtime.codex.process.state :as process.state]
             [meta-flow.sql :as sql]
             [meta-flow.store.protocol :as store.protocol]))
 (def ^:private helper-recovery-grace-seconds
@@ -50,7 +51,7 @@
                      (java.time.Instant/parse now))))))
 (defn- poll-start-events
   [run event-types process-state now]
-  (when (and (codex.process/started? process-state)
+  (when (and (process.state/started? process-state)
              (not (get-in process-state [:helperEvents :workerStarted]))
              (not (helper-transition-in-flight? process-state
                                                 :workerStartedStatus
@@ -68,9 +69,9 @@
                                             "worker-started" {} now)))))
 (defn- poll-never-started-cancel-events
   [run event-types process-state now]
-  (when (and (codex.process/cancelled? process-state)
-             (codex.process/exited? process-state)
-             (codex.process/never-started? process-state)
+  (when (and (process.state/cancelled? process-state)
+             (process.state/exited? process-state)
+             (process.state/never-started? process-state)
              (or (not (contains? event-types events/run-heartbeat-timed-out))
                  (not (contains? event-types events/task-heartbeat-timed-out))))
     (let [payload {:timeout/kind :timeout.kind/heartbeat
@@ -84,21 +85,21 @@
                                               "never-started-cancel" payload now))))))
 (defn- poll-exit-events
   [run event-types process-state now]
-  (when (and (codex.process/exited? process-state)
-             (not (codex.process/never-started? process-state))
+  (when (and (process.state/exited? process-state)
+             (not (process.state/never-started? process-state))
              (or (not= "launch-failed" (:status process-state))
-                 (codex.process/cancelled? process-state))
+                 (process.state/cancelled? process-state))
              (not (contains? event-types events/run-worker-exited)))
     [(codex.events/poll-event-intent run events/run-worker-exited "worker-exited"
                                      {:worker/exit-code (long (or (:exitCode process-state) 0))
-                                      :worker/cancelled? (codex.process/cancelled? process-state)}
+                                      :worker/cancelled? (process.state/cancelled? process-state)}
                                      now)]))
 (defn- poll-artifact-events
   [store run task event-types process-state contract now]
   (when (and task
              contract
-             (codex.process/successful-exit? process-state)
-             (not (codex.process/cancelled? process-state))
+             (process.state/successful-exit? process-state)
+             (not (process.state/cancelled? process-state))
              (not (get-in process-state [:helperEvents :artifactReady]))
              (not (helper-transition-in-flight? process-state
                                                 :artifactReadyStatus
@@ -137,14 +138,14 @@
 
 (defn poll-run!
   [{:keys [store repository db-path]} run now]
-  (let [process-path (codex.process/process-path-for-run run)
+  (let [process-path (process.launch/process-path-for-run run)
         process-state (some-> (fs/read-json-file-locked process-path)
-                              codex.process/infer-process-state)]
+                              process.state/infer-process-state)]
     (if (nil? process-state)
       []
       (if (contains? #{"launch-pending" "launching"} (:status process-state))
         (do
-          (when-let [claimed-state (codex.process/claim-launch! process-path
+          (when-let [claimed-state (process.state/claim-launch! process-path
                                                                 now helper-recovery-grace-seconds
                                                                 fs/read-json-file fs/write-json-file!
                                                                 fs/with-file-lock!)]
@@ -155,7 +156,7 @@
                                         (workdir-path run claimed-state)
                                         now)
               (catch Throwable throwable
-                (codex.process/persist-launch-failure! process-path
+                (process.state/persist-launch-failure! process-path
                                                        claimed-state
                                                        now throwable fs/read-json-file
                                                        fs/write-json-file!
@@ -172,7 +173,7 @@
 (defn cancel-run!
   [run reason]
   (let [run-id (:run/id run)
-        process-path (codex.process/process-path-for-run run)
+        process-path (process.launch/process-path-for-run run)
         now (sql/utc-now)]
     (fs/update-json-file! process-path #(cond-> (assoc % :runId (or (:runId %) run-id)
                                                        :status "cancel-requested"

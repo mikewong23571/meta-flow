@@ -1,10 +1,9 @@
-(ns meta-flow.runtime.codex-process-worker-test
+(ns meta-flow.runtime.codex.worker-wrapper-test
   (:require [clojure.java.io :as io]
             [clojure.test :refer [deftest is]]
             [meta-flow.runtime.codex.fs :as codex.fs]
             [meta-flow.runtime.codex.helper :as codex.helper]
-            [meta-flow.runtime.codex.launch.support :as launch.support]
-            [meta-flow.runtime.codex.process :as codex.process]
+            [meta-flow.runtime.codex.process.launch :as codex.launch]
             [meta-flow.runtime.codex.worker :as codex.worker]
             [meta-flow.store.sqlite :as store.sqlite]))
 
@@ -49,78 +48,6 @@
       (isAlive []
         (not (or @destroyed?
                  (true? (first @wait-state))))))))
-
-(deftest codex-process-launch-mode-and-command-follow-the-opt-in-smoke-flag
-  (let [runtime-profile {:runtime-profile/web-search-enabled? true
-                         :runtime-profile/helper-script-path "script/worker_api.bb"
-                         :runtime-profile/env-allowlist ["PATH" "OPENAI_API_KEY"]}]
-    (with-redefs [launch.support/env-value (fn [key-name]
-                                             (case key-name
-                                               "META_FLOW_ENABLE_CODEX_SMOKE" "1"
-                                               "OPENAI_API_KEY" "test-key"
-                                               "PATH" "/usr/bin"
-                                               nil))
-                  launch.support/codex-command-available? (constantly true)]
-      (is (= :launch.mode/codex-exec
-             (codex.process/launch-mode runtime-profile)))
-      (is (= {:launch/mode :launch.mode/codex-exec
-              :launch/ready? true
-              :launch/provider-env-keys ["OPENAI_API_KEY"]}
-             (codex.process/launch-support runtime-profile)))
-      (is (= ["bb"
-              (.getCanonicalPath (io/file "script/worker_api.bb"))
-              "codex-worker"
-              "--db-path" "var/test.sqlite3"
-              "--workdir" (.getCanonicalPath (io/file "var/runs/run-1"))]
-             (binding [codex.fs/*run-root-dir* "var/runs"]
-               (codex.process/launch-command "var/test.sqlite3" "run-1" runtime-profile))))
-      (is (= ["codex"
-              "exec"
-              "--dangerously-bypass-approvals-and-sandbox"
-              "--skip-git-repo-check"
-              "-C" "/tmp/work"
-              "--search"
-              "-"]
-             (codex.process/codex-exec-command "/tmp/work" runtime-profile)))))
-  (with-redefs [launch.support/env-value (constantly nil)
-                launch.support/codex-command-available? (constantly false)]
-    (is (= {:launch/mode :launch.mode/stub-worker
-            :launch/ready? true}
-           (codex.process/launch-support {:runtime-profile/env-allowlist ["PATH"]})))
-    (is (= {:launch/mode :launch.mode/stub-worker
-            :launch/ready? true}
-           (codex.process/ensure-launch-supported!
-            {:runtime-profile/env-allowlist ["OPENAI_API_KEY"]}))))
-  (with-redefs [launch.support/env-value (fn [key-name]
-                                           (case key-name
-                                             "META_FLOW_ENABLE_CODEX_SMOKE" "1"
-                                             nil))
-                launch.support/codex-command-available? (constantly false)]
-    (is (thrown-with-msg? clojure.lang.ExceptionInfo
-                          #"Codex smoke test cannot start: `codex` command not found"
-                          (codex.process/ensure-launch-supported!
-                           {:runtime-profile/env-allowlist ["OPENAI_API_KEY"]}))))
-  (with-redefs [launch.support/env-value (fn [key-name]
-                                           (case key-name
-                                             "META_FLOW_ENABLE_CODEX_SMOKE" "1"
-                                             nil))
-                launch.support/codex-command-available? (constantly true)]
-    (is (thrown-with-msg? clojure.lang.ExceptionInfo
-                          #"missing provider credentials"
-                          (codex.process/ensure-launch-supported!
-                           {:runtime-profile/env-allowlist ["OPENAI_API_KEY"
-                                                            "ANTHROPIC_API_KEY"]}))))
-  (with-redefs [launch.support/env-value (fn [key-name]
-                                           (case key-name
-                                             "META_FLOW_ENABLE_CODEX_SMOKE" "1"
-                                             "OPENAI_API_KEY" "   "
-                                             nil))
-                launch.support/codex-command-available? (constantly true)]
-    (is (= {:launch/mode :launch.mode/codex-exec
-            :launch/ready? false
-            :launch/message "Codex smoke test cannot start: missing provider credentials for configured runtime profile"
-            :launch/provider-env-keys ["OPENAI_API_KEY"]}
-           (codex.process/launch-support {:runtime-profile/env-allowlist ["OPENAI_API_KEY"]})))))
 
 (deftest codex-worker-run-codex-worker-wraps-codex-exec-with-helper-events
   (let [root (.toFile (java.nio.file.Files/createTempDirectory "meta-flow-codex-exec-worker"
@@ -207,8 +134,8 @@
                (nth @calls 5)))
         (is (= {:pid 202
                 :wrapperPid 101
-                :command (codex.process/codex-exec-command workdir
-                                                           {:runtime-profile/web-search-enabled? true})
+                :command (codex.launch/codex-exec-command workdir
+                                                          {:runtime-profile/web-search-enabled? true})
                 :wrapperCommand ["bb" "script/worker_api.bb" "codex-worker"]}
                (select-keys (codex.fs/read-json-file (str workdir "/process.json"))
                             [:pid :wrapperPid :command :wrapperCommand])))))))

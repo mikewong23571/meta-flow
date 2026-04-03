@@ -7,7 +7,7 @@
             [meta-flow.defs.loader :as defs.loader]
             [meta-flow.defs.protocol :as defs.protocol]
             [meta-flow.runtime.codex.fs :as codex.fs]
-            [meta-flow.runtime.codex.process :as codex.process]
+            [meta-flow.runtime.codex.process.launch :as codex.launch]
             [meta-flow.scheduler :as scheduler]
             [meta-flow.scheduler.support.test-support :as support]))
 
@@ -38,14 +38,14 @@
         repository (repository-with-temp-codex-home (defs.loader/filesystem-definition-repository)
                                                     codex-home-dir)
         runtime-profile (defs.protocol/find-runtime-profile repository :runtime-profile/codex-worker 1)
-        support-state (codex.process/launch-support runtime-profile)]
+        support-state (codex.launch/launch-support runtime-profile)]
     (binding [codex.fs/*artifact-root-dir* artifacts-dir
               codex.fs/*run-root-dir* runs-dir]
       (with-redefs [db/default-db-path db-path
                     defs.loader/filesystem-definition-repository (fn
                                                                    ([] repository)
                                                                    ([_] repository))]
-        (if-not (codex.process/smoke-enabled?)
+        (if-not (codex.launch/smoke-enabled?)
           (is (thrown-with-msg? clojure.lang.ExceptionInfo
                                 #"Codex smoke test cannot start: set META_FLOW_ENABLE_CODEX_SMOKE=1"
                                 (cli/dispatch-command! ["demo" "codex-smoke"])))

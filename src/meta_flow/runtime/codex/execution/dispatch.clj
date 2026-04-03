@@ -7,7 +7,8 @@
             [meta-flow.runtime.codex.events :as codex.events]
             [meta-flow.runtime.codex.fs :as fs]
             [meta-flow.runtime.codex.home :as codex.home]
-            [meta-flow.runtime.codex.process :as codex.process]))
+            [meta-flow.runtime.codex.process.launch :as process.launch]
+            [meta-flow.runtime.codex.process.state :as process.state]))
 
 (defn- runtime-profile
   [repository runtime-profile-ref]
@@ -105,17 +106,17 @@
   (let [runtime-profile-now (runtime-profile repository (:task/runtime-profile-ref task))
         home-install (codex.home/install-home! runtime-profile-now)
         process-path (fs/process-path (:run/id run))
-        launch-mode (codex.process/launch-mode runtime-profile-now)
-        process-state (codex.process/base-process-state runtime-profile-now
-                                                        home-install
-                                                        task
-                                                        run
-                                                        now
-                                                        launch-mode)
-        command (codex.process/launch-command db-path
-                                              (:run/id run)
-                                              runtime-profile-now
-                                              launch-mode)]
+        launch-mode (process.launch/launch-mode runtime-profile-now)
+        process-state (process.launch/base-process-state runtime-profile-now
+                                                         home-install
+                                                         task
+                                                         run
+                                                         now
+                                                         launch-mode)
+        command (process.launch/launch-command db-path
+                                               (:run/id run)
+                                               runtime-profile-now
+                                               launch-mode)]
     (fs/write-json-file! process-path process-state)
     (event-ingest/ingest-run-event! store
                                     (codex.events/runtime-event-intent run
@@ -137,14 +138,14 @@
   (let [runtime-profile-now (runtime-profile repository (:run/runtime-profile-ref run))
         task (fs/read-edn-file (str workdir "/task.edn"))
         home-install {:codex-home/root (codex.home/codex-home-root runtime-profile-now)}
-        command (codex.process/launch-command db-path
-                                              (:run/id run)
-                                              runtime-profile-now
-                                              (codex.process/persisted-launch-mode process-state runtime-profile-now))
-        process (.start (codex.process/build-process-builder command
-                                                             runtime-profile-now
-                                                             home-install
-                                                             task
-                                                             run))
-        process-path (codex.process/process-path-for-run run)]
-    (fs/update-json-file! process-path #(codex.process/merge-started-process-state % command now process))))
+        command (process.launch/launch-command db-path
+                                               (:run/id run)
+                                               runtime-profile-now
+                                               (process.launch/persisted-launch-mode process-state runtime-profile-now))
+        process (.start (process.launch/build-process-builder command
+                                                              runtime-profile-now
+                                                              home-install
+                                                              task
+                                                              run))
+        process-path (process.launch/process-path-for-run run)]
+    (fs/update-json-file! process-path #(process.state/merge-started-process-state % command now process))))

@@ -4,7 +4,7 @@
             [meta-flow.control.events :as events]
             [meta-flow.runtime.codex.events :as codex.events]
             [meta-flow.runtime.codex.fs :as fs]
-            [meta-flow.runtime.codex.process :as codex.process]
+            [meta-flow.runtime.codex.process.state :as process.state]
             [meta-flow.sql :as sql]
             [meta-flow.store.protocol :as store.protocol]))
 
@@ -61,7 +61,7 @@
                                 ;; Helper callbacks share the same file lock as cancel-run!,
                                 ;; so this merge only needs to preserve an already-persisted cancel marker.
                                 (cond-> updated
-                                  (codex.process/cancelled? current)
+                                  (process.state/cancelled? current)
                                   (assoc :cancelReason (or (:cancelReason updated)
                                                            (:cancelReason current))
                                          :cancelled true)
@@ -195,7 +195,7 @@
     (fs/with-file-lock! process-path
       (fn []
         (let [current (or (fs/read-json-file process-path) {})]
-          (when-not (or (codex.process/cancelled? current)
+          (when-not (or (process.state/cancelled? current)
                         (get-in current [:helperEvents :artifactReady]))
             (let [in-flight (-> current
                                 (assoc :artifactId artifact-id-now

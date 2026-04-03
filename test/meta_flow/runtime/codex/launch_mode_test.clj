@@ -5,7 +5,7 @@
             [meta-flow.defs.protocol :as defs.protocol]
             [meta-flow.runtime.codex :as codex]
             [meta-flow.runtime.codex.fs :as codex.fs]
-            [meta-flow.runtime.codex.process :as codex.process]
+            [meta-flow.runtime.codex.process.launch :as codex.launch]
             [meta-flow.runtime.protocol :as runtime.protocol]
             [meta-flow.scheduler :as scheduler]
             [meta-flow.scheduler.support.test-support :as support]
@@ -38,7 +38,7 @@
               codex.fs/*run-root-dir* runs-dir]
       (with-redefs [defs.loader/filesystem-definition-repository (fn ([] repository) ([_] repository))
                     codex/ensure-launch-supported! (constantly {:launch/ready? true})
-                    codex.process/launch-mode (constantly :launch.mode/codex-exec)]
+                    codex.launch/launch-mode (constantly :launch.mode/codex-exec)]
         (let [_ (support/enqueue-codex-task! db-path {:work-key "CVE-2024-CODEX-PERSISTED-LAUNCH-MODE"})
               first-step (scheduler/run-scheduler-step db-path)
               run-id (get-in first-step [:created-runs 0 :run :run/id])
@@ -47,8 +47,8 @@
               process-path (codex.fs/process-path run-id)]
           (is (= "codex-exec"
                  (:launchMode (codex.fs/read-json-file process-path))))
-          (with-redefs [codex.process/launch-mode (constantly :launch.mode/stub-worker)
-                        codex.process/build-process-builder
+          (with-redefs [codex.launch/launch-mode (constantly :launch.mode/stub-worker)
+                        codex.launch/build-process-builder
                         (fn [command & _]
                           (reset! launched-command command)
                           (doto (ProcessBuilder. ["bash" "-lc" "sleep 0.2"])
@@ -60,8 +60,8 @@
                                                 :db-path db-path}
                                                run
                                                "2026-04-03T01:10:00Z"))))
-          (is (= (codex.process/launch-command db-path
-                                               run-id
-                                               runtime-profile
-                                               :launch.mode/codex-exec)
+          (is (= (codex.launch/launch-command db-path
+                                              run-id
+                                              runtime-profile
+                                              :launch.mode/codex-exec)
                  @launched-command)))))))
