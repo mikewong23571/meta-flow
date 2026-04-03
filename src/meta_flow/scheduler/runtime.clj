@@ -61,6 +61,10 @@
   [env run task timeout-value]
   (timeout/recover-heartbeat-timeout! env run task timeout-value))
 
+(defn heartbeat-timed-out?
+  [run last-progress-at now]
+  (timeout/heartbeat-timed-out? run last-progress-at now))
+
 (defn- ensure-dispatch-supported!
   [adapter task]
   (case (runtime.protocol/adapter-id adapter)
@@ -86,7 +90,8 @@
                :lease/run-id run-id
                :lease/token (str lease-id "-token")
                :lease/state :lease.state/active
-               :lease/expires-at (shared/lease-expires-at now)
+               :lease/expires-at (shared/lease-expires-at now
+                                                          (shared/task-lease-duration-seconds defs-repo task))
                :lease/created-at now
                :lease/updated-at now}
         run-lease-transition {:transition/from (:run/state run)

@@ -38,7 +38,7 @@
                    (str events/run-worker-started)
                    (str events/run-worker-heartbeat)])))
 
-(defn- heartbeat-timed-out?
+(defn heartbeat-timed-out?
   [run last-progress-at now]
   (let [timeout-seconds (long (or (:run/heartbeat-timeout-seconds run) 0))
         observed-at (or last-progress-at
@@ -55,17 +55,22 @@
                                       timeout-seconds)
                         (java.time.Instant/parse now))))))
 
+(defn- lease-active-state?
+  [lease-row]
+  (= :lease.state/active
+     (some-> lease-row :state sql/text->edn)))
+
 (defn- expired-lease?
   [lease-row now]
   (and lease-row
-       (= ":lease.state/active" (:state lease-row))
+       (lease-active-state? lease-row)
        (not (.isAfter (java.time.Instant/parse (:lease_expires_at lease-row))
                       (java.time.Instant/parse now)))))
 
 (defn- active-lease?
   [lease-row]
   (and lease-row
-       (= ":lease.state/active" (:state lease-row))))
+       (lease-active-state? lease-row)))
 
 (defn- current-timeout-context
   [connection defs-repo run task now timeout-kind]

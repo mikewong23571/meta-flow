@@ -1,6 +1,5 @@
 (ns meta-flow.store.sqlite.run.events
-  (:require [clojure.string :as str]
-            [meta-flow.sql :as sql]
+  (:require [meta-flow.sql :as sql]
             [meta-flow.store.sqlite.run.rows :as run-rows]
             [meta-flow.store.sqlite.shared :as shared]))
 
@@ -47,9 +46,8 @@
 
 (defn retryable-event-ingest-exception?
   [throwable]
-  (let [message (some-> throwable .getMessage str/lower-case)]
-    (boolean (or (sql/retryable-write-exception? throwable)
-                 (and message (str/includes? message "run_events.run_id, run_events.event_seq"))))))
+  (boolean (or (sql/retryable-write-exception? throwable)
+               (sql/sqlite-constraint-violation? throwable))))
 
 (defn ingest-run-event-via-connection!
   [connection event-intent]
@@ -113,12 +111,16 @@
                             "SELECT event_payload_edn FROM run_events WHERE run_id = ? ORDER BY event_seq ASC"
                             [run-id])))))
 
+(defn list-run-events-after-via-connection!
+  [connection run-id event-seq]
+  (mapv #(shared/parse-edn-column % :event_payload_edn)
+        (sql/query-rows connection
+                        (str "SELECT event_payload_edn FROM run_events "
+                             "WHERE run_id = ? AND event_seq > ? ORDER BY event_seq ASC")
+                        [run-id event-seq])))
+
 (defn list-run-events-after
   [db-path run-id event-seq]
   (sql/with-connection db-path
     (fn [connection]
-      (mapv #(shared/parse-edn-column % :event_payload_edn)
-            (sql/query-rows connection
-                            (str "SELECT event_payload_edn FROM run_events "
-                                 "WHERE run_id = ? AND event_seq > ? ORDER BY event_seq ASC")
-                            [run-id event-seq])))))
+      (list-run-events-after-via-connection! connection run-id event-seq))))

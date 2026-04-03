@@ -20,4 +20,7 @@
       (is (= :run-fsm/default
              (:run-fsm/id (first (:run-fsms definitions)))))
       (is (= :resource-policy/default
-             (:resource-policy/id (first (:resource-policies definitions))))))))
+             (:resource-policy/id (first (:resource-policies definitions)))))
+      (is (= 1800
+             (:resource-policy/lease-duration-seconds
+              (first (:resource-policies definitions))))))))

@@ -1,5 +1,6 @@
 (ns meta-flow.scheduler.dispatch.core
   (:require [meta-flow.control.projection :as projection]
+            [meta-flow.control.projection.snapshot :as projection.snapshot]
             [meta-flow.scheduler.runtime :as runtime]
             [meta-flow.scheduler.shared :as shared]
             [meta-flow.store.protocol :as store.protocol]))
@@ -9,13 +10,11 @@
 
 (defn cooldown-active?
   [cooldown-until now]
-  (and cooldown-until
-       (.isAfter (java.time.Instant/parse cooldown-until)
-                 (java.time.Instant/parse now))))
+  (projection.snapshot/cooldown-active? cooldown-until now))
 
 (defn dispatch-cooldown-until
   [collection-state]
-  (get-in collection-state [:collection/dispatch :dispatch/cooldown-until]))
+  (projection.snapshot/dispatch-cooldown-until collection-state))
 
 (defn dispatch-block-reason
   [collection-state now]

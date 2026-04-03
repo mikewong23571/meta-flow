@@ -40,20 +40,9 @@
 
 (defn- heartbeat-timed-out?
   [run now]
-  (let [timeout-seconds (long (or (:run/heartbeat-timeout-seconds run) 0))
-        last-progress-at (or (:run/last-progress-at run)
-                             (when (contains? #{:run.state/dispatched
-                                                :run.state/running}
-                                              (:run/state run))
-                               (:run/updated-at run)))]
-    (and (contains? #{:run.state/dispatched
-                      :run.state/running}
-                    (:run/state run))
-         (pos? timeout-seconds)
-         last-progress-at
-         (not (.isAfter (.plusSeconds (java.time.Instant/parse last-progress-at)
-                                      timeout-seconds)
-                        (java.time.Instant/parse now))))))
+  (runtime/heartbeat-timed-out? run
+                                (:run/last-progress-at run)
+                                now))
 
 (defn recover-heartbeat-timeouts!
   [{:keys [reader now store] :as env}]

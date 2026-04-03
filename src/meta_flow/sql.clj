@@ -74,12 +74,39 @@
   [connection sql params]
   (first (query-rows connection sql params)))
 
+(def ^:private retryable-sqlite-result-codes
+  #{org.sqlite.SQLiteErrorCode/SQLITE_BUSY
+    org.sqlite.SQLiteErrorCode/SQLITE_BUSY_RECOVERY
+    org.sqlite.SQLiteErrorCode/SQLITE_BUSY_SNAPSHOT
+    org.sqlite.SQLiteErrorCode/SQLITE_BUSY_TIMEOUT
+    org.sqlite.SQLiteErrorCode/SQLITE_LOCKED
+    org.sqlite.SQLiteErrorCode/SQLITE_LOCKED_SHAREDCACHE
+    org.sqlite.SQLiteErrorCode/SQLITE_LOCKED_VTAB})
+
+(def ^:private constraint-violation-result-codes
+  #{org.sqlite.SQLiteErrorCode/SQLITE_CONSTRAINT
+    org.sqlite.SQLiteErrorCode/SQLITE_CONSTRAINT_PRIMARYKEY
+    org.sqlite.SQLiteErrorCode/SQLITE_CONSTRAINT_UNIQUE})
+
+(defn sqlite-result-code
+  [throwable]
+  (when (instance? org.sqlite.SQLiteException throwable)
+    (.getResultCode ^org.sqlite.SQLiteException throwable)))
+
+(defn sqlite-constraint-violation?
+  [throwable]
+  (contains? constraint-violation-result-codes
+             (sqlite-result-code throwable)))
+
 (defn retryable-write-exception?
   [throwable]
-  (let [message (some-> throwable .getMessage str/lower-case)]
+  (let [result-code (sqlite-result-code throwable)
+        sql-state (some-> throwable .getSQLState str/upper-case)
+        error-code (some-> throwable .getErrorCode long)]
     (boolean (and (instance? java.sql.SQLException throwable)
-                  (or (and message (str/includes? message "database is locked"))
-                      (and message (str/includes? message "busy")))))))
+                  (or (contains? retryable-sqlite-result-codes result-code)
+                      (contains? #{"SQLITE_BUSY" "SQLITE_LOCKED"} sql-state)
+                      (contains? #{5 6 261 262 517} error-code))))))
 
 (defn with-connection
   [db-path f]

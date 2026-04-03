@@ -1,7 +1,6 @@
 (ns meta-flow.runtime.codex-test
   (:require [clojure.edn :as edn]
             [clojure.java.io :as io]
-            [clojure.string :as str]
             [clojure.test :refer [deftest is testing]]
             [meta-flow.control.events :as events]
             [meta-flow.defs.loader :as defs.loader]
@@ -192,8 +191,10 @@
             (is (= :run.state/finalized (:run/state run-view)))
             (is (contains? #{"exited" "completed"} (:status process-state)))
             (is (pos-int? (int (:pid process-state))))
-            (is (str/starts-with? (:artifactRoot process-state)
-                                  (str artifacts-dir "/")))
+            (is (= (.getCanonicalPath (io/file artifacts-dir
+                                               (:task/id task)
+                                               (:run/id run-view)))
+                   (:artifactRoot process-state)))
             (is (= [events/run-dispatched
                     events/task-worker-started
                     events/run-worker-started

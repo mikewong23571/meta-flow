@@ -3,6 +3,7 @@
   :resource-policy/name "Default single-run policy"
   :resource-policy/max-active-runs 1
   :resource-policy/max-attempts 2
+  :resource-policy/lease-duration-seconds 1800
   :resource-policy/heartbeat-timeout-seconds 120
   :resource-policy/queue-order :resource-policy.queue-order/created-at}
  {:resource-policy/id :resource-policy/serial-cve
@@ -10,6 +11,7 @@
  :resource-policy/name "Serial CVE policy"
   :resource-policy/max-active-runs 1
   :resource-policy/max-attempts 2
+  :resource-policy/lease-duration-seconds 1800
   :resource-policy/heartbeat-timeout-seconds 120
   :resource-policy/queue-order :resource-policy.queue-order/work-key}
  {:resource-policy/id :resource-policy/parallel-collection
@@ -17,5 +19,6 @@
   :resource-policy/name "Parallel collection policy"
   :resource-policy/max-active-runs 2
   :resource-policy/max-attempts 2
+  :resource-policy/lease-duration-seconds 1800
   :resource-policy/heartbeat-timeout-seconds 120
   :resource-policy/queue-order :resource-policy.queue-order/created-at}]

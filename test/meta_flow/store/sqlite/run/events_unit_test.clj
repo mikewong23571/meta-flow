@@ -3,10 +3,16 @@
             [meta-flow.store.sqlite.run.rows :as run.rows]
             [meta-flow.store.sqlite.run.events :as run.events]))
 
-(deftest retryable-exception-classifier-covers-lock-busy-and-seq-collision-messages
-  (is (true? (run.events/retryable-event-ingest-exception? (java.sql.SQLException. "database is locked"))))
-  (is (true? (run.events/retryable-event-ingest-exception? (java.sql.SQLException. "SQLITE_BUSY: busy"))))
-  (is (true? (run.events/retryable-event-ingest-exception? (java.sql.SQLException. "UNIQUE constraint failed: run_events.run_id, run_events.event_seq"))))
+(deftest retryable-exception-classifier-covers-lock-busy-and-seq-collision-codes
+  (is (true? (run.events/retryable-event-ingest-exception? (org.sqlite.SQLiteException.
+                                                            "database is locked"
+                                                            org.sqlite.SQLiteErrorCode/SQLITE_BUSY))))
+  (is (true? (run.events/retryable-event-ingest-exception? (org.sqlite.SQLiteException.
+                                                            "share-cache lock"
+                                                            org.sqlite.SQLiteErrorCode/SQLITE_LOCKED_SHAREDCACHE))))
+  (is (true? (run.events/retryable-event-ingest-exception? (org.sqlite.SQLiteException.
+                                                            "duplicate run event seq"
+                                                            org.sqlite.SQLiteErrorCode/SQLITE_CONSTRAINT_PRIMARYKEY))))
   (is (false? (run.events/retryable-event-ingest-exception? (java.sql.SQLException. "syntax error"))))
   (is (false? (run.events/retryable-event-ingest-exception? nil))))
 
