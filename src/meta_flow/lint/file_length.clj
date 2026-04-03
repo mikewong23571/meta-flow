@@ -139,18 +139,24 @@
                     file-length-issues " file-length issue(s), "
                     directory-width-issues " directory-width issue(s).")))))
 
+(defn governance-issues
+  ([] (governance-issues governance-roots))
+  ([roots]
+   (->> (concat (collect-file-stats roots)
+                (collect-directory-stats roots))
+        (filter :level)
+        vec)))
+
 (defn run-check!
-  []
-  (let [issues (->> (concat (collect-file-stats governance-roots)
-                            (collect-directory-stats governance-roots))
-                    (filter :level)
-                    vec)]
-    (when (seq issues)
-      (print-issues! issues)
-      (print-summary! issues))
-    {:issues issues
-     :warning-count (count (filter #(= :warning (:level %)) issues))
-     :error-count (count (filter #(= :error (:level %)) issues))}))
+  ([] (run-check! governance-roots))
+  ([roots]
+   (let [issues (governance-issues roots)]
+     (when (seq issues)
+       (print-issues! issues)
+       (print-summary! issues))
+     {:issues issues
+      :warning-count (count (filter #(= :warning (:level %)) issues))
+      :error-count (count (filter #(= :error (:level %)) issues))})))
 
 (defn -main
   [& _]

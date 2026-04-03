@@ -51,7 +51,12 @@
 
   ;; -- CI entry point ------------------------------------------------------
   check
-  {:doc "Run all checks: fmt:check -> lint -> test -> coverage"
+  {:doc "Run the default AI-first governance gate with concise, high-signal output"
+   :requires ([babashka.tasks :refer [shell]])
+   :task (shell "clojure -M -m meta-flow.lint.check")}
+
+  check:verbose
+  {:doc "Run the verbose human-debugging gate: fmt:check -> lint -> test -> coverage"
    :requires ([babashka.tasks :refer [run]])
    :task (do (run 'fmt:check)
              (run 'lint)

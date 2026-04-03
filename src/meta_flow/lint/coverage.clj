@@ -95,9 +95,24 @@
        :lowest-namespaces (lowest-covered-namespaces rows)
        :level (classify-line-coverage line-coverage)})))
 
+(defn run-coverage-command!
+  ([] (run-coverage-command! coverage-command))
+  ([command]
+   (apply shell/sh command)))
+
+(defn evaluate-coverage
+  ([] (evaluate-coverage coverage-command))
+  ([command]
+   (let [{:keys [exit out err]} (run-coverage-command! command)]
+     {:exit exit
+      :out out
+      :err err
+      :summary (when (zero? exit)
+                 (parse-summary out))})))
+
 (defn run-coverage!
   []
-  (let [{:keys [exit out err]} (apply shell/sh coverage-command)]
+  (let [{:keys [exit out err]} (run-coverage-command!)]
     (print out)
     (flush)
     (binding [*out* *err*]
