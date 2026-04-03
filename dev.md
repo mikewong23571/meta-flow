@@ -24,6 +24,7 @@ All development commands go through `bb`. Run `bb tasks` to see the full list.
 | `bb fmt` | Reformat all source files in place (cljfmt fix) |
 | `bb fmt:check` | Check formatting without modifying files |
 | `bb check` | fmt:check → lint → test → coverage in sequence (CI entry point) |
+| `bb check:verbose` | Verbose human-debugging gate with each step run separately |
 | `bb init` | Initialize SQLite database and runtime directories |
 | `bb defs:validate` | Validate bundled EDN workflow definitions |
 
@@ -73,12 +74,25 @@ Validate that the bundled workflow definitions are well-formed:
 
     bb defs:validate
 
+Initialize the project-level Codex runtime home when working on the real Codex path:
+
+    clojure -M -m meta-flow.main runtime init-codex-home
+
+For the full operational CLI, see:
+
+    docs/cli-reference.md
+
+For Codex runtime behavior and smoke testing, see:
+
+    docs/codex-runtime.md
+
 ## Key source locations
 
     src/meta_flow/        application source
     test/meta_flow/       test suite
     resources/meta_flow/  EDN definitions (task types, FSMs, policies, etc.)
-    docs/                 architecture and ExecPlan documents
+    docs/                 current architecture and operations documents
+    docs/archive/         historical plans and superseded material
     deps.edn              dependency and alias declarations
     bb.edn                task runner
     tests.edn             kaocha test runner configuration

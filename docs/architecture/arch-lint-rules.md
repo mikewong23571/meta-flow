@@ -1,8 +1,7 @@
 # Meta-Flow 架构 Lint 规则手册
 
-> 创建日期：2026-04-03
-> 基于源码版本：master（d29529c）
-> 前置文档：`docs/architecture/code-review-issues.md`、`docs/architecture/governance-enhancement.md`
+> 已实现的架构治理规则说明。
+> 历史设计背景和问题清单已移至 `docs/archive/architecture/`。
 
 ---
 
@@ -10,7 +9,7 @@
 
 本文档记录 `test/meta_flow/arch/` 下的架构 lint 规则。这些规则通过源码扫描在测试阶段拦截语义级设计问题，补充 clj-kondo（语法级）和 file-length（结构级）无法覆盖的治理盲区。
 
-每条规则均经过实际验证，能精确命中 `code-review-issues.md` 中记录的对应问题，且不产生误报。
+每条规则均经过实际验证，能精确命中历史 review 中暴露的对应问题，且不产生误报。
 
 ### 运行方式
 
