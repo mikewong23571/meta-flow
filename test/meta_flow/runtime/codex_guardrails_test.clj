@@ -3,7 +3,7 @@
             [clojure.java.shell :as shell]
             [clojure.test :refer [deftest is testing]]
             [meta-flow.runtime.codex.fs :as codex.fs]
-            [meta-flow.runtime.codex-worker-api-test :as worker-api]
+            [meta-flow.runtime.codex-worker-api.test-support :as worker-api]
             [meta-flow.runtime.protocol :as runtime.protocol]
             [meta-flow.scheduler.support.test-support :as support]
             [meta-flow.store.protocol :as store.protocol]))
