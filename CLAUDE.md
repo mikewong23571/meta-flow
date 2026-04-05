@@ -2,6 +2,10 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## UI Design
+
+All frontend UI work must conform to `docs/design-system.md`. Read it before making any UI changes.
+
 ## Commands
 
 All tasks run through `bb`. The full list is in `bb.edn`.

@@ -110,6 +110,23 @@
     (is (= :pass (:status coverage-gate)))
     (is (= "overall line coverage 88.94%" (:headline coverage-gate)))))
 
+(deftest execution-gates-prefer-plain-test-result-when-coverage-runner-is-noisy
+  (let [[test-gate coverage-gate]
+        (check/execution-gates-from-coverage {:exit 3
+                                              :counts {:tests 154
+                                                       :errors 3}
+                                              :combined "Unexpected end of file from server"
+                                              :test-exit 0
+                                              :test-counts {:tests 181}
+                                              :test-combined ""
+                                              :summary {:line-coverage 87.84
+                                                        :level :warning
+                                                        :lowest-namespaces []}})]
+    (is (= :pass (:status test-gate)))
+    (is (= "181 tests passed" (:headline test-gate)))
+    (is (= :warning (:status coverage-gate)))
+    (is (= "overall line coverage 87.84%" (:headline coverage-gate)))))
+
 (deftest main-finishes-with-expected-exit-code
   (let [calls (atom [])]
     (with-redefs [check/check-gates (fn [] [{:status :pass}])

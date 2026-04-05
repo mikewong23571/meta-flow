@@ -157,6 +157,7 @@
                                                      collections))
            :snapshot/dispatch-cooldown-until (first active-cooldowns)
            :snapshot/dispatch-cooldown-active? (boolean (seq active-cooldowns))
+           :snapshot/active-run-count (snapshot/active-run-count-query connection)
            :snapshot/runnable-task-ids runnable-task-ids
            :snapshot/retryable-failed-task-ids retryable-failed-task-ids
            :snapshot/awaiting-validation-run-ids awaiting-validation-run-ids

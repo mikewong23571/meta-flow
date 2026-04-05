@@ -35,6 +35,11 @@
    :requires ([babashka.tasks :refer [shell]])
    :task (shell "npm run ui:watch")}
 
+  ui:api
+  {:doc "Serve scheduler UI JSON API at http://localhost:8788"
+   :requires ([babashka.tasks :refer [shell]])
+   :task (apply shell "clojure -M:native-access -m meta-flow.main ui serve" *command-line-args*)}
+
   ui:release
   {:doc "Build frontend preview release bundle"
    :requires ([babashka.tasks :refer [shell]])

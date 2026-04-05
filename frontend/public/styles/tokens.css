@@ -1,28 +1,43 @@
 :root {
-  --font-sans: "IBM Plex Sans", "Segoe UI", sans-serif;
-  --font-mono: "IBM Plex Mono", "SFMono-Regular", monospace;
+  --font-sans: "Manrope", "Segoe UI", sans-serif;
+  --font-display: "Syne", "Manrope", sans-serif;
+  --font-mono: "JetBrains Mono", "SFMono-Regular", monospace;
 
-  --color-sand-050: #f7f3ea;
-  --color-sand-100: #efe6d6;
-  --color-sand-200: #dfceb4;
-  --color-sand-300: #cfb691;
-  --color-sand-700: #5f4b34;
-  --color-sand-900: #2b2116;
+  /* Ink palette — near-black navy */
+  --color-ink-950: #07090f;
+  --color-ink-900: #0b0e18;
+  --color-ink-800: #0e1220;
+  --color-ink-750: #111728;
+  --color-ink-700: #151d30;
+  --color-ink-600: #1c2540;
+  --color-ink-500: #27334f;
+  --color-ink-400: #3a4d6b;
+  --color-ink-300: #587096;
+  --color-ink-200: #8a9dc0;
+  --color-ink-100: #b8c6dc;
+  --color-ink-050: #dce4f0;
 
-  --color-teal-100: #d8f0ec;
-  --color-teal-300: #8fd0c3;
-  --color-teal-500: #2f8f80;
-  --color-teal-700: #1d6358;
+  /* Accent — electric cyan */
+  --color-cyan-500: #00b8e0;
+  --color-cyan-400: #00d4ff;
+  --color-cyan-300: #40e0ff;
+  --color-cyan-200: #99edff;
+  --color-cyan-050: rgba(0, 212, 255, 0.09);
 
-  --color-red-100: #f8d9d3;
-  --color-red-500: #c8604d;
+  /* Status */
+  --color-emerald-400: #2de8a0;
+  --color-emerald-050: rgba(45, 232, 160, 0.09);
 
-  --color-yellow-100: #f8ebbf;
-  --color-yellow-500: #b18310;
+  --color-amber-400: #ffbe45;
+  --color-amber-050: rgba(255, 190, 69, 0.09);
 
-  --color-blue-100: #d8e6ff;
-  --color-blue-500: #3d6fd6;
+  --color-red-400: #ff5f6e;
+  --color-red-050: rgba(255, 95, 110, 0.09);
 
+  --color-violet-400: #7b7fff;
+  --color-violet-050: rgba(123, 127, 255, 0.09);
+
+  /* Spacing */
   --space-2xs: 0.25rem;
   --space-xs: 0.5rem;
   --space-sm: 0.75rem;
@@ -31,19 +46,24 @@
   --space-xl: 2rem;
   --space-2xl: 3rem;
 
-  --radius-sm: 0.5rem;
-  --radius-md: 0.9rem;
-  --radius-lg: 1.4rem;
+  /* Radii — geometric, restrained */
+  --radius-xs: 0.25rem;
+  --radius-sm: 0.375rem;
+  --radius-md: 0.625rem;
+  --radius-lg: 0.875rem;
   --radius-pill: 999px;
 
-  --shadow-sm: 0 10px 24px rgba(27, 33, 22, 0.08);
-  --shadow-md: 0 18px 40px rgba(27, 33, 22, 0.12);
-  --shadow-lg: 0 28px 60px rgba(27, 33, 22, 0.18);
+  /* Shadows */
+  --shadow-sm: 0 2px 10px rgba(0, 0, 0, 0.5), 0 1px 3px rgba(0, 0, 0, 0.4);
+  --shadow-md: 0 6px 24px rgba(0, 0, 0, 0.55), 0 2px 8px rgba(0, 0, 0, 0.4);
+  --shadow-lg: 0 12px 48px rgba(0, 0, 0, 0.65);
+  --shadow-glow-cyan: 0 0 20px rgba(0, 212, 255, 0.18);
 
-  --text-xs: 0.75rem;
-  --text-sm: 0.875rem;
-  --text-md: 1rem;
-  --text-lg: 1.125rem;
-  --text-xl: 1.5rem;
-  --text-2xl: 2.5rem;
+  /* Type scale */
+  --text-xs: 0.6875rem;
+  --text-sm: 0.8125rem;
+  --text-md: 0.9375rem;
+  --text-lg: 1.0625rem;
+  --text-xl: 1.375rem;
+  --text-2xl: 2.25rem;
 }

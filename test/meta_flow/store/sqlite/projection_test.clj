@@ -117,6 +117,7 @@
       (is (= 1 (:snapshot/awaiting-validation-count snapshot)))
       (is (= 1 (:snapshot/expired-lease-count snapshot)))
       (is (= 1 (:snapshot/heartbeat-timeout-count snapshot)))
+      (is (= 3 (:snapshot/active-run-count snapshot)))
       (is (= 3 (projection/count-active-runs reader future-now)))
       (is (= "task-queued" (:task/id queued-task))))))
 

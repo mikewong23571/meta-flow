@@ -36,19 +36,23 @@
 
 (defn -main
   [& _]
-  (let [{:keys [exit err summary]} (evaluate-coverage)]
-    (when-not (zero? exit)
-      (binding [*out* *err*]
-        (print err)
-        (flush))
-      (finish-process! exit))
-    (when-not summary
-      (binding [*out* *err*]
-        (println "ERROR [coverage-governance] Failed to calculate coverage summary. Review the governance runner and coverage inputs."))
-      (finish-process! 1))
-    (let [{:keys [level]} summary]
-      (when level
-        (print-issue! summary))
-      (print-summary! summary)
-      (finish-process! (when (= :error level)
-                         1)))))
+  (let [{:keys [exit err summary test-exit test-err]} (evaluate-coverage)
+        execution-exit (or test-exit exit 0)
+        execution-err (or test-err err)]
+    (if-not (zero? execution-exit)
+      (do
+        (binding [*out* *err*]
+          (print execution-err)
+          (flush))
+        (finish-process! execution-exit))
+      (do
+        (when-not summary
+          (binding [*out* *err*]
+            (println "ERROR [coverage-governance] Failed to calculate coverage summary. Review the governance runner and coverage inputs."))
+          (finish-process! 1))
+        (let [{:keys [level]} summary]
+          (when level
+            (print-issue! summary))
+          (print-summary! summary)
+          (finish-process! (when (= :error level)
+                             1)))))))

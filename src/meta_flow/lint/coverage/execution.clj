@@ -1,8 +1,16 @@
 (ns meta-flow.lint.coverage.execution
-  (:require [meta-flow.lint.coverage.summary :as summary]))
+  (:require [clojure.java.shell :as shell]
+            [clojure.string :as str]
+            [meta-flow.lint.coverage.summary :as summary]))
 
 (def governed-runner
   ::kaocha)
+
+(def ansi-pattern
+  #"\u001b\[[0-9;]*m")
+
+(def test-count-pattern
+  #"(?m)(\d+)\s+tests?,\s+(\d+)\s+assertions?,(?:\s+(\d+)\s+errors?,)?\s+(\d+)\s+failures?")
 
 (defn resolve-var!
   [sym]
@@ -13,6 +21,16 @@
 (defn call!
   [sym & args]
   (apply (var-get (resolve-var! sym)) args))
+
+(defn parse-test-counts
+  [text]
+  (when-let [[_ tests assertions errors failures]
+             (re-find test-count-pattern
+                      (str/replace (or text "") ansi-pattern ""))]
+    {:tests (Long/parseLong tests)
+     :assertions (Long/parseLong assertions)
+     :errors (Long/parseLong (or errors "0"))
+     :failures (Long/parseLong failures)}))
 
 (defn throwable->string
   [^Throwable throwable]
@@ -38,6 +56,31 @@
   (->> (:kaocha/tests config)
        (remove :kaocha.testable/skip)
        vec))
+
+(defn load-kaocha-config
+  []
+  (let [config-source (call! 'kaocha.config/find-config-and-warn "tests.edn")]
+    (call! 'kaocha.config/validate!
+           (call! 'kaocha.config/load-config config-source))))
+
+(defn execute-test-suite!
+  []
+  (try
+    (let [{:keys [exit out err]} (shell/sh "clojure" "-M:native-access:kaocha")
+          combined (str out err)]
+      {:exit exit
+       :out out
+       :err err
+       :combined combined
+       :counts (parse-test-counts combined)})
+    (catch Throwable throwable
+      (let [stacktrace (throwable->string throwable)]
+        {:exit 1
+         :out ""
+         :err stacktrace
+         :combined stacktrace
+         :exception throwable
+         :counts nil}))))
 
 (defn coverage-run-input
   [config]
@@ -105,9 +148,7 @@
   []
   (try
     (register-governed-runner!)
-    (let [config-source (call! 'kaocha.config/find-config-and-warn "tests.edn")
-          config (call! 'kaocha.config/validate!
-                        (call! 'kaocha.config/load-config config-source))
+    (let [config (load-kaocha-config)
           {:keys [opts test-paths]} (coverage-run-input config)
           add-classpath! (var-get (resolve-var! 'kaocha.classpath/add-classpath))
           load-namespaces! (var-get (resolve-var! 'cloverage.coverage/load-namespaces))
@@ -151,4 +192,11 @@
 
 (defn evaluate-coverage
   []
-  (execute-governed-coverage!))
+  (let [coverage-result (execute-governed-coverage!)
+        test-result (execute-test-suite!)]
+    (assoc coverage-result
+           :test-exit (:exit test-result)
+           :test-out (:out test-result)
+           :test-err (:err test-result)
+           :test-combined (:combined test-result)
+           :test-counts (:counts test-result))))

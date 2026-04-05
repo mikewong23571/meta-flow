@@ -8,22 +8,23 @@
             ["@radix-ui/react-switch" :as switch]
             ["@radix-ui/react-tabs" :as tabs]))
 
+(def primary-tabs
+  [{:label "Scheduler" :route :scheduler}
+   {:label "Tasks" :route :tasks}
+   {:label "Preview" :route :preview}])
+
+(defn preview-state []
+  (:preview @state/ui-state))
+
 (defn preview-hero []
   [:section {:className "hero"}
    [:article {:className "panel panel-strong hero-copy"}
-    [:span {:className "eyebrow"} "Example Interface" "Not Product Home"]
-    [:h1 {:className "hero-title"} "Component preview sandbox"]
-    [:p {:className "hero-subtitle"}
-     "This page is a dedicated example surface for UI exploration. It is intentionally "
-     "business-free and should be treated as a showcase for tokens, shared components, "
-     "and Radix integration rather than as the application's homepage."]
-    [:div {:className "button-row hero-actions"}
-     [:button {:className "button button-secondary"
-               :on-click #(routes/navigate! :home)}
-      "Back to sandbox entry"]
+    [:h1 {:className "hero-title"} "Preview"]
+    [:div {:className "scheduler-topbar-actions hero-actions"}
+     [components/nav-tabs primary-tabs :preview routes/navigate!]
      [:button {:className "button button-ghost"
-               :on-click #(routes/navigate! :preview)}
-      "Refresh preview route"]]]
+               :on-click #(routes/navigate! :home)}
+      "Sandbox entry"]]]
    [:aside {:className "hero-sidebar"}
     [components/stat-card "Build target" "shadow-cljs" "Browser build with watch and release modes"]
     [components/stat-card "Component layer" "Radix" "Behavior primitives under app-owned visual styling"]]])
@@ -40,9 +41,9 @@
     [:button {:className "button button-ghost"} "Ghost action"]]
    [:div {:className "field-row"}
     [:input {:className "text-input"
-             :value (:query @state/ui-state)
+             :value (:query (preview-state))
              :placeholder "Type here"
-             :on-change #(swap! state/ui-state assoc :query (.. % -target -value))}]]
+             :on-change #(swap! state/ui-state assoc-in [:preview :query] (.. % -target -value))}]]
    [:div {:className "badge-row"}
     [components/badge "success" "Ready"]
     [components/badge "warning" "Preview"]
@@ -54,8 +55,8 @@
    [:h2 {:className "component-title"} "Radix tabs"]
    [:p {:className "component-copy"}
     "Shared interactive primitives default to Radix. Styling remains local to the app."]
-   [:> tabs/Root {:value (:active-tab @state/ui-state)
-                  :onValueChange #(swap! state/ui-state assoc :active-tab %)}
+   [:> tabs/Root {:value (:active-tab (preview-state))
+                  :onValueChange #(swap! state/ui-state assoc-in [:preview :active-tab] %)}
     [:> tabs/List {:className "tabs-list" :aria-label "Preview sections"}
      [:> tabs/Trigger {:className "tabs-trigger" :value "tokens"} "Tokens"]
      [:> tabs/Trigger {:className "tabs-trigger" :value "states"} "States"]
@@ -76,8 +77,8 @@
     [:h2 {:className "component-title"} "Radix dialog"]
     [:p {:className "component-copy"}
      "The dialog demonstrates behavior-heavy interaction without importing a themed UI kit."]]
-   [:> dialog/Root {:open (:dialog-open @state/ui-state)
-                    :onOpenChange #(swap! state/ui-state assoc :dialog-open %)}
+   [:> dialog/Root {:open (:dialog-open (preview-state))
+                    :onOpenChange #(swap! state/ui-state assoc-in [:preview :dialog-open] %)}
     [:> dialog/Trigger {:asChild true}
      [:button {:className "button button-primary radix-trigger"} "Open dialog"]]
     [:> dialog/Portal
@@ -103,21 +104,21 @@
    [:div {:className "toggle-row"}
     [:label {:className "toggle-label"}
      [:> switch/Root {:className "radix-switch"
-                      :checked (:auto-refresh @state/ui-state)
-                      :onCheckedChange #(swap! state/ui-state assoc :auto-refresh %)}
+                      :checked (:auto-refresh (preview-state))
+                      :onCheckedChange #(swap! state/ui-state assoc-in [:preview :auto-refresh] %)}
       [:> switch/Thumb {:className "radix-switch-thumb"}]]
      "Auto refresh preview"]
     [:label {:className "toggle-label"}
      [:> checkbox/Root {:className "radix-checkbox"
-                        :checked (:show-guides @state/ui-state)
-                        :onCheckedChange #(swap! state/ui-state assoc :show-guides (not= false %))}
+                        :checked (:show-guides (preview-state))
+                        :onCheckedChange #(swap! state/ui-state assoc-in [:preview :show-guides] (not= false %))}
       [:> checkbox/Indicator {} "x"]]
      "Show guardrail hints"]]
    [:p {:className "live-state"}
     [:strong "Live state: "]
-    (str "refresh=" (:auto-refresh @state/ui-state)
-         ", guides=" (:show-guides @state/ui-state)
-         ", tab=" (:active-tab @state/ui-state))]])
+    (str "refresh=" (:auto-refresh (preview-state))
+         ", guides=" (:show-guides (preview-state))
+         ", tab=" (:active-tab (preview-state)))]])
 
 (defn token-section []
   [:section {:className "stack"}
@@ -146,7 +147,7 @@
     [:h2 {:className "section-title"} "Current UI state"]
     [:p {:className "section-copy"}
      "A simple local state atom is enough for this first non-business preview."]
-    [:pre {:className "code-block"} (with-out-str (cljs.pprint/pprint @state/ui-state))]]])
+    [:pre {:className "code-block"} (with-out-str (cljs.pprint/pprint (preview-state)))]]])
 
 (defn preview-page []
   [:main {:className "app-shell"}
