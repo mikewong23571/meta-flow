@@ -1,6 +1,6 @@
-(ns meta-flow.scheduler.run-test
+(ns meta-flow.scheduler.runtime.run-test
   (:require [clojure.test :refer [deftest is]]
-            [meta-flow.scheduler.run :as scheduler.run]))
+            [meta-flow.scheduler.runtime.run :as scheduler.run]))
 
 (deftest max-run-steps-respects-the-scheduler-run-poll-interval
   (is (= 915

@@ -11,6 +11,12 @@
 (def excluded-files
   #{"dev.clj" "test_support.clj"})
 
+(defn excluded-path?
+  [^java.io.File f]
+  (let [path (.getPath f)]
+    (or (contains? excluded-files (.getName f))
+        (str/includes? path "/scheduler/dev/"))))
+
 ;; --- 规则 1: 时间/容量相关的大数字 ---
 
 (def large-number-pattern
@@ -33,7 +39,7 @@
       (for [^java.io.File f (file-seq dir)
             :when (and (.isFile f)
                        (str/ends-with? (.getName f) ".clj")
-                       (not (contains? excluded-files (.getName f))))
+                       (not (excluded-path? f)))
             :let [path (.getPath f)
                   content (slurp f)
                   lines (str/split-lines content)]
@@ -61,7 +67,7 @@
 (defn clojure-source? [^java.io.File f]
   (and (.isFile f)
        (str/ends-with? (.getName f) ".clj")
-       (not (contains? excluded-files (.getName f)))))
+       (not (excluded-path? f))))
 
 (defn comment-line? [line]
   (str/starts-with? (str/trim line) ";"))

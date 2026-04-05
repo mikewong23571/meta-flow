@@ -1,6 +1,6 @@
 (ns meta-flow.scheduler
   (:require [meta-flow.scheduler.dev :as dev]
-            [meta-flow.scheduler.run :as run]
+            [meta-flow.scheduler.runtime.run :as run]
             [meta-flow.scheduler.step :as step]))
 
 (defn run-scheduler-step

@@ -1,10 +1,10 @@
 (ns meta-flow.runtime.codex.worker
   (:require [cheshire.core :as cheshire]
             [clojure.java.io :as io]
-            [clojure.string :as str]
             [meta-flow.runtime.codex.helper :as codex.helper]
             [meta-flow.runtime.codex.fs :as fs]
             [meta-flow.runtime.codex.process.launch :as process.launch]
+            [meta-flow.runtime.codex.worker.prompt :as worker.prompt]
             [meta-flow.sql :as sql]
             [meta-flow.store.sqlite :as store.sqlite]))
 
@@ -12,9 +12,6 @@
 
 (def ^:private wait-poll-ms
   1000)
-
-(def ^:private smoke-runtime-profile-id
-  :runtime-profile/codex-worker)
 
 (defn- current-time-ms
   []
@@ -24,37 +21,6 @@
   [artifact-root-now artifact-contract]
   (every? #(.exists (io/file artifact-root-now %))
           (:artifact-contract/required-paths artifact-contract)))
-
-(defn- smoke-task?
-  [{:keys [runtime-profile]}]
-  (= smoke-runtime-profile-id
-     (:runtime-profile/id runtime-profile)))
-
-(defn- smoke-task-instructions
-  [{:keys [task run artifact-contract]} artifact-root-now]
-  (str/join
-   "\n"
-   [""
-    "## Codex Smoke Task"
-    "Use shell commands only. Do not call the helper script directly; the runtime wrapper owns control-plane callbacks."
-    (str "Write the required artifact files under `" artifact-root-now "`:")
-    (str "  " (str/join ", " (:artifact-contract/required-paths artifact-contract)))
-    ""
-    "Required contents:"
-    "- `manifest.json`: valid JSON with `task/id`, `run/id`, and `status` = `completed`."
-    (str "- `notes.md`: a short note mentioning task `" (:task/id task) "` and run `" (:run/id run) "`.")
-    "- `run.log`: append a few plain-text lines describing what you created."
-    ""
-    "Stop after the files are written."]))
-
-(defn- codex-exec-input
-  [{:keys [run] :as ctx} artifact-root-now]
-  (let [base-prompt (slurp (fs/worker-prompt-path (:run/id run)))]
-    (if (smoke-task? ctx)
-      (str base-prompt
-           "\n"
-           (smoke-task-instructions ctx artifact-root-now))
-      base-prompt)))
 
 (defn- heartbeat-interval-ms
   [runtime-profile]
@@ -129,7 +95,7 @@
     (let [proc (start-codex-process! workdir
                                      artifact-root-now
                                      runtime-profile
-                                     (codex-exec-input ctx artifact-root-now))]
+                                     (worker.prompt/codex-exec-input ctx artifact-root-now))]
       (record-codex-child-process! workdir runtime-profile proc)
       (loop [heartbeat-index 1
              last-heartbeat-ms (current-time-ms)]
