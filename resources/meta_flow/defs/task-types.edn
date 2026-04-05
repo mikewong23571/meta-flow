@@ -13,7 +13,15 @@
   :task-type/validator-ref {:definition/id :validator/required-paths
                             :definition/version 1}
   :task-type/resource-policy-ref {:definition/id :resource-policy/default
-                                  :definition/version 3}}
+                                  :definition/version 3}
+  :task-type/input-schema
+  [{:field/id :work-key
+    :field/label "Work Key"
+    :field/type :field.type/text
+    :field/required? true
+    :field/placeholder "my-unique-work-key"}]
+  :task-type/work-key-expr {:work-key/type :work-key.type/direct
+                             :work-key/field :work-key}}
  {:task-type/id :task-type/cve-investigation
   :task-type/version 1
   :task-type/name "CVE investigation"
@@ -29,7 +37,15 @@
   :task-type/validator-ref {:definition/id :validator/cve-bundle
                             :definition/version 1}
   :task-type/resource-policy-ref {:definition/id :resource-policy/serial-cve
-                                  :definition/version 3}}
+                                  :definition/version 3}
+  :task-type/input-schema
+  [{:field/id :work-key
+    :field/label "CVE ID"
+    :field/type :field.type/text
+    :field/required? true
+    :field/placeholder "CVE-2024-12345"}]
+  :task-type/work-key-expr {:work-key/type :work-key.type/direct
+                             :work-key/field :work-key}}
  {:task-type/id :task-type/repo-arch-investigation
   :task-type/version 1
   :task-type/name "Repo architecture investigation"
@@ -45,4 +61,18 @@
   :task-type/validator-ref {:definition/id :validator/repo-arch
                             :definition/version 1}
   :task-type/resource-policy-ref {:definition/id :resource-policy/serial-repo-arch
-                                  :definition/version 1}}]
+                                  :definition/version 1}
+  :task-type/input-schema
+  [{:field/id :input/repo-url
+    :field/label "Repository URL"
+    :field/type :field.type/text
+    :field/required? true
+    :field/placeholder "https://github.com/org/repo"}
+   {:field/id :input/notify-email
+    :field/label "Notification Email"
+    :field/type :field.type/email
+    :field/required? true
+    :field/placeholder "you@example.com"}]
+  :task-type/work-key-expr {:work-key/type :work-key.type/tuple
+                             :work-key/tag :repo-arch
+                             :work-key/fields [:input/repo-url :input/notify-email]}}]

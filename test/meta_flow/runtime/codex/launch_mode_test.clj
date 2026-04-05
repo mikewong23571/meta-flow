@@ -15,6 +15,8 @@
 (defn- repository-with-temp-codex-home
   [repository codex-home-dir]
   (reify defs.protocol/DefinitionRepository
+    (list-task-type-defs [_]
+      (defs.protocol/list-task-type-defs repository))
     (load-workflow-defs [_] (defs.protocol/load-workflow-defs repository))
     (find-task-type-def [_ task-type-id version] (defs.protocol/find-task-type-def repository task-type-id version))
     (find-run-fsm-def [_ run-fsm-id version] (defs.protocol/find-run-fsm-def repository run-fsm-id version))

@@ -2,6 +2,7 @@
 
 (defprotocol DefinitionRepository
   (load-workflow-defs [repo])
+  (list-task-type-defs [repo])
   (find-task-type-def [repo task-type-id version])
   (find-run-fsm-def [repo run-fsm-id version])
   (find-task-fsm-def [repo task-fsm-id version])

@@ -22,6 +22,9 @@
   defs.protocol/DefinitionRepository
   (load-workflow-defs [_]
     (:defs (ensure-loaded! cache resource-base)))
+  (list-task-type-defs [_]
+    (->> (vals (get-in (ensure-loaded! cache resource-base) [:indexes :task-types]))
+         (sort-by #(str (:task-type/id %)))))
   (find-task-type-def [_ task-type-id version]
     (get-in (ensure-loaded! cache resource-base) [:indexes :task-types [task-type-id version]]))
   (find-run-fsm-def [_ run-fsm-id version]

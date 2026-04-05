@@ -26,6 +26,26 @@
    [:workflow/default-validator-ref definition-ref-schema]
    [:workflow/default-resource-policy-ref definition-ref-schema]])
 
+(def input-field-schema
+  [:map
+   [:field/id keyword?]
+   [:field/label string?]
+   [:field/type keyword?]
+   [:field/required? boolean?]
+   [:field/placeholder {:optional true} string?]])
+
+(def work-key-expr-schema
+  [:multi {:dispatch :work-key/type}
+   [:work-key.type/direct
+    [:map
+     [:work-key/type [:= :work-key.type/direct]]
+     [:work-key/field keyword?]]]
+   [:work-key.type/tuple
+    [:map
+     [:work-key/type [:= :work-key.type/tuple]]
+     [:work-key/tag keyword?]
+     [:work-key/fields [:vector keyword?]]]]])
+
 (def task-type-schema
   [:map
    [:task-type/id keyword?]
@@ -37,7 +57,9 @@
    [:task-type/runtime-profile-ref definition-ref-schema]
    [:task-type/artifact-contract-ref definition-ref-schema]
    [:task-type/validator-ref definition-ref-schema]
-   [:task-type/resource-policy-ref definition-ref-schema]])
+   [:task-type/resource-policy-ref definition-ref-schema]
+   [:task-type/input-schema {:optional true} [:vector input-field-schema]]
+   [:task-type/work-key-expr {:optional true} work-key-expr-schema]])
 
 (def task-fsm-schema
   [:map
