@@ -5,6 +5,7 @@
 - JDK 21 (Temurin LTS recommended, via sdkman)
 - Clojure CLI 1.12+
 - Babashka (`bb`)
+- Node.js + npm
 
 All other tools (kaocha, clj-kondo, cljfmt, nREPL) are pulled from `deps.edn` automatically — no global installs required.
 
@@ -27,6 +28,9 @@ All development commands go through `bb`. Run `bb tasks` to see the full list.
 | `bb check:verbose` | Verbose human-debugging gate with each step run separately |
 | `bb init` | Initialize SQLite database and runtime directories |
 | `bb defs:validate` | Validate bundled EDN workflow definitions |
+| `bb ui:install` | Install frontend npm dependencies |
+| `bb ui:watch` | Start the frontend preview at `http://localhost:8787` |
+| `bb ui:release` | Build the frontend preview release bundle |
 
 ### Daily development loop
 
@@ -41,6 +45,13 @@ repeated JVM cold-start.
 When you want automatic reruns on file change instead:
 
     bb test:watch
+
+For the browser preview:
+
+    bb ui:install
+    bb ui:watch
+
+Then open `http://localhost:8787`.
 
 ### Full pipeline
 

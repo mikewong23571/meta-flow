@@ -1,0 +1,8 @@
+{:deps {:aliases [:cljs]}
+ :dev-http {8787 "frontend/public"}
+ :builds
+ {:app {:target :browser
+        :output-dir "frontend/public/js"
+        :asset-path "/js"
+        :modules {:main {:init-fn meta-flow-ui.app/init}}
+        :devtools {:after-load meta-flow-ui.app/reload!}}}}

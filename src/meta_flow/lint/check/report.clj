@@ -5,6 +5,14 @@
 (defn issue->evidence
   [issue]
   (case (:kind issue)
+    :css-file-length
+    (str (:path issue) " has " (:line-count issue)
+         " lines (threshold " (:threshold issue) ")")
+
+    :css-directory-width
+    (str (:path issue) " contains " (:file-count issue)
+         " direct CSS files (threshold " (:threshold issue) ")")
+
     :directory-width
     (str (:path issue) " contains " (:file-count issue)
          " direct source files (threshold "

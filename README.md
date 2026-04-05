@@ -32,6 +32,15 @@ Run the default local gate:
 bb check
 ```
 
+Install frontend dependencies and start the preview UI:
+
+```bash
+bb ui:install
+bb ui:watch
+```
+
+Then open `http://localhost:8787`.
+
 Exercise the local happy path:
 
 ```bash
@@ -78,6 +87,8 @@ Current docs:
   Human-facing CLI command reference.
 - [docs/codex-runtime.md](docs/codex-runtime.md)
   Codex runtime adapter, `CODEX_HOME`, launch modes, and smoke testing.
+- [docs/frontend-clojurescript.md](docs/frontend-clojurescript.md)
+  Frontend stack decision, ClojureScript best practices, and browser/backend boundary rules.
 - [docs/internal-flow.md](docs/internal-flow.md)
   Internal control flow, data flow, scheduler loop, and runtime boundaries.
 - [dev.md](dev.md)
@@ -97,3 +108,4 @@ Historical material:
 - `resources/meta_flow/prompts/` worker prompts
 - `resources/meta_flow/codex_home/` bundled `CODEX_HOME` templates
 - `docs/` current repository documentation
+- `frontend/` browser preview app and static assets

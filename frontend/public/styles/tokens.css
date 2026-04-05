@@ -1,0 +1,49 @@
+:root {
+  --font-sans: "IBM Plex Sans", "Segoe UI", sans-serif;
+  --font-mono: "IBM Plex Mono", "SFMono-Regular", monospace;
+
+  --color-sand-050: #f7f3ea;
+  --color-sand-100: #efe6d6;
+  --color-sand-200: #dfceb4;
+  --color-sand-300: #cfb691;
+  --color-sand-700: #5f4b34;
+  --color-sand-900: #2b2116;
+
+  --color-teal-100: #d8f0ec;
+  --color-teal-300: #8fd0c3;
+  --color-teal-500: #2f8f80;
+  --color-teal-700: #1d6358;
+
+  --color-red-100: #f8d9d3;
+  --color-red-500: #c8604d;
+
+  --color-yellow-100: #f8ebbf;
+  --color-yellow-500: #b18310;
+
+  --color-blue-100: #d8e6ff;
+  --color-blue-500: #3d6fd6;
+
+  --space-2xs: 0.25rem;
+  --space-xs: 0.5rem;
+  --space-sm: 0.75rem;
+  --space-md: 1rem;
+  --space-lg: 1.5rem;
+  --space-xl: 2rem;
+  --space-2xl: 3rem;
+
+  --radius-sm: 0.5rem;
+  --radius-md: 0.9rem;
+  --radius-lg: 1.4rem;
+  --radius-pill: 999px;
+
+  --shadow-sm: 0 10px 24px rgba(27, 33, 22, 0.08);
+  --shadow-md: 0 18px 40px rgba(27, 33, 22, 0.12);
+  --shadow-lg: 0 28px 60px rgba(27, 33, 22, 0.18);
+
+  --text-xs: 0.75rem;
+  --text-sm: 0.875rem;
+  --text-md: 1rem;
+  --text-lg: 1.125rem;
+  --text-xl: 1.5rem;
+  --text-2xl: 2.5rem;
+}

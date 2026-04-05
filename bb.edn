@@ -25,6 +25,31 @@
    :requires ([babashka.tasks :refer [shell]])
    :task (shell "clojure -M:native-access -m meta-flow.main defs validate")}
 
+  ui:install
+  {:doc "Install frontend npm dependencies"
+   :requires ([babashka.tasks :refer [shell]])
+   :task (shell "npm install")}
+
+  ui:watch
+  {:doc "Watch frontend preview at http://localhost:8787"
+   :requires ([babashka.tasks :refer [shell]])
+   :task (shell "npm run ui:watch")}
+
+  ui:release
+  {:doc "Build frontend preview release bundle"
+   :requires ([babashka.tasks :refer [shell]])
+   :task (shell "npm run ui:release")}
+
+  ui:check
+  {:doc "Run frontend compile check"
+   :requires ([babashka.tasks :refer [shell]])
+   :task (shell "npm run ui:check")}
+
+  ui:governance
+  {:doc "Run frontend style/build governance gates"
+   :requires ([babashka.tasks :refer [shell]])
+   :task (shell "clojure -M:native-access:governance -m meta-flow.lint.check.frontend")}
+
   ;; -- dev toolchain -------------------------------------------------------
   repl
   {:doc "Start nREPL server on port 7888"
@@ -77,9 +102,10 @@
    :task (shell "clojure -M:native-access:governance -m meta-flow.lint.check")}
 
   check:verbose
-  {:doc "Run the verbose human-debugging gate: fmt:check -> lint -> test -> coverage"
+  {:doc "Run the verbose human-debugging gate: fmt:check -> lint -> ui:governance -> test -> coverage"
    :requires ([babashka.tasks :refer [run]])
    :task (do (run 'fmt:check)
              (run 'lint)
+             (run 'ui:governance)
              (run 'test)
              (run 'coverage))}}}

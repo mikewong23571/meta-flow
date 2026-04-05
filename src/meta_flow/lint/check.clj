@@ -1,12 +1,13 @@
 (ns meta-flow.lint.check
   (:gen-class)
   (:require [meta-flow.lint.check.execution :as execution]
+            [meta-flow.lint.check.frontend :as frontend]
             [meta-flow.lint.check.report :as report]
             [meta-flow.lint.coverage :as coverage]
             [meta-flow.lint.file-length :as file-length]))
 
 (def default-source-roots
-  ["src" "test"])
+  ["src" "test" "frontend/src"])
 
 (defn resolve-var!
   [sym]
@@ -134,6 +135,8 @@
 (def parse-test-counts execution/parse-test-counts)
 (def classify-test-failure execution/classify-test-failure)
 (def execution-gates-from-coverage execution/execution-gates-from-coverage)
+(def frontend-style-gate frontend/frontend-style-gate)
+(def frontend-build-gate frontend/frontend-build-gate)
 
 (defn check-gates
   []
@@ -141,7 +144,9 @@
         execution-gates (execution-gates-from-coverage execution-result)]
     (into [(run-format-check!)
            (run-static-analysis!)
-           (run-structure-governance!)]
+           (run-structure-governance!)
+           (frontend-style-gate)
+           (frontend-build-gate)]
           execution-gates)))
 
 (def overall-status report/overall-status)
