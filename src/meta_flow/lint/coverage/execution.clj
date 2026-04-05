@@ -191,12 +191,18 @@
          :summary nil}))))
 
 (defn evaluate-coverage
-  []
-  (let [coverage-result (execute-governed-coverage!)
-        test-result (execute-test-suite!)]
-    (assoc coverage-result
-           :test-exit (:exit test-result)
-           :test-out (:out test-result)
-           :test-err (:err test-result)
-           :test-combined (:combined test-result)
-           :test-counts (:counts test-result))))
+  ([] (evaluate-coverage {}))
+  ([{:keys [verify-test-suite?]
+     :or {verify-test-suite? true}}]
+   (let [test-result-future (when verify-test-suite?
+                              (future (execute-test-suite!)))
+         coverage-result (execute-governed-coverage!)]
+     (if-not verify-test-suite?
+       coverage-result
+       (let [test-result @test-result-future]
+         (assoc coverage-result
+                :test-exit (:exit test-result)
+                :test-out (:out test-result)
+                :test-err (:err test-result)
+                :test-combined (:combined test-result)
+                :test-counts (:counts test-result)))))))

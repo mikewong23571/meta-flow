@@ -106,28 +106,39 @@
       (is (= "skipped because frontend npm dependencies are not installed" (:headline gate))))))
 
 (deftest check-gates-include-frontend-governance
-  (with-redefs [check/run-format-check! (fn [] {:label "format-hygiene" :status :pass})
-                check/run-static-analysis! (fn [] {:label "static-analysis" :status :pass})
-                check/run-structure-governance! (fn [] {:label "structure-governance" :status :pass})
-                check/frontend-style-gate (fn [] {:label "frontend-style-governance" :status :pass})
-                check/frontend-build-gate (fn [] {:label "frontend-build" :status :pass})
-                coverage/evaluate-coverage
-                (fn []
-                  {:exit 0
-                   :counts {:tests 1}
-                   :combined ""
-                   :summary {:line-coverage 90.0
-                             :level nil
-                             :lowest-namespaces []}})]
-    (let [labels (mapv :label (check/check-gates))]
-      (is (= ["format-hygiene"
-              "static-analysis"
-              "structure-governance"
-              "frontend-style-governance"
-              "frontend-build"
-              "executable-correctness"
-              "coverage-governance"]
-             labels)))))
+  (let [calls (atom [])]
+    (with-redefs [check/run-format-check! (fn [] {:label "format-hygiene" :status :pass})
+                  check/run-static-analysis! (fn [] {:label "static-analysis" :status :pass})
+                  check/run-structure-governance! (fn [] {:label "structure-governance" :status :pass})
+                  check/frontend-style-gate (fn [] {:label "frontend-style-governance" :status :pass})
+                  check/frontend-build-gate (fn [] {:label "frontend-build" :status :pass})
+                  coverage/evaluate-coverage
+                  (fn
+                    ([] (swap! calls conj :default)
+                        {:exit 0
+                         :counts {:tests 1}
+                         :combined ""
+                         :summary {:line-coverage 90.0
+                                   :level nil
+                                   :lowest-namespaces []}})
+                    ([opts]
+                     (swap! calls conj opts)
+                     {:exit 0
+                      :counts {:tests 1}
+                      :combined ""
+                      :summary {:line-coverage 90.0
+                                :level nil
+                                :lowest-namespaces []}}))]
+      (let [labels (mapv :label (check/check-gates))]
+        (is (= ["format-hygiene"
+                "static-analysis"
+                "structure-governance"
+                "frontend-style-governance"
+                "frontend-build"
+                "executable-correctness"
+                "coverage-governance"]
+               labels))
+        (is (= [:default] @calls))))))
 
 (deftest frontend-gates-return-style-and-build-gates
   (with-redefs [frontend/frontend-style-gate (fn [] {:label "frontend-style-governance" :status :pass})
