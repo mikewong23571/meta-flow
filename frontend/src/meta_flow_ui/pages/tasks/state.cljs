@@ -1,6 +1,6 @@
 (ns meta-flow-ui.pages.tasks.state
   (:require [meta-flow-ui.http :as http]
-            [meta-flow-ui.state :as state]))
+            [meta-flow-ui.state :as state :refer [default-create-dialog-state]]))
 
 (defn tasks-state []
   (:tasks @state/ui-state))
@@ -80,6 +80,53 @@
                              (assoc-in [:tasks :detail-loading?] false)
                              (assoc-in [:tasks :detail-error] (error-message error))))))
               nil)))
+
+(defn open-create-dialog!
+  []
+  (swap! state/ui-state assoc-in [:tasks :create-dialog]
+         (assoc default-create-dialog-state :open? true :task-types-loading? true))
+  (-> (http/fetch-json "/api/task-types/create-options")
+      (.then (fn [payload]
+               (let [types (:items payload)
+                     first-id (-> types first :task-type/id)]
+                 (swap! state/ui-state update-in [:tasks :create-dialog] merge
+                        {:task-types types
+                         :task-types-loading? false
+                         :selected-type-id first-id}))))
+      (.catch (fn [_]
+                (swap! state/ui-state assoc-in [:tasks :create-dialog :task-types-loading?] false)))))
+
+(defn close-create-dialog!
+  []
+  (swap! state/ui-state assoc-in [:tasks :create-dialog] default-create-dialog-state))
+
+(defn set-create-type!
+  [type-id]
+  (swap! state/ui-state update-in [:tasks :create-dialog] merge
+         {:selected-type-id type-id :form-values {} :form-errors {}}))
+
+(defn set-create-field!
+  [field-id value]
+  (swap! state/ui-state assoc-in [:tasks :create-dialog :form-values field-id] value))
+
+(defn submit-create-task!
+  []
+  (let [dialog (get-in @state/ui-state [:tasks :create-dialog])
+        {:keys [selected-type-id form-values task-types]} dialog
+        task-type (first (filter #(= (:task-type/id %) selected-type-id) task-types))]
+    (swap! state/ui-state update-in [:tasks :create-dialog] merge
+           {:submitting? true :submit-error nil})
+    (-> (http/post-json "/api/tasks"
+                        {:task-type-id selected-type-id
+                         :task-type-version (:task-type/version task-type)
+                         :input form-values})
+        (.then (fn [_]
+                 (close-create-dialog!)
+                 (load-items!)))
+        (.catch (fn [error]
+                  (swap! state/ui-state update-in [:tasks :create-dialog] merge
+                         {:submitting? false
+                          :submit-error (error-message error)}))))))
 
 (defn clear-detail!
   []

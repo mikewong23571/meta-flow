@@ -1,8 +1,11 @@
 (ns meta-flow.ui.tasks
-  (:require [meta-flow.db :as db]
+  (:require [clojure.string :as str]
+            [meta-flow.db :as db]
             [meta-flow.defs.loader :as defs.loader]
             [meta-flow.defs.protocol :as defs.protocol]
             [meta-flow.sql :as sql]
+            [meta-flow.store.protocol :as store.protocol]
+            [meta-flow.store.sqlite :as store.sqlite]
             [meta-flow.store.sqlite.shared :as shared]))
 
 (def ^:private default-task-list-limit 200)
@@ -65,6 +68,84 @@
                     :run/state (:run/state run)
                     :run/attempt (:run/attempt run)
                     :run/updated-at (:run/updated-at run)})}))
+
+(defn- derive-work-key
+  [work-key-expr input]
+  (case (:work-key/type work-key-expr)
+    :work-key.type/direct
+    (get input (:work-key/field work-key-expr))
+    :work-key.type/tuple
+    (pr-str (into [(:work-key/tag work-key-expr)]
+                  (map #(get input %) (:work-key/fields work-key-expr))))))
+
+(defn- task-input-fields
+  [input]
+  (not-empty (reduce-kv (fn [m k v] (if (namespace k) (assoc m k v) m)) {} input)))
+
+(defn- blank-input-value?
+  [value]
+  (or (nil? value)
+      (and (string? value)
+           (str/blank? value))))
+
+(defn- missing-required-input-fields
+  [task-type input]
+  (->> (:task-type/input-schema task-type)
+       (filter :field/required?)
+       (filter #(blank-input-value? (get input (:field/id %))))
+       (mapv (fn [{:keys [field/id field/label]}]
+               {:field/id id
+                :field/label label}))))
+
+(defn- validate-required-inputs!
+  [task-type task-type-id input]
+  (let [missing-fields (missing-required-input-fields task-type input)]
+    (when (seq missing-fields)
+      (throw (ex-info (str "Required task input fields cannot be blank: "
+                           (str/join ", " (map (comp str :field/id) missing-fields)))
+                      {:task-type-id task-type-id
+                       :missing-fields missing-fields
+                       :input input})))))
+
+(defn create-task!
+  ([task-type-id task-type-version input]
+   (create-task! db/default-db-path task-type-id task-type-version input))
+  ([db-path task-type-id task-type-version input]
+   (let [defs-repo (defs.loader/filesystem-definition-repository)
+         task-type (defs.protocol/find-task-type-def defs-repo task-type-id task-type-version)
+         _ (when-not task-type
+             (throw (ex-info (str "Task type not found: " task-type-id)
+                             {:task-type-id task-type-id :task-type-version task-type-version})))
+         work-key-expr (:task-type/work-key-expr task-type)
+         _ (when-not work-key-expr
+             (throw (ex-info (str "Task type missing work-key-expr: " task-type-id)
+                             {:task-type-id task-type-id})))
+         _ (validate-required-inputs! task-type task-type-id input)
+         work-key (derive-work-key work-key-expr input)
+         _ (when (str/blank? work-key)
+             (throw (ex-info "Work key cannot be blank"
+                             {:task-type-id task-type-id :input input})))
+         input-fields (task-input-fields input)
+         now-str (sql/utc-now)
+         task (cond-> {:task/id (str "task-" (java.util.UUID/randomUUID))
+                       :task/work-key work-key
+                       :task/task-type-ref {:definition/id (:task-type/id task-type)
+                                            :definition/version (:task-type/version task-type)}
+                       :task/task-fsm-ref (:task-type/task-fsm-ref task-type)
+                       :task/run-fsm-ref (:task-type/run-fsm-ref task-type)
+                       :task/runtime-profile-ref (:task-type/runtime-profile-ref task-type)
+                       :task/artifact-contract-ref (:task-type/artifact-contract-ref task-type)
+                       :task/validator-ref (:task-type/validator-ref task-type)
+                       :task/resource-policy-ref (:task-type/resource-policy-ref task-type)
+                       :task/state :task.state/queued
+                       :task/created-at now-str
+                       :task/updated-at now-str}
+                input-fields (assoc :task/input input-fields))
+         store (store.sqlite/sqlite-state-store db-path)
+         result (store.protocol/enqueue-task! store task)]
+     {:task/id (:task/id result)
+      :task/work-key (:task/work-key result)
+      :task/state (:task/state result)})))
 
 (defn list-tasks
   ([] (list-tasks db/default-db-path default-task-list-limit))

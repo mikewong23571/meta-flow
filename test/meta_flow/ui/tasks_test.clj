@@ -4,6 +4,8 @@
             [meta-flow.defs.loader :as defs.loader]
             [meta-flow.defs.protocol :as defs.protocol]
             [meta-flow.sql :as sql]
+            [meta-flow.store.protocol :as store.protocol]
+            [meta-flow.store.sqlite :as store.sqlite]
             [meta-flow.store.sqlite.shared :as shared]
             [meta-flow.ui.tasks :as ui.tasks]))
 
@@ -101,3 +103,59 @@
                   :task/updated-at "2026-04-01T00:02:00Z"
                   :latest-run nil}
                  fallback-item)))))))
+
+(deftest create-task-rejects-missing-required-input-fields
+  (let [task-type {:task-type/id :task-type/repo-arch-investigation
+                   :task-type/version 1
+                   :task-type/task-fsm-ref {:definition/id :task-fsm/default
+                                            :definition/version 3}
+                   :task-type/run-fsm-ref {:definition/id :run-fsm/default
+                                           :definition/version 2}
+                   :task-type/runtime-profile-ref {:definition/id :runtime-profile/codex-repo-arch
+                                                   :definition/version 1}
+                   :task-type/artifact-contract-ref {:definition/id :artifact-contract/repo-arch
+                                                     :definition/version 1}
+                   :task-type/validator-ref {:definition/id :validator/repo-arch
+                                             :definition/version 1}
+                   :task-type/resource-policy-ref {:definition/id :resource-policy/serial-repo-arch
+                                                   :definition/version 1}
+                   :task-type/input-schema [{:field/id :input/repo-url
+                                             :field/label "Repository URL"
+                                             :field/type :field.type/text
+                                             :field/required? true}
+                                            {:field/id :input/notify-email
+                                             :field/label "Notification Email"
+                                             :field/type :field.type/email
+                                             :field/required? true}]
+                   :task-type/work-key-expr {:work-key/type :work-key.type/tuple
+                                             :work-key/tag :repo-arch
+                                             :work-key/fields [:input/repo-url :input/notify-email]}}
+        bad-inputs [{} {:input/repo-url "" :input/notify-email "   "}]]
+    (doseq [input bad-inputs]
+      (with-redefs [defs.loader/filesystem-definition-repository (fn [] :defs-repo)
+                    defs.protocol/find-task-type-def (fn [_ task-type-id version]
+                                                       (is (= [:task-type/repo-arch-investigation 1]
+                                                              [task-type-id version]))
+                                                       task-type)
+                    store.sqlite/sqlite-state-store (fn [_]
+                                                      (throw (ex-info "store should not be reached" {})))
+                    store.protocol/enqueue-task! (fn [_ _]
+                                                   (throw (ex-info "enqueue should not be reached" {})))]
+        (let [exception (try
+                          (ui.tasks/create-task! "tasks.sqlite3"
+                                                 :task-type/repo-arch-investigation
+                                                 1
+                                                 input)
+                          nil
+                          (catch clojure.lang.ExceptionInfo throwable
+                            throwable))]
+          (is exception)
+          (is (= "Required task input fields cannot be blank: :input/repo-url, :input/notify-email"
+                 (ex-message exception)))
+          (is (= {:task-type-id :task-type/repo-arch-investigation
+                  :missing-fields [{:field/id :input/repo-url
+                                    :field/label "Repository URL"}
+                                   {:field/id :input/notify-email
+                                    :field/label "Notification Email"}]
+                  :input input}
+                 (ex-data exception))))))))

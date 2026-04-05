@@ -10,6 +10,7 @@
 (def primary-tabs
   [{:label "Scheduler" :route :scheduler}
    {:label "Tasks" :route :tasks}
+   {:label "Defs" :route :defs}
    {:label "Preview" :route :preview}])
 
 (def bucket-config

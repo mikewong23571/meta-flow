@@ -6,43 +6,8 @@
             [meta-flow.sql]
             [meta-flow.store.protocol :as store.protocol]
             [meta-flow.store.sqlite.test-support :as support]
-            [meta-flow.ui.http :as ui.http])
-  (:import (java.io ByteArrayInputStream)
-           (java.net HttpURLConnection URL)))
-
-(def ^:private http-get-retry-count 10)
-
-(def ^:private http-get-retry-delay-ms 50)
-
-(defn- http-get
-  [port path]
-  (let [url (URL. (str "http://localhost:" port path))]
-    (loop [attempt 1]
-      (let [connection ^HttpURLConnection (.openConnection url)
-            _ (.setRequestMethod connection "GET")
-            _ (.setConnectTimeout connection 1000)
-            _ (.setReadTimeout connection 1000)
-            result (try
-                     (let [status (.getResponseCode connection)
-                           stream (or (if (>= status 400)
-                                        (.getErrorStream connection)
-                                        (.getInputStream connection))
-                                      (ByteArrayInputStream. (byte-array 0)))
-                           body (with-open [in stream]
-                                  (slurp in :encoding "UTF-8"))]
-                       {:status status
-                        :body body})
-                     (catch java.io.IOException exception
-                       exception))]
-        (.disconnect connection)
-        (if (instance? java.io.IOException result)
-          (if (< attempt http-get-retry-count)
-            (do
-              ;; The embedded server can briefly accept-and-close during startup under coverage instrumentation.
-              (Thread/sleep http-get-retry-delay-ms)
-              (recur (inc attempt)))
-            (throw result))
-          result)))))
+            [meta-flow.ui.http :as ui.http]
+            [meta-flow.ui.http-support :as http.support]))
 
 (deftest scheduler-overview-endpoint-returns-projection-backed-json
   (let [{:keys [store db-path]} (support/test-system)
@@ -73,7 +38,7 @@
       (let [server (ui.http/start-server! {:db-path db-path
                                            :port 0})]
         (try
-          (let [response (http-get (:port server) "/api/scheduler/overview")
+          (let [response (http.support/http-get (:port server) "/api/scheduler/overview")
                 body (json/parse-string (:body response) true)]
             (is (= 200 (:status response)))
             (is (= future-now (get-in body [:snapshot :now])))
@@ -99,19 +64,19 @@
                                          :port 0})]
       (try
         (testing "task detail"
-          (let [response (http-get (:port server) "/api/tasks/task-42")
+          (let [response (http.support/http-get (:port server) "/api/tasks/task-42")
                 body (json/parse-string (:body response) true)]
             (is (= 200 (:status response)))
             (is (= "task-42" (:task/id body)))
             (is (= "work/cve-42" (:task/work-key body)))))
         (testing "run detail"
-          (let [response (http-get (:port server) "/api/runs/run-42")
+          (let [response (http.support/http-get (:port server) "/api/runs/run-42")
                 body (json/parse-string (:body response) true)]
             (is (= 200 (:status response)))
             (is (= "run-42" (:run/id body)))
             (is (= 0 (:run/event-count body)))))
         (testing "404"
-          (let [response (http-get (:port server) "/api/tasks/missing-task")
+          (let [response (http.support/http-get (:port server) "/api/tasks/missing-task")
                 body (json/parse-string (:body response) true)]
             (is (= 404 (:status response)))
             (is (= "Task not found: missing-task" (:error body)))))
@@ -141,7 +106,7 @@
     (let [server (ui.http/start-server! {:db-path db-path
                                          :port 0})]
       (try
-        (let [response (http-get (:port server) "/api/tasks")
+        (let [response (http.support/http-get (:port server) "/api/tasks")
               body (json/parse-string (:body response) true)
               items (:items body)
               first-item (first items)

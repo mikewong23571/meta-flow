@@ -23,6 +23,16 @@
    :detail-loading? false
    :detail-error nil})
 
+(def default-create-dialog-state
+  {:open? false
+   :task-types []
+   :task-types-loading? false
+   :selected-type-id nil
+   :form-values {}
+   :form-errors {}
+   :submitting? false
+   :submit-error nil})
+
 (def default-tasks-state
   {:items []
    :loading? false
@@ -37,9 +47,19 @@
    :selected-id nil
    :detail nil
    :detail-loading? false
+   :detail-error nil
+   :create-dialog default-create-dialog-state})
+
+(def default-defs-state
+  {:items []
+   :loading? false
+   :error nil
+   :detail nil
+   :detail-loading? false
    :detail-error nil})
 
 (defonce ui-state
   (r/atom {:preview default-preview-state
            :scheduler default-scheduler-state
-           :tasks default-tasks-state}))
+           :tasks default-tasks-state
+           :defs default-defs-state}))

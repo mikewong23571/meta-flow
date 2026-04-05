@@ -2,6 +2,7 @@
   (:require [clojure.string :as str]
             [meta-flow-ui.components :as components]
             [meta-flow-ui.icons :as icons]
+            [meta-flow-ui.pages.tasks.create :as task-create]
             [meta-flow-ui.pages.tasks.detail :as task-detail]
             [meta-flow-ui.pages.tasks.state :as tasks-page-state]
             [meta-flow-ui.routes :as routes]
@@ -10,6 +11,7 @@
 (def primary-tabs
   [{:label "Scheduler" :route :scheduler}
    {:label "Tasks" :route :tasks}
+   {:label "Defs" :route :defs}
    {:label "Preview" :route :preview}])
 
 (defn task-state-label
@@ -109,7 +111,7 @@
 
 (defn tasks-page-body []
   (let [page-state (tasks-page-state/tasks-state)
-        {:keys [items loading? error filters]} page-state
+        {:keys [items loading? error filters create-dialog]} page-state
         visible-items (filtered-items page-state)
         task-type-options (distinct-options items #(str (:task/type-id %)))
         task-state-options (distinct-options items #(str (:task/state %)))]
@@ -119,6 +121,10 @@
        [:h1 {:className "scheduler-title"} "Tasks"]]
       [:div {:className "scheduler-topbar-actions"}
        [components/nav-tabs primary-tabs :tasks routes/navigate!]
+       [:button {:className "button button-icon button-ghost"
+                 :title "New Task"
+                 :on-click tasks-page-state/open-create-dialog!}
+        [icons/plus]]
        [:button {:className "button button-icon button-primary"
                  :title "Refresh"
                  :on-click tasks-page-state/load-items!}
@@ -162,7 +168,9 @@
                                  (if loading? " poll-dot-loading" ""))}]]]
        [:div {:className "scheduler-table-wrap"}
         [task-table visible-items]]]
-      [task-detail/detail-panel page-state tasks-page-state/clear-detail! task-state-label]]]))
+      [task-detail/detail-panel page-state tasks-page-state/clear-detail! task-state-label]]
+     (when (:open? create-dialog)
+       [task-create/create-dialog create-dialog])]))
 
 (defn tasks-page []
   (r/with-let [_ (tasks-page-state/ensure-polling!)]

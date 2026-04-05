@@ -1,0 +1,180 @@
+.defs-filter-bar {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.defs-filter-query {
+  grid-column: auto;
+  max-width: 28rem;
+}
+
+.defs-table tbody tr:hover {
+  background: var(--surface-task-row-hover);
+}
+
+.defs-col-name {
+  width: 28%;
+}
+
+.defs-col-input {
+  width: 24%;
+}
+
+.defs-col-work-key {
+  width: 16%;
+}
+
+.defs-col-runtime {
+  width: 15%;
+}
+
+.defs-col-policy {
+  width: 17%;
+}
+
+.defs-summary-strip {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: var(--space-md);
+  margin-bottom: var(--space-lg);
+}
+
+.defs-detail-back-row {
+  margin-bottom: var(--space-md);
+}
+
+.defs-detail-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-lg);
+}
+
+.defs-detail-section {
+  padding: var(--space-lg);
+  display: grid;
+  gap: var(--space-md);
+  align-content: start;
+}
+
+.defs-detail-section-head {
+  padding-bottom: var(--space-sm);
+  border-bottom: 1px solid var(--color-border-soft);
+}
+
+.defs-detail-section-head .component-title {
+  margin: 0;
+}
+
+.defs-detail-section-body {
+  display: grid;
+  gap: var(--space-md);
+}
+
+.defs-field-list {
+  display: grid;
+  gap: var(--space-md);
+}
+
+.defs-field-card {
+  padding: var(--space-md);
+  border: 1px solid var(--color-border-soft);
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--color-bg-input) 65%, transparent);
+  display: grid;
+  gap: var(--space-sm);
+}
+
+.defs-field-card-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-sm);
+}
+
+.defs-field-card-title {
+  margin: 0;
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--color-text-primary);
+}
+
+.defs-field-meta {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+  flex-wrap: wrap;
+}
+
+.defs-type-chip {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  color: var(--color-text-muted);
+  letter-spacing: 0.04em;
+}
+
+.defs-required-badge {
+  min-height: 1.4rem;
+  padding: 0 0.45rem;
+  font-size: 0.6rem;
+}
+
+.defs-inline-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-xs);
+  align-items: center;
+}
+
+.defs-artifact-groups {
+  display: grid;
+  gap: var(--space-md);
+}
+
+.defs-group-label {
+  margin: 0 0 var(--space-xs);
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  color: var(--color-text-muted);
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.defs-path-item {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  color: var(--color-text-primary);
+  background: var(--color-bg-input);
+  border: 1px solid var(--color-border-muted);
+  border-radius: var(--radius-xs);
+  padding: 0.15rem 0.5rem;
+  letter-spacing: 0.02em;
+}
+
+.defs-path-item-optional {
+  color: var(--color-text-muted);
+  border-style: dashed;
+}
+
+@media (max-width: 980px) {
+  .defs-summary-strip,
+  .defs-detail-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 860px) {
+  .defs-table {
+    min-width: 66rem;
+  }
+}
+
+@media (max-width: 640px) {
+  .defs-summary-strip,
+  .defs-detail-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .defs-field-card-head {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+}

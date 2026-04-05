@@ -41,6 +41,7 @@
   --color-tabs-panel-bg: rgba(7, 9, 15, 0.55);
   --color-checkbox-bg: rgba(255, 255, 255, 0.05);
   --color-dialog-overlay: rgba(2, 3, 8, 0.76);
+  --color-task-dialog-overlay: rgba(0, 0, 0, 0.55);
   --color-switch-off-bg: rgba(255, 255, 255, 0.14);
   --color-grid-line: rgba(255, 255, 255, 0.018);
   --surface-button-secondary-hover: rgba(255, 255, 255, 0.07);
