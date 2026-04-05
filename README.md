@@ -78,6 +78,8 @@ Current docs:
   Human-facing CLI command reference.
 - [docs/codex-runtime.md](docs/codex-runtime.md)
   Codex runtime adapter, `CODEX_HOME`, launch modes, and smoke testing.
+- [docs/internal-flow.md](docs/internal-flow.md)
+  Internal control flow, data flow, scheduler loop, and runtime boundaries.
 - [dev.md](dev.md)
   Local development workflow and task-runner usage.
 
