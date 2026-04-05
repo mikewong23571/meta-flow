@@ -95,15 +95,26 @@
         (is (= "frontend build check failed" (:headline gate)))
         (is (= "Execution error (ExceptionInfo) at shadow-cljs" (:cause gate)))))))
 
-(deftest frontend-build-gate-skips-when-npm-bootstrap-is-missing
+(deftest frontend-build-gate-fails-when-npm-bootstrap-is-missing
   (with-redefs [frontend-build/build-bootstrap-status
                 (fn []
                   {:state :missing-node-modules
-                   :headline "skipped because frontend npm dependencies are not installed"
-                   :action "Run `bb ui:install` to enable frontend build governance."})]
+                   :headline "frontend bootstrap is incomplete because npm dependencies are not installed"
+                   :action "Run `bb ui:install` and rerun `bb check`."})]
     (let [gate (frontend-build/frontend-build-gate)]
-      (is (= :skipped (:status gate)))
-      (is (= "skipped because frontend npm dependencies are not installed" (:headline gate))))))
+      (is (= :error (:status gate)))
+      (is (= "frontend bootstrap is incomplete because npm dependencies are not installed" (:headline gate)))
+      (is (= "Run `bb ui:install` and rerun `bb check`." (:action gate))))))
+
+(deftest build-bootstrap-status-prefers-missing-npm-over-missing-node-modules
+  (let [status (frontend-build/build-bootstrap-status-from
+                {:package-json? true
+                 :npm-available? false
+                 :node-modules? false
+                 :shadow-cljs-package? false})]
+    (is (= :missing-npm (:state status)))
+    (is (= "frontend bootstrap is incomplete because npm is not available in PATH"
+           (:headline status)))))
 
 (deftest check-gates-include-frontend-governance
   (let [calls (atom [])]

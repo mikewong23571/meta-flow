@@ -15,7 +15,7 @@ Use the local Babashka task runner; it wraps the repo’s Clojure aliases and av
 - `bb coverage` runs Kaocha with Cloverage and applies overall line-coverage governance: below 88% warns and below 85% fails, with messaging that frames coverage as a responsibility-governance signal rather than a vanity metric.
 - `bb fmt` rewrites formatting with `cljfmt`.
 - `bb fmt:check` verifies formatting without edits.
-- `bb check` runs `fmt:check`, `lint`, `test`, then `coverage`; treat it as the pre-PR gate.
+- `bb check` runs the unified governance gate with concise output across format hygiene, static analysis, structure governance, frontend governance, executable correctness, and coverage; treat it as the pre-PR gate.
 - `bb init` initializes the SQLite DB and runtime directories.
 - `bb defs:validate` validates bundled EDN workflow definitions.
 - `clojure -T:build prep` copies `src` and `resources` into `target/classes`.

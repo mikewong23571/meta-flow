@@ -11,6 +11,10 @@
 (def shadow-cljs-package-path
   "node_modules/shadow-cljs/package.json")
 
+(defn- bootstrap-action
+  [message]
+  (str message " Then run `bb ui:install` and rerun `bb check`."))
+
 (defn- path-exists?
   [path]
   (.exists (io/file path)))
@@ -22,31 +26,42 @@
     (catch Throwable _
       false)))
 
-(defn build-bootstrap-status
-  []
+(defn build-bootstrap-status-from
+  [{:keys [package-json?
+           npm-available?
+           node-modules?
+           shadow-cljs-package?]}]
   (cond
-    (not (path-exists? package-json-path))
+    (not package-json?)
     {:state :missing-package-json
-     :headline "skipped because package.json is missing"
-     :action "Restore package.json before enabling frontend build governance."}
+     :headline "frontend bootstrap is incomplete because package.json is missing"
+     :action (bootstrap-action "Restore `package.json`.")}
 
-    (not (path-exists? node-modules-path))
-    {:state :missing-node-modules
-     :headline "skipped because frontend npm dependencies are not installed"
-     :action "Run `bb ui:install` to enable frontend build governance."}
-
-    (not (path-exists? shadow-cljs-package-path))
-    {:state :missing-shadow-cljs-package
-     :headline "skipped because shadow-cljs npm dependencies are incomplete"
-     :action "Run `bb ui:install` to restore frontend build dependencies."}
-
-    (not (npm-available?))
+    (not npm-available?)
     {:state :missing-npm
-     :headline "skipped because npm is not available in PATH"
-     :action "Install Node.js/npm or adjust PATH before enabling frontend build governance."}
+     :headline "frontend bootstrap is incomplete because npm is not available in PATH"
+     :action "Install Node.js/npm, verify `npm --version`, then run `bb ui:install` and rerun `bb check`."}
+
+    (not node-modules?)
+    {:state :missing-node-modules
+     :headline "frontend bootstrap is incomplete because npm dependencies are not installed"
+     :action "Run `bb ui:install` and rerun `bb check`."}
+
+    (not shadow-cljs-package?)
+    {:state :missing-shadow-cljs-package
+     :headline "frontend bootstrap is incomplete because shadow-cljs is missing from node_modules"
+     :action (bootstrap-action "Restore the frontend dependency install.")}
 
     :else
     {:state :ready}))
+
+(defn build-bootstrap-status
+  []
+  (build-bootstrap-status-from
+   {:package-json? (path-exists? package-json-path)
+    :npm-available? (npm-available?)
+    :node-modules? (path-exists? node-modules-path)
+    :shadow-cljs-package? (path-exists? shadow-cljs-package-path)}))
 
 (defn frontend-build-gate
   []
@@ -55,7 +70,7 @@
       (if (not= :ready state)
         {:gate :frontend-build
          :label "frontend-build"
-         :status :skipped
+         :status :error
          :headline headline
          :action action}
         (let [{:keys [exit combined]} (shared/run-command! ["npm" "run" "ui:check"])

@@ -138,15 +138,25 @@
 (def frontend-style-gate frontend/frontend-style-gate)
 (def frontend-build-gate frontend/frontend-build-gate)
 
+(defn- spawn-gate
+  [runner]
+  (future (runner)))
+
 (defn check-gates
   []
-  (let [execution-result (coverage/evaluate-coverage)
+  (let [execution-future (spawn-gate coverage/evaluate-coverage)
+        format-future (spawn-gate run-format-check!)
+        static-analysis-future (spawn-gate run-static-analysis!)
+        structure-future (spawn-gate run-structure-governance!)
+        frontend-style-future (spawn-gate frontend-style-gate)
+        frontend-build-future (spawn-gate frontend-build-gate)
+        execution-result @execution-future
         execution-gates (execution-gates-from-coverage execution-result)]
-    (into [(run-format-check!)
-           (run-static-analysis!)
-           (run-structure-governance!)
-           (frontend-style-gate)
-           (frontend-build-gate)]
+    (into [@format-future
+           @static-analysis-future
+           @structure-future
+           @frontend-style-future
+           @frontend-build-future]
           execution-gates)))
 
 (def overall-status report/overall-status)

@@ -11,7 +11,7 @@ All frontend UI work must conform to `docs/design-system.md`. Read it before mak
 All tasks run through `bb`. The full list is in `bb.edn`.
 
 ```bash
-bb check          # fmt:check → lint → test → coverage — run before every commit (also runs automatically as pre-commit hook)
+bb check          # unified governance gate across format, lint, frontend, tests, and coverage — run before every commit (also runs automatically as pre-commit hook)
 bb test           # run test suite once via kaocha; supports --focus my.ns
 bb test:watch     # rerun tests on file change
 bb lint           # clj-kondo static analysis plus src/test governance (file length >240 warn, >300 fail; directory width >7 warn, >12 fail)

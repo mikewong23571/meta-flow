@@ -24,8 +24,8 @@ All development commands go through `bb`. Run `bb tasks` to see the full list.
 | `bb coverage` | Run Kaocha + Cloverage and enforce coverage governance: overall line coverage below 88% warns and below 85% fails |
 | `bb fmt` | Reformat all source files in place (cljfmt fix) |
 | `bb fmt:check` | Check formatting without modifying files |
-| `bb check` | fmt:check → lint → test → coverage in sequence (CI entry point) |
-| `bb check:verbose` | Verbose human-debugging gate with each step run separately |
+| `bb check` | Run the unified governance gate with concise output: format, static analysis, structure, frontend, executable correctness, and coverage |
+| `bb check:verbose` | Run the step-by-step human-debugging gate: fmt:check → lint → ui:governance → test → coverage |
 | `bb init` | Initialize SQLite database and runtime directories |
 | `bb defs:validate` | Validate bundled EDN workflow definitions |
 | `bb ui:install` | Install frontend npm dependencies |
@@ -55,7 +55,7 @@ Then open `http://localhost:8787`.
 
 ### Full pipeline
 
-    bb check       # fmt:check → lint → test → coverage (same as pre-commit)
+    bb check       # unified governance gate (same as pre-commit)
 
 Run this before opening a PR to confirm everything is green.
 
@@ -79,6 +79,7 @@ The hook is not versioned — if you clone fresh, re-create it:
 
 Create the SQLite database and runtime directories before first use:
 
+    bb ui:install
     bb init
 
 Validate that the bundled workflow definitions are well-formed:

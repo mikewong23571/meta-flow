@@ -388,7 +388,8 @@ Recommended baseline:
 
 - CLJS unit/component tests via `shadow-cljs` browser test target and `cljs.test`
 - formatter/linter choices added only if they provide clear value
-- backend `bb check` remains the backend gate, not an implicit frontend gate
+- `bb check` remains the unified repository gate; frontend-specific browser/unit tasks
+  should still stay explicit rather than being hidden behind unrelated command names
 
 When the frontend is implemented, add explicit frontend tasks rather than overloading
 existing backend task names with hidden extra behavior.

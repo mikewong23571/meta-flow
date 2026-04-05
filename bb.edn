@@ -28,7 +28,7 @@
   ui:install
   {:doc "Install frontend npm dependencies"
    :requires ([babashka.tasks :refer [shell]])
-   :task (shell "npm install")}
+   :task (shell "npm ci")}
 
   ui:watch
   {:doc "Watch frontend preview at http://localhost:8787"

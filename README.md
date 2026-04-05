@@ -22,6 +22,7 @@ Prerequisites:
 Initialize local state:
 
 ```bash
+bb ui:install
 bb init
 bb defs:validate
 ```
@@ -32,10 +33,9 @@ Run the default local gate:
 bb check
 ```
 
-Install frontend dependencies and start the preview UI:
+Start the preview UI:
 
 ```bash
-bb ui:install
 bb ui:watch
 ```
 
