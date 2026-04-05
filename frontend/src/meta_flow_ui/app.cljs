@@ -1,6 +1,8 @@
 (ns meta-flow-ui.app
   (:require [meta-flow-ui.pages.home :as home]
             [meta-flow-ui.pages.preview :as preview]
+            [meta-flow-ui.pages.scheduler :as scheduler]
+            [meta-flow-ui.pages.tasks :as tasks]
             [meta-flow-ui.routes :as routes]
             [meta-flow-ui.state :as state]
             [reagent.core :as r]
@@ -8,8 +10,10 @@
 
 (defn app []
   (case @routes/route-state
+    :home [home/home-page]
     :preview [preview/preview-page]
-    [home/home-page]))
+    :tasks [tasks/tasks-page]
+    [scheduler/scheduler-page]))
 
 (defn mount! []
   (let [container (.getElementById js/document "app")]

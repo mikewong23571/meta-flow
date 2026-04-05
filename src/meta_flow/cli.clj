@@ -19,6 +19,7 @@
     "  clojure -M -m meta-flow.main demo happy-path"
     "  clojure -M -m meta-flow.main demo retry-path"
     "  META_FLOW_ENABLE_CODEX_SMOKE=1 clojure -M -m meta-flow.main demo codex-smoke"
+    "  clojure -M -m meta-flow.main ui serve [--port <port>] [--db-path <db-path>]"
     "  clojure -M -m meta-flow.main inspect task --task-id <task-id>"
     "  clojure -M -m meta-flow.main inspect run --run-id <run-id>"
     "  clojure -M -m meta-flow.main inspect collection"]))
@@ -68,6 +69,10 @@
 
     (= args ["demo" "codex-smoke"])
     (commands/run-demo-codex-smoke!)
+
+    (and (>= (count args) 2)
+         (= ["ui" "serve"] (subvec args 0 2)))
+    (commands/run-ui-serve! args)
 
     (and (>= (count args) 2)
          (= ["inspect" "task"] (subvec args 0 2)))

@@ -425,6 +425,217 @@ That slice is enough to validate:
 - the frontend directory and build structure
 - the viability of inspect/projection-backed read models
 
+## First Screen Recommendation
+
+The first browser screen should be a read-only scheduler overview.
+
+It should not begin with:
+
+- a generic task table
+- artifact browsing
+- worker log streaming
+- write controls for scheduler operations
+
+Reason:
+
+- the scheduler is the narrowest operational surface that already has stable read-model
+  signals
+- it exposes system health and backlog pressure without requiring the browser to know
+  scheduler internals
+- it gives the frontend a clear first route and data contract before detail screens grow
+
+Recommended first route:
+
+- `/scheduler`
+
+Recommended screen goal:
+
+- answer "is the scheduler healthy right now?"
+- answer "what kind of work is waiting or stuck?"
+- provide drilldown links into a task or run when an operator sees a problem
+
+## Scheduler Overview Information Plan
+
+The first scheduler screen should show information in four layers.
+
+### 1. Snapshot Header
+
+This is the top-level framing for the entire page.
+
+Display:
+
+- snapshot timestamp
+- refresh state
+- polling cadence
+- stale-data indicator when the UI has not refreshed within the expected interval
+
+This gives the operator confidence about whether they are looking at current state or a
+stale browser snapshot.
+
+### 2. Dispatch And Capacity Status
+
+This is the first operational summary block.
+
+Display:
+
+- dispatch paused or active
+- dispatch cooldown active or inactive
+- cooldown-until timestamp when present
+- active run count
+- collection resource policy ref for the default collection
+
+Why these fields come first:
+
+- they explain whether the scheduler is intentionally not dispatching
+- they distinguish "the queue is idle" from "dispatch is blocked"
+- they expose the single collection-level control-plane state already present in the
+  backend
+
+### 3. Work Queue And Attention Buckets
+
+This is the main body of the page.
+
+Use one card or panel per scheduler bucket, ordered by operator urgency.
+
+Recommended buckets:
+
+- heartbeat timeout runs
+- expired lease runs
+- awaiting validation runs
+- retryable failed tasks
+- runnable tasks
+
+Each bucket should show:
+
+- total count
+- a short sample list of ids returned by the backend
+- empty-state copy when the count is zero
+- a label explaining what the bucket means in scheduler terms
+
+Presentation rule:
+
+- attention buckets should be visually separated from normal backlog buckets
+- `heartbeat timeout` and `expired lease` should read as incident-like conditions
+- `awaiting validation`, `retryable failed`, and `runnable` should read as workflow
+  progress or backlog conditions
+
+Important UI rule:
+
+- the backend snapshot currently returns capped sample id lists
+- the UI must show counts as authoritative and treat the id list as a sample, not a full
+  result set
+- when count exceeds sample size, the UI should say that only the first slice is shown
+
+### 4. Detail Drilldown Panel
+
+The first screen should support narrow drilldown without becoming a full console.
+
+When the operator clicks an id from a bucket, show a side panel or routed detail panel
+backed by existing inspect-style reads.
+
+For a selected task, display:
+
+- task id
+- task state
+- work key
+- task type ref
+- task fsm ref
+- run fsm ref
+- runtime profile ref
+- artifact contract ref
+- validator ref
+- resource policy ref
+- created-at
+- updated-at
+
+For a selected run, display:
+
+- run id
+- task id
+- attempt
+- run state
+- lease id
+- artifact id
+- artifact root
+- event count
+- last heartbeat
+- created-at
+- updated-at
+
+This drilldown is enough for the first interface because it answers "what is this item"
+and "why is it in this bucket" without exposing raw DB rows or full event timelines.
+
+## Scheduler Overview Priority Rules
+
+The screen should make the operator's reading order explicit.
+
+Recommended priority order:
+
+1. dispatch blocked
+2. heartbeat timeout runs
+3. expired lease runs
+4. awaiting validation runs
+5. retryable failed tasks
+6. runnable backlog
+
+This ordering matters because the UI should not present all scheduler facts as equally
+important.
+The first screen is for operational triage, not neutral data browsing.
+
+## Initial Backend Read Models For The Scheduler Screen
+
+The first scheduler screen should reuse existing read-model boundaries instead of adding
+frontend-driven domain reconstruction.
+
+Recommended initial API shape:
+
+- `GET /api/scheduler/overview`
+  returns the scheduler snapshot derived from projection reads
+- `GET /api/collections/default`
+  returns default collection inspect data if kept separate from overview
+- `GET /api/tasks/:task-id`
+  returns inspect-task data for drilldown
+- `GET /api/runs/:run-id`
+  returns inspect-run data for drilldown
+
+`GET /api/scheduler/overview` should at minimum expose:
+
+- `snapshot/now`
+- `snapshot/dispatch-paused?`
+- `snapshot/dispatch-cooldown-active?`
+- `snapshot/dispatch-cooldown-until`
+- `snapshot/runnable-count`
+- `snapshot/runnable-task-ids`
+- `snapshot/retryable-failed-count`
+- `snapshot/retryable-failed-task-ids`
+- `snapshot/awaiting-validation-count`
+- `snapshot/awaiting-validation-run-ids`
+- `snapshot/expired-lease-count`
+- `snapshot/expired-lease-run-ids`
+- `snapshot/heartbeat-timeout-count`
+- `snapshot/heartbeat-timeout-run-ids`
+- active run count
+
+If collection data remains separate, the collection response should at minimum expose:
+
+- `collection/dispatch`
+- `collection/resource-policy-ref`
+- `collection/updated-at`
+
+## Explicit Non-Goals For The First Scheduler Screen
+
+To keep the first UI controlled, the following should stay out of scope:
+
+- write actions such as pause, resume, retry, or force-dispatch
+- full run event timeline rendering
+- artifact file browser or direct runtime filesystem access
+- historical charts and trend analytics
+- multi-collection navigation
+- generic search across all tasks and runs
+- client-side reconstruction of scheduler lifecycle meaning
+
+These can be added later, but they should not be mixed into the first screen.
+
 ## Decision Summary
 
 For the first Meta-Flow frontend:

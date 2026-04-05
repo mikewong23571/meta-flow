@@ -6,7 +6,8 @@
             [meta-flow.runtime.codex :as runtime.codex]
             [meta-flow.runtime.codex.home :as codex.home]
             [meta-flow.runtime.codex.process.launch :as codex.launch]
-            [meta-flow.scheduler :as scheduler]))
+            [meta-flow.scheduler :as scheduler]
+            [meta-flow.ui.http :as ui.http]))
 
 (defn ensure-system-ready!
   []
@@ -80,6 +81,26 @@
         (when (seq skills-not-found)
           (println (str "  Skills not found in ~/.codex/skills (run `npx skills add`): "
                         (str/join ", " skills-not-found))))))))
+
+(defn run-ui-serve!
+  [args]
+  (let [port-text (option-value args "--port")
+        db-path (or (option-value args "--db-path") db/default-db-path)
+        port (if port-text
+               (Integer/parseInt port-text)
+               8788)
+        server (ui.http/start-server! {:db-path db-path
+                                       :port port})
+        stop-server! #(ui.http/stop-server! server)]
+    (.addShutdownHook (Runtime/getRuntime)
+                      (Thread. ^Runnable
+                       (reify Runnable
+                         (run [_]
+                           (stop-server!)))))
+    (println (str "Meta-Flow UI API listening on http://localhost:" (:port server)))
+    (println (str "Scheduler overview: http://localhost:" (:port server) "/api/scheduler/overview"))
+    (println (str "Using SQLite DB " db-path))
+    (ui.http/block-forever!)))
 
 (defn run-scheduler-once!
   []

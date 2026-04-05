@@ -76,3 +76,19 @@
                                              (swap! calls conj exit-code))]
       (coverage/-main)
       (is (= [1] @calls)))))
+
+(deftest main-prefers-plain-test-exit-over-coverage-runner-exit
+  (let [calls (atom [])
+        stderr (java.io.StringWriter.)]
+    (binding [*err* stderr]
+      (with-redefs [coverage/evaluate-coverage (fn []
+                                                 {:exit 3
+                                                  :err "coverage runner noise"
+                                                  :test-exit 1
+                                                  :test-err "plain test failure"
+                                                  :summary (coverage/parse-summary sample-output)})
+                    coverage/finish-process! (fn [exit-code]
+                                               (swap! calls conj exit-code))]
+        (coverage/-main)))
+    (is (= [1] @calls))
+    (is (str/includes? (str stderr) "plain test failure"))))

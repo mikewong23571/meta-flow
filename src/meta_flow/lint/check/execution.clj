@@ -30,8 +30,11 @@
       (shared/first-matching-line text #"^ERROR in ")))
 
 (defn test-gate-from-coverage
-  [{:keys [exit counts combined]}]
-  (let [failure-type (when-not (zero? exit)
+  [{:keys [exit counts combined test-exit test-counts test-combined]}]
+  (let [exit (or test-exit exit)
+        counts (or test-counts counts)
+        combined (or test-combined combined)
+        failure-type (when-not (zero? exit)
                        (classify-test-failure combined))
         headline (if (zero? exit)
                    (if counts
