@@ -90,6 +90,7 @@
      [:runtime-profile/name string?]
      [:runtime-profile/adapter-id [:= :runtime.adapter/codex]]
      [:runtime-profile/dispatch-mode keyword?]
+     [:runtime-profile/default-launch-mode {:optional true} keyword?]
      [:runtime-profile/codex-home-root string?]
      [:runtime-profile/allowed-mcp-servers [:vector keyword?]]
      [:runtime-profile/web-search-enabled? boolean?]

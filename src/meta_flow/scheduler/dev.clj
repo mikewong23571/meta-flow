@@ -25,15 +25,19 @@
   {:definition/id :runtime-profile/codex-worker
    :definition/version 1})
 
-(defn codex-smoke-max-steps
-  [runtime-profile]
+(defn codex-max-steps
+  [runtime-profile sleep-ms]
   (let [worker-timeout-seconds (long (or (:runtime-profile/worker-timeout-seconds runtime-profile)
                                          300))
         total-ms (* 1000 (+ worker-timeout-seconds
                             codex-smoke-timeout-grace-seconds))]
     (max 300
          (long (Math/ceil (/ (double total-ms)
-                             (double codex-smoke-sleep-ms)))))))
+                             (double sleep-ms)))))))
+
+(defn codex-smoke-max-steps
+  [runtime-profile]
+  (codex-max-steps runtime-profile codex-smoke-sleep-ms))
 
 (defn build-demo-task
   [defs-repo {:keys [task-id work-key runtime-profile-ref]
@@ -52,6 +56,39 @@
      :task/state :task.state/queued
      :task/created-at (shared/now)
      :task/updated-at (shared/now)}))
+
+(defn build-repo-arch-task
+  [defs-repo {:keys [task-id repo-url notify-email]}]
+  (let [task-type (defs.protocol/find-task-type-def defs-repo :task-type/repo-arch-investigation 1)]
+    {:task/id (or task-id (str "task-" (shared/new-id)))
+     :task/work-key (pr-str [:repo-arch repo-url notify-email])
+     :task/input {:input/repo-url repo-url
+                  :input/notify-email notify-email}
+     :task/task-type-ref {:definition/id (:task-type/id task-type)
+                          :definition/version (:task-type/version task-type)}
+     :task/task-fsm-ref (:task-type/task-fsm-ref task-type)
+     :task/run-fsm-ref (:task-type/run-fsm-ref task-type)
+     :task/runtime-profile-ref (:task-type/runtime-profile-ref task-type)
+     :task/artifact-contract-ref (:task-type/artifact-contract-ref task-type)
+     :task/validator-ref (:task-type/validator-ref task-type)
+     :task/resource-policy-ref (:task-type/resource-policy-ref task-type)
+     :task/state :task.state/queued
+     :task/created-at (shared/now)
+     :task/updated-at (shared/now)}))
+
+(defn enqueue-repo-arch-task!
+  [db-path {:keys [repo-url notify-email] :as options}]
+  (let [store (store.sqlite/sqlite-state-store db-path)
+        defs-repo (defs.loader/filesystem-definition-repository)
+        now-value (shared/now)
+        _ (shared/ensure-collection-state! store defs-repo now-value)
+        work-key (pr-str [:repo-arch repo-url notify-email])
+        existing-task (store.protocol/find-task-by-work-key store work-key)
+        task (or existing-task
+                 (store.protocol/enqueue-task! store
+                                               (build-repo-arch-task defs-repo options)))]
+    {:task task
+     :reused? (boolean existing-task)}))
 
 (defn happy-path-complete?
   [task run]

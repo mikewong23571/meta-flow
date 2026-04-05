@@ -9,28 +9,33 @@
         definitions (defs.protocol/load-workflow-defs repository)
         summary (defs.loader/definitions-summary definitions)]
     (testing "summary counts match milestone 1 expectations"
-      (is (= 2 (:task-types summary)))
       (is (= 2 (:task-fsms summary)))
-      (is (= 2 (:run-fsms summary)))
-      (is (= 2 (:runtime-profiles summary))))
+      (is (= 2 (:run-fsms summary))))
     (testing "lookups resolve version-pinned definitions"
       (is (= :task-type/cve-investigation
              (:task-type/id (defs.protocol/find-task-type-def repository :task-type/cve-investigation 1))))
+      (is (= :task-type/repo-arch-investigation
+             (:task-type/id (defs.protocol/find-task-type-def repository :task-type/repo-arch-investigation 1))))
       (is (= :runtime.adapter/codex
              (:runtime-profile/adapter-id (defs.protocol/find-runtime-profile repository :runtime-profile/codex-worker 1))))
       (is (= "meta_flow/prompts/worker.md"
              (:runtime-profile/worker-prompt-path (defs.protocol/find-runtime-profile repository :runtime-profile/codex-worker 1))))
       (is (= :artifact-contract/cve-investigation
              (get-in (defs.protocol/find-runtime-profile repository :runtime-profile/codex-worker 1)
-                     [:runtime-profile/artifact-contract-ref :definition/id]))))
+                     [:runtime-profile/artifact-contract-ref :definition/id])))
+      (is (= "meta_flow/prompts/repo-arch-worker.md"
+             (:runtime-profile/worker-prompt-path (defs.protocol/find-runtime-profile repository :runtime-profile/codex-repo-arch 1))))
+      (is (= :launch.mode/codex-exec
+             (:runtime-profile/default-launch-mode
+              (defs.protocol/find-runtime-profile repository :runtime-profile/codex-repo-arch 1)))))
     (testing "summary reports every definition bucket"
-      (is (= {:task-types 2
+      (is (= {:task-types 3
               :task-fsms 2
               :run-fsms 2
-              :runtime-profiles 2
-              :artifact-contracts 2
-              :validators 2
-              :resource-policies 3}
+              :runtime-profiles 3
+              :artifact-contracts 3
+              :validators 3
+              :resource-policies 4}
              summary)))))
 
 (deftest filesystem-definition-repository-delegates-both-arities

@@ -13,6 +13,9 @@
 (def ^:private wait-poll-ms
   1000)
 
+(def ^:private smoke-runtime-profile-id
+  :runtime-profile/codex-worker)
+
 (defn- current-time-ms
   []
   (System/currentTimeMillis))
@@ -22,12 +25,16 @@
   (every? #(.exists (io/file artifact-root-now %))
           (:artifact-contract/required-paths artifact-contract)))
 
-(defn- codex-exec-input
+(defn- smoke-task?
+  [{:keys [runtime-profile]}]
+  (= smoke-runtime-profile-id
+     (:runtime-profile/id runtime-profile)))
+
+(defn- smoke-task-instructions
   [{:keys [task run artifact-contract]} artifact-root-now]
   (str/join
    "\n"
-   [(slurp (fs/worker-prompt-path (:run/id run)))
-    ""
+   [""
     "## Codex Smoke Task"
     "Use shell commands only. Do not call the helper script directly; the runtime wrapper owns control-plane callbacks."
     (str "Write the required artifact files under `" artifact-root-now "`:")
@@ -40,21 +47,33 @@
     ""
     "Stop after the files are written."]))
 
+(defn- codex-exec-input
+  [{:keys [run] :as ctx} artifact-root-now]
+  (let [base-prompt (slurp (fs/worker-prompt-path (:run/id run)))]
+    (if (smoke-task? ctx)
+      (str base-prompt
+           "\n"
+           (smoke-task-instructions ctx artifact-root-now))
+      base-prompt)))
+
 (defn- heartbeat-interval-ms
   [runtime-profile]
   (* 1000 (long (or (:runtime-profile/heartbeat-interval-seconds runtime-profile)
                     30))))
 
 (defn- start-codex-process!
-  [workdir runtime-profile input]
+  [workdir artifact-root-now runtime-profile input]
   (let [builder (doto (ProcessBuilder. (process.launch/codex-exec-command workdir runtime-profile))
                   (.directory (io/file workdir))
                   (.redirectOutput java.lang.ProcessBuilder$Redirect/INHERIT)
                   (.redirectError java.lang.ProcessBuilder$Redirect/INHERIT))
-        proc (.start builder)]
-    (with-open [writer (io/writer (.getOutputStream proc))]
-      (.write writer input))
-    proc))
+        env (.environment builder)]
+    (.put env "ARTIFACT_ROOT" artifact-root-now)
+    (.put env "WORKDIR" workdir)
+    (let [proc (.start builder)]
+      (with-open [writer (io/writer (.getOutputStream proc))]
+        (.write writer input))
+      proc)))
 
 (defn- record-codex-child-process!
   [workdir runtime-profile ^Process proc]
@@ -108,6 +127,7 @@
                                    :stage ":worker.stage/research"
                                    :message "Launching real codex exec worker"})
     (let [proc (start-codex-process! workdir
+                                     artifact-root-now
                                      runtime-profile
                                      (codex-exec-input ctx artifact-root-now))]
       (record-codex-child-process! workdir runtime-profile proc)

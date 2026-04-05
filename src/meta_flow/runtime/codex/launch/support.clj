@@ -5,8 +5,8 @@
 (def ^:private smoke-enable-env
   "META_FLOW_ENABLE_CODEX_SMOKE")
 
-(def ^:private provider-env-suffix
-  "_API_KEY")
+(def ^:private provider-env-pattern
+  #"_API_KEY(?:$|_)")
 
 (defn env-value
   [key-name]
@@ -25,15 +25,31 @@
   []
   (truthy-env? (env-value smoke-enable-env)))
 
+(defn- configured-launch-mode
+  [runtime-profile]
+  (:runtime-profile/default-launch-mode runtime-profile))
+
 (defn launch-mode
-  [_runtime-profile]
-  (if (smoke-enabled?)
-    :launch.mode/codex-exec
-    :launch.mode/stub-worker))
+  [runtime-profile]
+  (or (configured-launch-mode runtime-profile)
+      (if (smoke-enabled?)
+        :launch.mode/codex-exec
+        :launch.mode/stub-worker)))
+
+(defn- launch-failure-prefix
+  [runtime-profile]
+  (if (and (= :launch.mode/codex-exec (configured-launch-mode runtime-profile))
+           (not (smoke-enabled?)))
+    "Codex runtime cannot start"
+    "Codex smoke test cannot start"))
+
+(defn- prefixed-message
+  [runtime-profile suffix]
+  (str (launch-failure-prefix runtime-profile) ": " suffix))
 
 (defn provider-env-keys
   [runtime-profile]
-  (filter #(str/ends-with? % provider-env-suffix)
+  (filter #(re-find provider-env-pattern %)
           (:runtime-profile/env-allowlist runtime-profile)))
 
 (defn codex-command-available?
@@ -58,12 +74,13 @@
       (not (codex-command-available?))
       {:launch/mode mode
        :launch/ready? false
-       :launch/message "Codex smoke test cannot start: `codex` command not found"}
+       :launch/message (prefixed-message runtime-profile "`codex` command not found")}
 
       (not provider-present?)
       {:launch/mode mode
        :launch/ready? false
-       :launch/message "Codex smoke test cannot start: missing provider credentials for configured runtime profile"
+       :launch/message (prefixed-message runtime-profile
+                                         "missing provider credentials for configured runtime profile")
        :launch/provider-env-keys provider-keys}
 
       :else

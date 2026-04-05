@@ -29,4 +29,20 @@
   :task-type/validator-ref {:definition/id :validator/cve-bundle
                             :definition/version 1}
   :task-type/resource-policy-ref {:definition/id :resource-policy/serial-cve
-                                  :definition/version 3}}]
+                                  :definition/version 3}}
+ {:task-type/id :task-type/repo-arch-investigation
+  :task-type/version 1
+  :task-type/name "Repo architecture investigation"
+  :task-type/description "Codex investigates the core architecture of a given open-source repository and delivers an architecture document by email."
+  :task-type/task-fsm-ref {:definition/id :task-fsm/default
+                           :definition/version 3}
+  :task-type/run-fsm-ref {:definition/id :run-fsm/default
+                          :definition/version 2}
+  :task-type/runtime-profile-ref {:definition/id :runtime-profile/codex-repo-arch
+                                  :definition/version 1}
+  :task-type/artifact-contract-ref {:definition/id :artifact-contract/repo-arch
+                                    :definition/version 1}
+  :task-type/validator-ref {:definition/id :validator/repo-arch
+                            :definition/version 1}
+  :task-type/resource-policy-ref {:definition/id :resource-policy/serial-repo-arch
+                                  :definition/version 1}}]

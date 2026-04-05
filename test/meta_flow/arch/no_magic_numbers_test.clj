@@ -69,7 +69,8 @@
 (def known-exemptions
   ;; 格式: "文件名:关键词" — 已审核的合理常量
   #{"step.clj:100"   ;; 查询批量上限，内部分页常量，非业务配置
-    "core.clj:100"}) ;; dispatch/core.clj default-runnable-limit，同上，内部分页常量
+    "core.clj:100"   ;; dispatch/core.clj default-runnable-limit，同上，内部分页常量
+    "run.clj:2000"}) ;; scheduler/run.clj 轮询间隔 2s，固定的 UX 常量，非业务配置
 
 (defn exempted? [filename content]
   (some (fn [exemption]

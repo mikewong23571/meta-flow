@@ -108,6 +108,21 @@
         (write-json-file! path updated)
         updated))))
 
+(defn copy-directory!
+  [src dest]
+  (let [src-file  (io/file src)
+        dest-file (io/file dest)
+        src-path  (.toPath src-file)]
+    (.mkdirs dest-file)
+    (doseq [file (file-seq src-file)]
+      (let [relative (.relativize src-path (.toPath file))
+            target   (io/file dest-file (.toString relative))]
+        (if (.isDirectory file)
+          (.mkdirs target)
+          (do (.mkdirs (.getParentFile target))
+              (io/copy file target)))))
+    dest))
+
 (defn with-file-lock!
   [path f]
   (let [lock-path (str path ".lock")]

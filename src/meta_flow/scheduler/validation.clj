@@ -87,7 +87,10 @@
                                    contract (defs.protocol/find-artifact-contract defs-repo
                                                                                   (get-in current-task [:task/artifact-contract-ref :definition/id])
                                                                                   (get-in current-task [:task/artifact-contract-ref :definition/version]))
-                                   outcome (service.validation/assess-required-paths artifact-root contract)
+                                   validator (defs.protocol/find-validator-def defs-repo
+                                                                               (get-in current-task [:task/validator-ref :definition/id])
+                                                                               (get-in current-task [:task/validator-ref :definition/version]))
+                                   outcome (service.validation/assess-artifact artifact-root contract validator)
                                    recorded {:assessment/id (shared/new-id)
                                              :assessment/run-id run-id
                                              :assessment/key current-assessment-key

@@ -15,21 +15,94 @@
   (let [{:keys [codex-home-dir]} (support/temp-system)
         repository (defs.loader/filesystem-definition-repository)
         runtime-profile (codex.support/codex-profile-with-temp-home repository codex-home-dir)
-        first-install (codex.home/install-home! runtime-profile)
-        readme-path (str codex-home-dir "/README.md")
-        _ (spit readme-path "user customized README\n")
-        second-install (codex.home/install-home! runtime-profile)]
-    (testing "first install materializes bundled templates"
-      (is (= (.getCanonicalPath (io/file codex-home-dir))
-             (:codex-home/root first-install)))
-      (is (= 2 (count (:codex-home/installed-paths first-install))))
-      (is (.exists (io/file codex-home-dir "README.md")))
-      (is (.exists (io/file codex-home-dir "config.edn"))))
-    (testing "reinstall preserves existing files instead of overwriting them"
-      (is (= "user customized README\n"
-             (slurp readme-path)))
-      (is (empty? (:codex-home/installed-paths second-install)))
-      (is (= 2 (count (:codex-home/skipped-paths second-install)))))))
+        missing-config (str codex-home-dir "-missing-config.toml")]
+    (with-redefs [codex.home/user-codex-config-file (constantly missing-config)]
+      (let [first-install (codex.home/install-home! runtime-profile)
+            readme-path (str codex-home-dir "/README.md")
+            _ (spit readme-path "user customized README\n")
+            second-install (codex.home/install-home! runtime-profile)]
+        (testing "first install materializes bundled templates"
+          (is (= (.getCanonicalPath (io/file codex-home-dir))
+                 (:codex-home/root first-install)))
+          (is (= 2 (count (:codex-home/installed-paths first-install))))
+          (is (.exists (io/file codex-home-dir "README.md")))
+          (is (.exists (io/file codex-home-dir "config.edn"))))
+        (testing "reinstall preserves existing files instead of overwriting them"
+          (is (= "user customized README\n"
+                 (slurp readme-path)))
+          (is (empty? (:codex-home/installed-paths second-install)))
+          (is (= 2 (count (:codex-home/skipped-paths second-install)))))
+        (testing "skill keys always present even when profile has no skills"
+          (is (= [] (:codex-home/skills-installed first-install)))
+          (is (= [] (:codex-home/skills-skipped first-install)))
+          (is (= [] (:codex-home/skills-not-found first-install))))))))
+
+(deftest codex-home-install-copies-user-config-toml-when-available
+  (let [{:keys [codex-home-dir]} (support/temp-system)
+        fake-user-config (str codex-home-dir "-user-config.toml")
+        profile {:runtime-profile/codex-home-root codex-home-dir}]
+    (spit fake-user-config "model_provider = \"x\"\n")
+    (with-redefs [codex.home/user-codex-config-file (constantly fake-user-config)]
+      (let [first-install (codex.home/install-home! profile)
+            installed-config (io/file codex-home-dir "config.toml")]
+        (testing "first install copies the user's Codex config"
+          (is (.exists installed-config))
+          (is (= "model_provider = \"x\"\n"
+                 (slurp installed-config)))
+          (is (some #(.endsWith % "/config.toml")
+                    (:codex-home/installed-paths first-install)))))
+      (let [installed-config (io/file codex-home-dir "config.toml")
+            _ (spit fake-user-config "model_provider = \"updated\"\n")
+            second-install (codex.home/install-home! profile)]
+        (testing "reinstall resyncs config.toml from the user's Codex config"
+          (is (= "model_provider = \"updated\"\n"
+                 (slurp installed-config)))
+          (is (some #(.endsWith % "/config.toml")
+                    (:codex-home/installed-paths second-install))))))))
+
+(deftest codex-home-install-copies-skills-from-user-codex-home
+  (let [{:keys [codex-home-dir]} (support/temp-system)
+        fake-user-skills-dir (str codex-home-dir "-user-skills")
+        skill-name "test-skill"
+        skill-src  (io/file fake-user-skills-dir skill-name)
+        _          (.mkdirs skill-src)
+        _          (spit (io/file skill-src "SKILL.md") "# test-skill\n")
+        profile    {:runtime-profile/codex-home-root codex-home-dir
+                    :runtime-profile/skills [skill-name]}]
+    (with-redefs [codex.home/user-codex-config-file (constantly (str codex-home-dir "-missing-config.toml"))
+                  codex.home/user-codex-skills-root (constantly fake-user-skills-dir)]
+      (testing "skill is copied from user codex home on first install"
+        (let [result (codex.home/install-home! profile)]
+          (is (= [skill-name] (:codex-home/skills-installed result)))
+          (is (= [] (:codex-home/skills-skipped result)))
+          (is (= [] (:codex-home/skills-not-found result)))
+          (is (.exists (io/file codex-home-dir "skills" skill-name "SKILL.md")))))
+      (testing "skill is resynced on reinstall"
+        (spit (io/file skill-src "SKILL.md") "# test-skill v2\n")
+        (let [result (codex.home/install-home! profile)]
+          (is (= [skill-name] (:codex-home/skills-installed result)))
+          (is (= [] (:codex-home/skills-skipped result)))
+          (is (= "# test-skill v2\n"
+                 (slurp (io/file codex-home-dir "skills" skill-name "SKILL.md"))))))
+      (testing "missing required skill fails fast"
+        (is (thrown-with-msg? clojure.lang.ExceptionInfo
+                              #"missing required skills"
+                              (codex.home/install-home!
+                               (assoc profile
+                                      :runtime-profile/id :runtime-profile/requires-skill
+                                      :runtime-profile/skills ["no-such-skill"])))))
+      (testing "the failure identifies the missing skills"
+        (try
+          (codex.home/install-home!
+           (assoc profile
+                  :runtime-profile/id :runtime-profile/requires-skill
+                  :runtime-profile/skills ["no-such-skill"]))
+          (is false)
+          (catch clojure.lang.ExceptionInfo ex
+            (is (= :runtime-profile/requires-skill
+                   (get-in (ex-data ex) [:runtime-profile/id])))
+            (is (= ["no-such-skill"]
+                   (:codex-home/skills-not-found (ex-data ex))))))))))
 
 (deftest prepare-run-writes-concrete-codex-worker-snapshot
   (let [{:keys [db-path artifacts-dir runs-dir codex-home-dir]} (support/temp-system)

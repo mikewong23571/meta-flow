@@ -75,14 +75,18 @@
 
 (defn codex-exec-command
   [workdir runtime-profile]
-  (into ["codex"
-         "exec"
-         "--dangerously-bypass-approvals-and-sandbox"
-         "--skip-git-repo-check"
-         "-C" workdir]
+  (into ["codex"]
         (cond-> []
           (:runtime-profile/web-search-enabled? runtime-profile)
           (conj "--search")
+
+          :always
+          (into ["exec"
+                 "--dangerously-bypass-approvals-and-sandbox"
+                 "--skip-git-repo-check"
+                 "-c" "shell_environment_policy.inherit=all"
+                 "-C" workdir])
+
           :always
           (conj "-"))))
 

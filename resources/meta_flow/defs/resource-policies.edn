@@ -21,4 +21,12 @@
   :resource-policy/max-attempts 2
   :resource-policy/lease-duration-seconds 1800
   :resource-policy/heartbeat-timeout-seconds 120
+  :resource-policy/queue-order :resource-policy.queue-order/created-at}
+ {:resource-policy/id :resource-policy/serial-repo-arch
+  :resource-policy/version 1
+  :resource-policy/name "Serial repo architecture policy"
+  :resource-policy/max-active-runs 1
+  :resource-policy/max-attempts 2
+  :resource-policy/lease-duration-seconds 3600
+  :resource-policy/heartbeat-timeout-seconds 180
   :resource-policy/queue-order :resource-policy.queue-order/created-at}]

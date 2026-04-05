@@ -55,7 +55,8 @@
         workdir (str root "/run-1")
         artifact-root (str root "/artifact")
         ctx {:workdir workdir
-             :runtime-profile {:runtime-profile/web-search-enabled? true}
+             :runtime-profile {:runtime-profile/id :runtime-profile/codex-worker
+                               :runtime-profile/web-search-enabled? true}
              :task {:task/id "task-1"}
              :run {:run/id "run-1"}
              :artifact-contract {:artifact-contract/required-paths ["manifest.json" "notes.md" "run.log"]}}
@@ -84,9 +85,10 @@
                                                      (let [value (or (first @times) 0)]
                                                        (swap! times #(if (next %) (vec (rest %)) %))
                                                        value)))
-                    codex.worker/start-codex-process! (fn [workdir-now runtime-profile input]
+                    codex.worker/start-codex-process! (fn [workdir-now artifact-root-now runtime-profile input]
                                                         (swap! calls conj [:spawn ["codex" "exec" "-"]
                                                                            {:dir workdir-now
+                                                                            :artifact-root artifact-root-now
                                                                             :runtime-profile runtime-profile
                                                                             :in input}])
                                                         (spit (str artifact-root "/manifest.json") "{\"status\":\"completed\"}\n")
@@ -109,7 +111,9 @@
                (nth @calls 2)))
         (is (= [:spawn ["codex" "exec" "-"]
                 {:dir workdir
-                 :runtime-profile {:runtime-profile/web-search-enabled? true}
+                 :artifact-root artifact-root
+                 :runtime-profile {:runtime-profile/id :runtime-profile/codex-worker
+                                   :runtime-profile/web-search-enabled? true}
                  :in (str "prompt body\n"
                           "\n"
                           "\n## Codex Smoke Task\n"
@@ -139,6 +143,81 @@
                 :wrapperCommand ["bb" "script/worker_api.bb" "codex-worker"]}
                (select-keys (codex.fs/read-json-file (str workdir "/process.json"))
                             [:pid :wrapperPid :command :wrapperCommand])))))))
+
+(deftest codex-worker-run-codex-worker-does-not-append-smoke-instructions-for-non-smoke-profiles
+  (let [root (.toFile (java.nio.file.Files/createTempDirectory "meta-flow-codex-real-worker"
+                                                               (make-array java.nio.file.attribute.FileAttribute 0)))
+        workdir (str root "/run-1")
+        artifact-root (str root "/artifact")
+        ctx {:workdir workdir
+             :runtime-profile {:runtime-profile/id :runtime-profile/codex-repo-arch
+                               :runtime-profile/web-search-enabled? true}
+             :task {:task/id "task-1"}
+             :run {:run/id "run-1"}
+             :artifact-contract {:artifact-contract/required-paths ["architecture.md" "manifest.json" "run.log" "email-receipt.edn"]}}
+        calls (atom [])]
+    (.mkdirs (io/file workdir))
+    (spit (str workdir "/worker-prompt.md") "real prompt body\n")
+    (codex.fs/write-json-file! (str workdir "/process.json")
+                               {:status "dispatched"
+                                :pid 101
+                                :command ["bb" "script/worker_api.bb" "codex-worker"]})
+    (binding [codex.fs/*run-root-dir* (str root)]
+      (with-redefs [store.sqlite/sqlite-state-store (fn [_] ::store)
+                    codex.fs/ensure-directory! (fn [path]
+                                                 (.mkdirs (io/file path))
+                                                 (swap! calls conj [:ensure-directory path]))
+                    codex.helper/emit-worker-started! (fn [_ _ options]
+                                                        (swap! calls conj [:worker-started options]))
+                    codex.helper/emit-heartbeat! (fn [_ _ options]
+                                                   (swap! calls conj [:heartbeat options]))
+                    codex.helper/emit-worker-exit! (fn [_ _ options]
+                                                     (swap! calls conj [:worker-exit options]))
+                    codex.helper/emit-artifact-ready! (fn [_ _ options]
+                                                        (swap! calls conj [:artifact-ready options]))
+                    codex.worker/current-time-ms (constantly 0)
+                    codex.worker/start-codex-process! (fn [workdir-now artifact-root-now runtime-profile input]
+                                                        (swap! calls conj [:spawn ["codex" "exec" "-"]
+                                                                           {:dir workdir-now
+                                                                            :artifact-root artifact-root-now
+                                                                            :runtime-profile runtime-profile
+                                                                            :in input}])
+                                                        (spit (str artifact-root "/architecture.md") "# report\n")
+                                                        (spit (str artifact-root "/manifest.json") "{\"status\":\"completed\"}\n")
+                                                        (spit (str artifact-root "/run.log") "log\n")
+                                                        (spit (str artifact-root "/email-receipt.edn") "{:email/status :sent}\n")
+                                                        (fake-process {:wait-results [true]
+                                                                       :exit-code 0
+                                                                       :pid 202}))]
+        (codex.worker/run-codex-worker! ctx "var/test.sqlite3" artifact-root "artifact-1")
+        (is (= [:spawn ["codex" "exec" "-"]
+                {:dir workdir
+                 :artifact-root artifact-root
+                 :runtime-profile {:runtime-profile/id :runtime-profile/codex-repo-arch
+                                   :runtime-profile/web-search-enabled? true}
+                 :in "real prompt body\n"}]
+               (nth @calls 3)))))))
+
+(deftest codex-worker-start-codex-process-exports-artifact-root-and-workdir
+  (let [root (.toFile (java.nio.file.Files/createTempDirectory "meta-flow-codex-process-env"
+                                                               (make-array java.nio.file.attribute.FileAttribute 0)))
+        workdir (.getCanonicalPath (io/file root "run-1"))
+        artifact-root (.getCanonicalPath (io/file root "artifact"))
+        env-path (.getCanonicalPath (io/file root "env.txt"))]
+    (.mkdirs (io/file workdir))
+    (.mkdirs (io/file artifact-root))
+    (with-redefs [codex.launch/codex-exec-command (fn [_ _]
+                                                    ["/bin/sh"
+                                                     "-c"
+                                                     (str "cat >/dev/null; printf '%s|%s' \"$ARTIFACT_ROOT\" \"$WORKDIR\" > "
+                                                          env-path)])]
+      (let [proc (#'codex.worker/start-codex-process! workdir
+                                                      artifact-root
+                                                      {:runtime-profile/id :runtime-profile/codex-repo-arch}
+                                                      "prompt body\n")]
+        (is (= 0 (.waitFor ^Process proc)))
+        (is (= (str artifact-root "|" workdir)
+               (slurp env-path)))))))
 
 (deftest codex-worker-emits-periodic-heartbeats-while-the-real-process-is-still-running
   (let [root (.toFile (java.nio.file.Files/createTempDirectory "meta-flow-codex-heartbeat-worker"

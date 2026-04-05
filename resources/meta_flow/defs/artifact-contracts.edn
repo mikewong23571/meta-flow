@@ -7,4 +7,9 @@
   :artifact-contract/version 1
   :artifact-contract/name "Phase 1 CVE artifact contract"
   :artifact-contract/required-paths ["manifest.json" "notes.md" "run.log"]
-  :artifact-contract/optional-paths ["cve-summary.edn"]}]
+  :artifact-contract/optional-paths ["cve-summary.edn"]}
+ {:artifact-contract/id :artifact-contract/repo-arch
+  :artifact-contract/version 1
+  :artifact-contract/name "Repo architecture investigation contract"
+  :artifact-contract/required-paths ["architecture.md" "manifest.json" "run.log" "email-receipt.edn"]
+  :artifact-contract/optional-paths ["component-diagram.md" "data-flow.md" "key-abstractions.edn"]}]

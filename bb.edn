@@ -5,6 +5,21 @@
    :requires ([babashka.tasks :refer [shell]])
    :task (shell "clojure -M:native-access -m meta-flow.main init")}
 
+  runtime:init-codex-home
+  {:doc "Install CODEX_HOME templates and skills for all Codex runtime profiles"
+   :requires ([babashka.tasks :refer [shell]])
+   :task (shell "clojure -M:native-access -m meta-flow.main runtime init-codex-home")}
+
+  enqueue-repo-arch
+  {:doc "Enqueue a repo architecture task: bb enqueue-repo-arch --repo <url> --notify-email <email>"
+   :requires ([babashka.tasks :refer [shell]])
+   :task (apply shell "clojure -M:native-access -m meta-flow.main enqueue-repo-arch" *command-line-args*)}
+
+  scheduler:run
+  {:doc "Run scheduler loop until task completes: META_FLOW_ENABLE_CODEX_SMOKE=1 bb scheduler:run --task-id <id>"
+   :requires ([babashka.tasks :refer [shell]])
+   :task (apply shell "clojure -M:native-access -m meta-flow.main scheduler run" *command-line-args*)}
+
   defs:validate
   {:doc "Validate workflow definitions"
    :requires ([babashka.tasks :refer [shell]])

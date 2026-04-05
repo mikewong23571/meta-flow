@@ -17,7 +17,9 @@
     "  clojure -M -m meta-flow.main defs validate"
     "  clojure -M -m meta-flow.main runtime init-codex-home"
     "  clojure -M -m meta-flow.main enqueue [--work-key <work-key>]"
+    "  clojure -M -m meta-flow.main enqueue-repo-arch --repo <repo-url> --notify-email <email>"
     "  clojure -M -m meta-flow.main scheduler once"
+    "  META_FLOW_ENABLE_CODEX_SMOKE=1 clojure -M -m meta-flow.main scheduler run --task-id <task-id>"
     "  clojure -M -m meta-flow.main demo happy-path"
     "  clojure -M -m meta-flow.main demo retry-path"
     "  META_FLOW_ENABLE_CODEX_SMOKE=1 clojure -M -m meta-flow.main demo codex-smoke"
@@ -76,20 +78,27 @@
 (defn- run-runtime-init-codex-home!
   []
   (let [repository (defs.loader/filesystem-definition-repository)
-        _ (defs.protocol/load-workflow-defs repository)
+        definitions (defs.protocol/load-workflow-defs repository)
         _ (db/ensure-runtime-directories!)
-        runtime-profile (or (defs.protocol/find-runtime-profile repository
-                                                                :runtime-profile/codex-worker
-                                                                1)
-                            (throw (ex-info "Codex runtime profile not found"
-                                            {:runtime-profile/id :runtime-profile/codex-worker
-                                             :runtime-profile/version 1})))
-        {:keys [codex-home/root codex-home/installed-paths codex-home/skipped-paths]}
-        (codex.home/install-home! runtime-profile)]
-    (println (str "Ensured project CODEX_HOME at " root))
-    (println "Installed runtime templates for codex worker")
-    (println (str "Templates installed: " (count installed-paths)))
-    (println (str "Templates preserved: " (count skipped-paths)))))
+        codex-profiles (filter #(= :runtime.adapter/codex (:runtime-profile/adapter-id %))
+                               (:runtime-profiles definitions))]
+    (when (empty? codex-profiles)
+      (throw (ex-info "No Codex runtime profiles found in definitions" {})))
+    (doseq [profile codex-profiles]
+      (let [{:keys [codex-home/root codex-home/installed-paths codex-home/skipped-paths
+                    codex-home/skills-installed codex-home/skills-skipped codex-home/skills-not-found]}
+            (codex.home/install-home! profile)]
+        (println (str "Profile " (:runtime-profile/id profile) ":"))
+        (println (str "  CODEX_HOME: " root))
+        (println (str "  Templates installed: " (count installed-paths)
+                      ", preserved: " (count skipped-paths)))
+        (when (seq skills-installed)
+          (println (str "  Skills installed: " (str/join ", " skills-installed))))
+        (when (seq skills-skipped)
+          (println (str "  Skills preserved: " (str/join ", " skills-skipped))))
+        (when (seq skills-not-found)
+          (println (str "  Skills not found in ~/.codex/skills (run `npx skills add`): "
+                        (str/join ", " skills-not-found))))))))
 
 (defn- run-scheduler-once!
   []
@@ -130,6 +139,22 @@
     (println (str "Enqueued task " (:task/id task) " for " (:task/work-key task)))
     (when reused?
       (println "Task already existed for that work key; reused persisted control-plane state"))
+    (println (str "Task " (:task/id task) " -> " (:task/state task)))
+    (println (str "Runtime profile " (get-in task [:task/runtime-profile-ref :definition/id])
+                  " v" (get-in task [:task/runtime-profile-ref :definition/version])))))
+
+(defn- run-enqueue-repo-arch!
+  [args]
+  (ensure-system-ready!)
+  (let [repo-url (require-option! args "--repo")
+        notify-email (require-option! args "--notify-email")
+        {:keys [task reused?]} (scheduler/enqueue-repo-arch-task! db/default-db-path
+                                                                  {:repo-url repo-url
+                                                                   :notify-email notify-email})]
+    (println (str "Enqueued repo-arch task " (:task/id task) " for " repo-url))
+    (when reused?
+      (println "Task already existed for that repo and recipient; reused persisted control-plane state"))
+    (println (str "Notify email: " notify-email))
     (println (str "Task " (:task/id task) " -> " (:task/state task)))
     (println (str "Runtime profile " (get-in task [:task/runtime-profile-ref :definition/id])
                   " v" (get-in task [:task/runtime-profile-ref :definition/version])))))
@@ -199,8 +224,26 @@
          (= "enqueue" (first args)))
     (run-enqueue! args)
 
+    (and (>= (count args) 1)
+         (= "enqueue-repo-arch" (first args)))
+    (run-enqueue-repo-arch! args)
+
     (= args ["scheduler" "once"])
     (run-scheduler-once!)
+
+    (and (>= (count args) 2)
+         (= ["scheduler" "run"] (subvec args 0 2)))
+    (let [task-id (require-option! args "--task-id")]
+      (ensure-system-ready!)
+      (println (str "Running scheduler until task " task-id " completes..."))
+      (let [{:keys [task run artifact-root scheduler-steps]}
+            (scheduler/run-task-until-complete! db/default-db-path task-id)]
+        (println (str "Done in " scheduler-steps " steps"))
+        (println (str "Task " (:task/id task) " -> " (:task/state task)))
+        (when run
+          (println (str "Run  " (:run/id run) " -> " (:run/state run))))
+        (when artifact-root
+          (println (str "Artifact root: " artifact-root)))))
 
     (= args ["demo" "happy-path"])
     (run-demo-happy-path!)

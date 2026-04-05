@@ -75,11 +75,10 @@
                                           :task/runtime-profile-ref (:task/runtime-profile-ref task)
                                           :task/artifact-contract-ref (:task/artifact-contract-ref task)
                                           :cancelled? false})
-    (spit manifest-path (cheshire/generate-string
-                         {:artifact-root artifact-path
-                          :run-log log-path
-                          :notes "placeholder"}
-                         {:pretty true}))
+    (mock.fs/write-edn-file! manifest-path
+                             {:artifact-root artifact-path
+                              :run-log       log-path
+                              :notes         "placeholder"})
     {:runtime-run/workdir workdir
      :runtime-run/artifact-root artifact-path
      :runtime-run/log-path log-path}))

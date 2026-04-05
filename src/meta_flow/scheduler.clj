@@ -1,5 +1,6 @@
 (ns meta-flow.scheduler
   (:require [meta-flow.scheduler.dev :as dev]
+            [meta-flow.scheduler.run :as run]
             [meta-flow.scheduler.step :as step]))
 
 (defn run-scheduler-step
@@ -11,6 +12,14 @@
    (dev/enqueue-demo-task! db-path))
   ([db-path options]
    (dev/enqueue-demo-task! db-path options)))
+
+(defn enqueue-repo-arch-task!
+  [db-path options]
+  (dev/enqueue-repo-arch-task! db-path options))
+
+(defn run-task-until-complete!
+  [db-path task-id]
+  (run/run-task-until-complete! db-path task-id run-scheduler-step))
 
 (defn demo-happy-path!
   [db-path]

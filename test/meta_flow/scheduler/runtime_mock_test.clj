@@ -27,10 +27,10 @@
                 expected-prefix (str runs-dir "/")]
             (is (= 1 (count (:created-runs step-result))))
             (is (empty? (:task-errors step-result)))
-            (is (= 6
+            (is (= 7
                    (count (filter #(str/starts-with? % expected-prefix)
                                   @metadata-writes))))
-            (is (= #{"definitions.edn" "task.edn" "run.edn" "runtime-profile.edn" "runtime-state.edn"}
+            (is (= #{"definitions.edn" "task.edn" "run.edn" "runtime-profile.edn" "runtime-state.edn" "artifact-contract.edn"}
                    (set (map #(last (str/split % #"/"))
                              (filter #(str/starts-with? % expected-prefix)
                                      @metadata-writes)))))))))))
