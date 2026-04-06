@@ -1,33 +1,12 @@
-(ns meta-flow-ui.components)
+(ns meta-flow-ui.components
+  (:require [meta-flow-ui.ui.layout]
+            [meta-flow-ui.ui.patterns]))
 
-(defn badge [tone label]
-  [:span {:className (str "badge badge-" tone)} label])
+(def primary-tabs meta-flow-ui.ui.layout/primary-tabs)
+(def nav-tabs meta-flow-ui.ui.layout/nav-tabs)
+(def page-shell meta-flow-ui.ui.layout/page-shell)
 
-(defn stat-card [label value note]
-  [:article {:className "panel stat-card"}
-   [:p {:className "stat-label"} label]
-   [:p {:className "stat-value"} (or value "n/a")]
-   [:p {:className "stat-note"} note]])
-
-(defn swatch-card [label token style]
-  [:article {:className "panel swatch-card"}
-   [:div {:className "swatch-preview" :style style}]
-   [:p {:className "swatch-label"} label]
-   [:p {:className "swatch-token"} token]])
-
-(defn detail-row [label value]
-  [:div {:className "detail-row"}
-   [:dt {:className "detail-label"} label]
-   [:dd {:className "detail-value"} (or value "n/a")]])
-
-(defn nav-tabs
-  [items active-route on-navigate]
-  [:nav {:className "nav-tabs" :aria-label "Primary"}
-   (for [{:keys [label route]} items]
-     ^{:key (name route)}
-     [:button {:className (str "nav-tab"
-                               (when (= active-route route)
-                                 " nav-tab-active"))
-               :aria-current (when (= active-route route) "page")
-               :on-click #(on-navigate route)}
-      label])])
+(def badge meta-flow-ui.ui.patterns/badge)
+(def stat-card meta-flow-ui.ui.patterns/stat-card)
+(def swatch-card meta-flow-ui.ui.patterns/swatch-card)
+(def detail-row meta-flow-ui.ui.patterns/detail-row)

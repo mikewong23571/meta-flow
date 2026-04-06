@@ -1,6 +1,8 @@
 (ns meta-flow.lint.check.frontend
   (:gen-class)
-  (:require [meta-flow.lint.check.frontend.build :as build]
+  (:require [meta-flow.lint.check.frontend.architecture :as architecture]
+            [meta-flow.lint.check.frontend.build :as build]
+            [meta-flow.lint.check.frontend.shared-ui :as shared-ui]
             [meta-flow.lint.check.frontend.style :as style]
             [meta-flow.lint.check.report :as report]))
 
@@ -13,6 +15,18 @@
 (def build-bootstrap-status
   build/build-bootstrap-status)
 
+(def frontend-architecture-gate
+  architecture/frontend-architecture-gate)
+
+(def frontend-shared-component-placement-gate
+  shared-ui/frontend-shared-component-placement-gate)
+
+(def frontend-shared-component-facade-gate
+  shared-ui/frontend-shared-component-facade-gate)
+
+(def frontend-ui-layering-gate
+  shared-ui/frontend-ui-layering-gate)
+
 (def frontend-style-gate
   style/frontend-style-gate)
 
@@ -21,7 +35,11 @@
 
 (defn frontend-gates
   []
-  [(frontend-style-gate)
+  [(frontend-architecture-gate)
+   (frontend-shared-component-placement-gate)
+   (frontend-shared-component-facade-gate)
+   (frontend-ui-layering-gate)
+   (frontend-style-gate)
    (frontend-build-gate)])
 
 (defn finish-process!

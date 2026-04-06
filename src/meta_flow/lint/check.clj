@@ -136,6 +136,10 @@
 (def classify-test-failure execution/classify-test-failure)
 (def execution-gates-from-coverage execution/execution-gates-from-coverage)
 (def frontend-style-gate frontend/frontend-style-gate)
+(def frontend-architecture-gate frontend/frontend-architecture-gate)
+(def frontend-shared-component-placement-gate frontend/frontend-shared-component-placement-gate)
+(def frontend-shared-component-facade-gate frontend/frontend-shared-component-facade-gate)
+(def frontend-ui-layering-gate frontend/frontend-ui-layering-gate)
 (def frontend-build-gate frontend/frontend-build-gate)
 
 (defn- spawn-gate
@@ -148,6 +152,10 @@
         format-future (spawn-gate run-format-check!)
         static-analysis-future (spawn-gate run-static-analysis!)
         structure-future (spawn-gate run-structure-governance!)
+        frontend-architecture-future (spawn-gate frontend-architecture-gate)
+        frontend-shared-component-placement-future (spawn-gate frontend-shared-component-placement-gate)
+        frontend-shared-component-facade-future (spawn-gate frontend-shared-component-facade-gate)
+        frontend-ui-layering-future (spawn-gate frontend-ui-layering-gate)
         frontend-style-future (spawn-gate frontend-style-gate)
         frontend-build-future (spawn-gate frontend-build-gate)
         execution-result @execution-future
@@ -155,6 +163,10 @@
     (into [@format-future
            @static-analysis-future
            @structure-future
+           @frontend-architecture-future
+           @frontend-shared-component-placement-future
+           @frontend-shared-component-facade-future
+           @frontend-ui-layering-future
            @frontend-style-future
            @frontend-build-future]
           execution-gates)))

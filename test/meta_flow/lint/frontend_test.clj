@@ -2,7 +2,9 @@
   (:require [clojure.test :refer [deftest is]]
             [meta-flow.lint.check :as check]
             [meta-flow.lint.check.frontend :as frontend]
+            [meta-flow.lint.check.frontend.architecture :as frontend-architecture]
             [meta-flow.lint.check.frontend.build :as frontend-build]
+            [meta-flow.lint.check.frontend.shared-ui :as frontend-shared-ui]
             [meta-flow.lint.check.frontend.style :as frontend-style]
             [meta-flow.lint.check.shared :as shared]
             [meta-flow.lint.coverage :as coverage])
@@ -76,6 +78,85 @@
       (finally
         (delete-tree! root)))))
 
+(deftest frontend-architecture-gate-detects-page-specific-names-in-shared-layers
+  (let [root (temp-dir-path)]
+    (try
+      (let [shared-source (write-file! root "components.cljs"
+                                       "(ns demo.components)\n(defn shell [] [:div {:className \"scheduler-title\"}])\n")
+            shared-style (write-file! root "components.css"
+                                      ".scheduler-title { color: var(--color-text-primary); }\n")]
+        (with-redefs [frontend-architecture/shared-frontend-source-files [shared-source]
+                      frontend-architecture/shared-frontend-source-roots []
+                      frontend-architecture/shared-frontend-style-files [shared-style]]
+          (let [gate (frontend-architecture/frontend-architecture-gate)]
+            (is (= :error (:status gate)))
+            (is (= 2 (count (:findings gate))))
+            (is (= #{:shared-ui-page-specific-class
+                     :shared-style-page-specific-class}
+                   (into #{} (map :type (:findings gate))))))))
+      (finally
+        (delete-tree! root)))))
+
+(deftest frontend-architecture-gate-allows-neutral-shared-names
+  (let [root (temp-dir-path)]
+    (try
+      (let [shared-source (write-file! root "components.cljs"
+                                       "(ns demo.components)\n(defn shell [] [:div {:className \"page-title\"}])\n")
+            shared-style (write-file! root "components.css"
+                                      ".page-title { color: var(--color-text-primary); }\n")]
+        (with-redefs [frontend-architecture/shared-frontend-source-files [shared-source]
+                      frontend-architecture/shared-frontend-source-roots []
+                      frontend-architecture/shared-frontend-style-files [shared-style]]
+          (let [gate (frontend-architecture/frontend-architecture-gate)]
+            (is (= :pass (:status gate)))
+            (is (= "shared frontend layers use neutral, reusable naming"
+                   (:headline gate))))))
+      (finally
+        (delete-tree! root)))))
+
+(deftest frontend-shared-component-placement-gate-detects-misplaced-shared-ui-files
+  (let [root (temp-dir-path)
+        shared-ui-root (.toString (.resolve root "frontend/src/meta_flow_ui/ui"))]
+    (try
+      (write-file! root "frontend/src/meta_flow_ui/ui/shared.cljs"
+                   "(ns meta-flow-ui.ui.shared)\n(defn shared-panel [] [:section])\n")
+      (with-redefs [frontend-shared-ui/shared-ui-root shared-ui-root]
+        (let [gate (frontend-shared-ui/frontend-shared-component-placement-gate)]
+          (is (= :error (:status gate)))
+          (is (= :shared-ui-placement
+                 (:type (first (:findings gate)))))))
+      (finally
+        (delete-tree! root)))))
+
+(deftest frontend-shared-component-facade-gate-detects-implementation
+  (let [root (temp-dir-path)
+        facade-file (write-file! root "frontend/src/meta_flow_ui/components.cljs"
+                                 "(ns meta-flow-ui.components)\n(defn badge [] [:span])\n")]
+    (try
+      (with-redefs [frontend-shared-ui/shared-component-facade-file facade-file]
+        (let [gate (frontend-shared-ui/frontend-shared-component-facade-gate)]
+          (is (= :error (:status gate)))
+          (is (= :shared-component-facade-implementation
+                 (:type (first (:findings gate)))))))
+      (finally
+        (delete-tree! root)))))
+
+(deftest frontend-ui-layering-gate-detects-page-and-state-dependencies
+  (let [root (temp-dir-path)
+        shared-ui-root (.toString (.resolve root "frontend/src/meta_flow_ui/ui"))]
+    (try
+      (write-file! root "frontend/src/meta_flow_ui/ui/layout.cljs"
+                   "(ns meta-flow-ui.ui.layout\n  (:require [meta-flow-ui.pages.scheduler :as scheduler]\n            [meta-flow-ui.state :as state]))\n(defn shell [] [:main])\n")
+      (write-file! root "frontend/src/meta_flow_ui/ui/patterns.cljs"
+                   "(ns meta-flow-ui.ui.patterns\n  (:require [meta-flow-ui.pages.tasks :as tasks]))\n(defn detail-row [] [:div])\n")
+      (with-redefs [frontend-shared-ui/shared-ui-root shared-ui-root]
+        (let [gate (frontend-shared-ui/frontend-ui-layering-gate)]
+          (is (= :error (:status gate)))
+          (is (= 3 (count (:findings gate))))
+          (is (every? #(= :shared-ui-layering (:type %)) (:findings gate)))))
+      (finally
+        (delete-tree! root)))))
+
 (deftest frontend-build-gate-reports-pass-and-failure
   (with-redefs [shared/run-command!
                 (fn [_]
@@ -121,6 +202,10 @@
     (with-redefs [check/run-format-check! (fn [] {:label "format-hygiene" :status :pass})
                   check/run-static-analysis! (fn [] {:label "static-analysis" :status :pass})
                   check/run-structure-governance! (fn [] {:label "structure-governance" :status :pass})
+                  check/frontend-architecture-gate (fn [] {:label "frontend-architecture-governance" :status :pass})
+                  check/frontend-shared-component-placement-gate (fn [] {:label "frontend-shared-component-placement-governance" :status :pass})
+                  check/frontend-shared-component-facade-gate (fn [] {:label "frontend-shared-component-facade-governance" :status :pass})
+                  check/frontend-ui-layering-gate (fn [] {:label "frontend-ui-layering-governance" :status :pass})
                   check/frontend-style-gate (fn [] {:label "frontend-style-governance" :status :pass})
                   check/frontend-build-gate (fn [] {:label "frontend-build" :status :pass})
                   coverage/evaluate-coverage
@@ -144,6 +229,10 @@
         (is (= ["format-hygiene"
                 "static-analysis"
                 "structure-governance"
+                "frontend-architecture-governance"
+                "frontend-shared-component-placement-governance"
+                "frontend-shared-component-facade-governance"
+                "frontend-ui-layering-governance"
                 "frontend-style-governance"
                 "frontend-build"
                 "executable-correctness"
@@ -151,8 +240,17 @@
                labels))
         (is (= [:default] @calls))))))
 
-(deftest frontend-gates-return-style-and-build-gates
-  (with-redefs [frontend/frontend-style-gate (fn [] {:label "frontend-style-governance" :status :pass})
+(deftest frontend-gates-return-all-frontend-governance-gates
+  (with-redefs [frontend/frontend-architecture-gate (fn [] {:label "frontend-architecture-governance" :status :pass})
+                frontend/frontend-shared-component-placement-gate (fn [] {:label "frontend-shared-component-placement-governance" :status :pass})
+                frontend/frontend-shared-component-facade-gate (fn [] {:label "frontend-shared-component-facade-governance" :status :pass})
+                frontend/frontend-ui-layering-gate (fn [] {:label "frontend-ui-layering-governance" :status :pass})
+                frontend/frontend-style-gate (fn [] {:label "frontend-style-governance" :status :pass})
                 frontend/frontend-build-gate (fn [] {:label "frontend-build" :status :skipped})]
-    (is (= ["frontend-style-governance" "frontend-build"]
+    (is (= ["frontend-architecture-governance"
+            "frontend-shared-component-placement-governance"
+            "frontend-shared-component-facade-governance"
+            "frontend-ui-layering-governance"
+            "frontend-style-governance"
+            "frontend-build"]
            (mapv :label (frontend/frontend-gates))))))
