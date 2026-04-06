@@ -3,9 +3,15 @@
   (:require [clojure.java.io :as io]
             [clojure.string :as str]))
 
+(def ignored-directory-width-suffixes
+  #{".md"})
+
 (def warning-threshold 240)
+
 (def error-threshold 300)
+
 (def directory-warning-threshold 7)
+
 (def directory-error-threshold 12)
 
 (def governance-intent
@@ -24,9 +30,15 @@
 (def governance-roots
   ["src" "test"])
 
+(defn ignored-directory-width-file?
+  [file]
+  (some #(str/ends-with? (.getName file) %)
+        ignored-directory-width-suffixes))
+
 (defn clojure-source-file?
   [file]
   (and (.isFile file)
+       (not (ignored-directory-width-file? file))
        (let [name (.getName file)]
          (or (str/ends-with? name ".clj")
              (str/ends-with? name ".cljc")

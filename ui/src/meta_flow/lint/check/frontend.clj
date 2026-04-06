@@ -8,7 +8,8 @@
             [meta-flow.lint.check.frontend.style :as style]
             [meta-flow.governance.core :as governance]
             [meta-flow.governance.runner :as runner]
-            [meta-flow.lint.check.report :as report]))
+            [meta-flow.lint.check.report :as report]
+            [meta-flow.lint.file-length :as file-length]))
 
 (def frontend-source-roots
   ["src"])
@@ -43,6 +44,49 @@
 (def frontend-build-gate
   build/frontend-build-gate)
 
+(defn structure-headline
+  [issues]
+  (let [warnings (count (filter #(= :warning (:level %)) issues))
+        errors (count (filter #(= :error (:level %)) issues))
+        file-count (count (filter #(= :file-length (:kind %)) issues))
+        directory-count (count (filter #(= :directory-width (:kind %)) issues))]
+    (cond
+      (seq issues)
+      (str warnings " warning(s), "
+           errors " error(s), "
+           file-count " file-length issue(s), "
+           directory-count " directory-width issue(s)")
+
+      :else
+      "no structure-governance issues")))
+
+(defn run-structure-governance!
+  ([] (run-structure-governance! frontend-source-roots))
+  ([roots]
+   (let [issues (file-length/governance-issues roots)
+         errors (count (filter #(= :error (:level %)) issues))
+         top-issues (->> issues
+                         (sort-by (juxt #(case (:level %)
+                                           :error 0
+                                           :warning 1
+                                           2)
+                                        #(case (:kind %)
+                                           :file-length 0
+                                           :directory-width 1)
+                                        :path))
+                         (take 5)
+                         vec)]
+     {:gate :structure-governance
+      :label "structure-governance"
+      :status (cond
+                (pos? errors) :error
+                (seq issues) :warning
+                :else :pass)
+      :headline (structure-headline issues)
+      :issues top-issues
+      :issue-count (count issues)
+      :action "Split oversized namespaces or directories by responsibility before adding more behavior."})))
+
 (defn frontend-gate-entries
   []
   [{:id :frontend-architecture
@@ -63,6 +107,9 @@
    {:id :frontend-semantics
     :label "frontend-semantics"
     :run frontend-semantics-gate}
+   {:id :structure-governance
+    :label "structure-governance"
+    :run #(run-structure-governance! frontend-source-roots)}
    {:id :frontend-style
     :label "frontend-style"
     :run frontend-style-gate}

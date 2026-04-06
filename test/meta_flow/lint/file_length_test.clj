@@ -1,7 +1,26 @@
 (ns meta-flow.lint.file-length-test
   (:require [clojure.string :as str]
             [clojure.test :refer [deftest is testing]]
-            [meta-flow.lint.file-length :as file-length]))
+            [meta-flow.lint.file-length :as file-length])
+  (:import (java.nio.file Files Path)))
+
+(defn temp-dir-path
+  []
+  (Files/createTempDirectory "meta-flow-file-length" (make-array java.nio.file.attribute.FileAttribute 0)))
+
+(defn delete-tree!
+  [^Path path]
+  (let [file (.toFile path)]
+    (when (.exists file)
+      (doseq [entry (reverse (file-seq file))]
+        (.delete ^java.io.File entry)))))
+
+(defn write-file!
+  [^Path root relative-path content]
+  (let [target (.resolve root relative-path)]
+    (Files/createDirectories (.getParent target) (make-array java.nio.file.attribute.FileAttribute 0))
+    (spit (.toFile target) content)
+    (.toString target)))
 
 (deftest classify-line-count-uses-warning-and-error-thresholds
   (is (nil? (file-length/classify-line-count 240)))
@@ -54,3 +73,18 @@
       (is (str/includes? message "threshold of 12 files"))
       (is (str/includes? message "blocks lint"))
       (is (str/includes? message "splitting responsibilities into smaller directory layers")))))
+
+(deftest governance-issues-ignore-markdown-files-for-directory-width
+  (let [root (temp-dir-path)]
+    (try
+      (doseq [idx (range file-length/directory-warning-threshold)]
+        (write-file! root
+                     (format "src/meta_flow/example_%s.clj" idx)
+                     (format "(ns meta-flow.example-%s)\n" idx)))
+      (write-file! root
+                   "src/meta_flow/AGENTS.md"
+                   "# ignored\n")
+      (is (empty? (file-length/governance-issues [(.toString root)]))
+          "markdown files should not increase directory-width counts")
+      (finally
+        (delete-tree! root)))))

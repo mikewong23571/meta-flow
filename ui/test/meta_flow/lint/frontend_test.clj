@@ -3,7 +3,8 @@
             [meta-flow.lint.check.frontend :as frontend]
             [meta-flow.lint.check.frontend.build :as frontend-build]
             [meta-flow.lint.check.frontend.style :as frontend-style]
-            [meta-flow.lint.check.shared :as shared])
+            [meta-flow.lint.check.shared :as shared]
+            [meta-flow.lint.file-length :as file-length])
   (:import (java.nio.file Files Path)))
 
 (defn temp-dir-path
@@ -74,6 +75,54 @@
       (finally
         (delete-tree! root)))))
 
+(deftest frontend-structure-governance-warns-on-wide-source-directories
+  (let [root (temp-dir-path)
+        src-root (.resolve root "src")]
+    (try
+      (doseq [idx (range (inc file-length/directory-warning-threshold))]
+        (write-file! root
+                     (format "src/meta_flow_ui/pressure/part_%s.cljs" idx)
+                     (format "(ns meta-flow-ui.pressure.part-%s)\n" idx)))
+      (let [gate (frontend/run-structure-governance! [(.toString src-root)])]
+        (is (= :warning (:status gate)))
+        (is (some #(= :directory-width (:kind %)) (:issues gate))
+            "expected a directory-width issue for an over-wide source directory"))
+      (finally
+        (delete-tree! root)))))
+
+(deftest frontend-structure-governance-ignores-markdown-files-for-directory-width
+  (let [root (temp-dir-path)
+        src-root (.resolve root "src")]
+    (try
+      (doseq [idx (range file-length/directory-warning-threshold)]
+        (write-file! root
+                     (format "src/meta_flow_ui/pressure/part_%s.cljs" idx)
+                     (format "(ns meta-flow-ui.pressure.part-%s)\n" idx)))
+      (write-file! root
+                   "src/meta_flow_ui/pressure/AGENTS.md"
+                   "# ignored\n")
+      (let [gate (frontend/run-structure-governance! [(.toString src-root)])]
+        (is (= :pass (:status gate)))
+        (is (empty? (:issues gate))
+            "markdown files should not increase directory-width counts"))
+      (finally
+        (delete-tree! root)))))
+
+(deftest frontend-structure-governance-warns-on-oversized-source-files
+  (let [root (temp-dir-path)
+        src-root (.resolve root "src")]
+    (try
+      (write-file! root
+                   "src/meta_flow_ui/pressure/oversized.cljs"
+                   (str "(ns meta-flow-ui.pressure.oversized)\n"
+                        (apply str (repeat 241 "(def value :ok)\n"))))
+      (let [gate (frontend/run-structure-governance! [(.toString src-root)])]
+        (is (= :warning (:status gate)))
+        (is (some #(= :file-length (:kind %)) (:issues gate))
+            "expected a file-length issue for an oversized source file"))
+      (finally
+        (delete-tree! root)))))
+
 (deftest frontend-build-gate-reports-pass-and-failure
   (with-redefs [shared/run-command!
                 (fn [_]
@@ -121,6 +170,7 @@
                 frontend/frontend-ui-layering-gate (fn [] {:label "frontend-ui-layering-governance" :status :pass})
                 frontend/frontend-page-role-gate (fn [] {:label "frontend-page-role-governance" :status :pass})
                 frontend/frontend-semantics-gate (fn [] {:label "frontend-semantics-governance" :status :pass})
+                frontend/run-structure-governance! (fn [_] {:label "structure-governance" :status :pass})
                 frontend/frontend-style-gate (fn [] {:label "frontend-style-governance" :status :pass})
                 frontend/frontend-build-gate (fn [] {:label "frontend-build" :status :skipped})]
     (is (= ["frontend-architecture-governance"
@@ -129,6 +179,7 @@
             "frontend-ui-layering-governance"
             "frontend-page-role-governance"
             "frontend-semantics-governance"
+            "structure-governance"
             "frontend-style-governance"
             "frontend-build"]
            (mapv :label (frontend/frontend-gates))))))
