@@ -18,7 +18,8 @@
     (is (= [:runtime-profile/web-search-enabled?
             :runtime-profile/worker-prompt-path]
            (get-in contract [:runtime-profile :supported-override-keys])))
-    (is (= [:task-type/runtime-profile-ref
+    (is (= [:task-type/description
+            :task-type/runtime-profile-ref
             :task-type/input-schema
             :task-type/work-key-expr]
            (get-in contract [:task-type :supported-override-keys])))

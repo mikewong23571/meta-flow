@@ -51,9 +51,19 @@
       (str/starts-with? message ":authoring/new-id must use keyword namespace") 400
       (str/starts-with? message ":definition/id must use keyword namespace") 400
       (str/starts-with? message ":authoring/new-name must be a non-blank string") 400
+      (str/starts-with? message ":generation/description must be a non-blank string") 400
+      (str/starts-with? message ":generation/task-type-template-version requires") 400
+      (str/starts-with? message ":generation/runtime-profile-template-version requires") 400
+      (str/starts-with? message ":generation/task-type-template-id must use keyword namespace") 400
+      (str/starts-with? message ":generation/runtime-profile-template-id must use keyword namespace") 400
+      (str/starts-with? message ":generation/task-type-id must use keyword namespace") 400
+      (str/starts-with? message ":generation/task-type-name must be a non-blank string") 400
+      (str/starts-with? message "Description requested web-search changes") 400
+      (str/starts-with? message "Repo-arch-derived task types cannot use the mock runtime profile") 400
       (str/starts-with? message "Required task input fields cannot be blank:") 400
       (str/starts-with? message "Work key cannot be blank") 400
       (str/starts-with? message "Cannot create draft for") 409
+      (str/starts-with? message "Cannot generate draft for") 409
       (str/starts-with? message "Cannot publish") 409
       (str/starts-with? message "Draft file contents do not match") 409
       (str/starts-with? message "Task-type draft requests may only reference published runtime profiles.") 409

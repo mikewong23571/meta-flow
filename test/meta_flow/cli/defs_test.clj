@@ -59,6 +59,27 @@
                (:task-type/runtime-profile-ref
                 (defs.protocol/find-task-type-def repository :task-type/repo-review 1))))))))
 
+(deftest defs-generate-task-type-command-creates-drafts-from-description
+  (let [overlay-root (temp-overlay-root)]
+    (with-redefs [defs.source/default-overlay-root overlay-root]
+      (let [output (with-out-str
+                     (cli/dispatch-command!
+                      ["defs" "generate-task-type"
+                       "--description" "Create a repo review task that uses Codex, disables web search, and emits a markdown report"]))
+            runtime-draft (defs.source/load-edn-file!
+                           (str overlay-root "/drafts/runtime-profiles/runtime-profile_repo-review_v1.edn"))
+            task-draft (defs.source/load-edn-file!
+                        (str overlay-root "/drafts/task-types/task-type_repo-review_v1.edn"))]
+        (is (str/includes? output "Generated draft request from description"))
+        (is (str/includes? output "Wrote draft runtime profile :runtime-profile/repo-review version 1"))
+        (is (str/includes? output "Wrote draft task type :task-type/repo-review version 1"))
+        (is (str/includes? output "Validation: OK"))
+        (is (= false
+               (:runtime-profile/web-search-enabled? runtime-draft)))
+        (is (= {:definition/id :runtime-profile/repo-review
+                :definition/version 1}
+               (:task-type/runtime-profile-ref task-draft)))))))
+
 (deftest defs-authoring-commands-reject-invalid-flags-and-unpublished-runtime-profiles
   (let [overlay-root (temp-overlay-root)]
     (with-redefs [defs.source/default-overlay-root overlay-root]

@@ -152,6 +152,7 @@
 
 (def task-type-draft-overrides-schema
   [:map
+   [:task-type/description {:optional true} string?]
    [:task-type/runtime-profile-ref {:optional true} definition-ref-schema]
    [:task-type/input-schema {:optional true} [:vector input-field-schema]]
    [:task-type/work-key-expr {:optional true} work-key-expr-schema]])
@@ -173,6 +174,16 @@
    [:authoring/new-name string?]
    [:authoring/new-version {:optional true} pos-int?]
    [:authoring/overrides {:optional true} task-type-draft-overrides-schema]])
+
+(def task-type-generation-request-schema
+  [:map
+   [:generation/description string?]
+   [:generation/task-type-template-id {:optional true} keyword?]
+   [:generation/task-type-template-version {:optional true} pos-int?]
+   [:generation/runtime-profile-template-id {:optional true} keyword?]
+   [:generation/runtime-profile-template-version {:optional true} pos-int?]
+   [:generation/task-type-id {:optional true} keyword?]
+   [:generation/task-type-name {:optional true} string?]])
 
 (defn explain
   [schema value]

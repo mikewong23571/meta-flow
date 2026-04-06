@@ -74,6 +74,7 @@ First-release `runtime-profile` overrides are limited to:
 
 First-release `task-type` overrides are limited to:
 
+- `:task-type/description`
 - `:task-type/runtime-profile-ref`
 - `:task-type/input-schema`
 - `:task-type/work-key-expr`
@@ -86,6 +87,29 @@ Publish-order rule:
 Current contract helpers live in `src/meta_flow/defs/authoring.clj`.
 They validate the request shape, resolve the source template, and enforce the
 publish-order rule before later CLI or HTTP layers try to write files.
+
+## 1B. Generate Drafts From Description
+
+The repository now also supports a deterministic description-to-draft layer on
+top of the same clone-first authoring model.
+
+Current entry points are:
+
+- `clojure -M -m meta-flow.main defs generate-task-type --description "..."`
+- `POST /api/defs/task-types/generate`
+
+Current implementation notes:
+
+- generation still writes ordinary EDN drafts under `defs/drafts/`
+- generation reuses the same authoring helpers and draft file layout as manual clone-first authoring
+- the first pass is heuristic and deterministic, not model-driven
+- it can infer a base task type, infer or clone a runtime profile when the description implies runtime changes, and write both drafts in one operation
+- generated task-type drafts may point at a generated runtime-profile draft; publish the runtime-profile draft before publishing the task-type draft
+
+Current implementation code lives in:
+
+- `src/meta_flow/defs/generation.clj`
+- `src/meta_flow/defs/generation/description.clj`
 
 ## 2. Add A Runtime Adapter
 

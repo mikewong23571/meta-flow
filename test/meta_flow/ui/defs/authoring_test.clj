@@ -1,6 +1,7 @@
 (ns meta-flow.ui.defs.authoring-test
   (:require [clojure.test :refer [deftest is testing]]
             [meta-flow.defs.authoring :as defs.authoring]
+            [meta-flow.defs.generation.core :as defs.generation]
             [meta-flow.defs.loader :as defs.loader]
             [meta-flow.ui.defs.authoring :as ui.defs.authoring]))
 
@@ -60,6 +61,9 @@
                   defs.authoring/create-task-type-draft! (fn [defs-repo request]
                                                            (swap! calls conj [:create-task defs-repo request])
                                                            {:created request})
+                  defs.generation/generate-task-type-draft! (fn [defs-repo request]
+                                                              (swap! calls conj [:generate-task defs-repo request])
+                                                              {:generated request})
                   defs.authoring/publish-runtime-profile-draft! (fn [defs-repo definition-ref]
                                                                   (swap! calls conj [:publish-runtime defs-repo definition-ref])
                                                                   {:published :runtime-profile
@@ -86,7 +90,9 @@
         (is (= {:request {:id 3}}
                (ui.defs.authoring/validate-task-type-draft-request! ::defs-repo {:id 3})))
         (is (= {:created {:id 4}}
-               (ui.defs.authoring/create-task-type-draft! ::defs-repo {:id 4}))))
+               (ui.defs.authoring/create-task-type-draft! ::defs-repo {:id 4})))
+        (is (= {:generated {:id 5}}
+               (ui.defs.authoring/generate-task-type-draft! ::defs-repo {:id 5}))))
       (testing "reload and publish include refreshed definition summaries"
         (is (= {:status "ok"
                 :definitions {:definition-count 3}}
@@ -112,6 +118,7 @@
               [:create-runtime ::defs-repo {:id 2}]
               [:validate-task ::defs-repo {:id 3}]
               [:create-task ::defs-repo {:id 4}]
+              [:generate-task ::defs-repo {:id 5}]
               [:reload ::defs-repo]
               [:summary {:task-types [1 2]
                          :runtime-profiles [1]}]

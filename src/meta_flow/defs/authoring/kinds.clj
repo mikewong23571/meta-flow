@@ -65,7 +65,8 @@
     :name-key :task-type/name
     :top-level-key-order task-type-key-order
     :request-schema schema/task-type-draft-request-schema
-    :supported-override-keys [:task-type/runtime-profile-ref
+    :supported-override-keys [:task-type/description
+                              :task-type/runtime-profile-ref
                               :task-type/input-schema
                               :task-type/work-key-expr]
     :list-definitions (fn [defs-repo]

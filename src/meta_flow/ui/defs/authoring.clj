@@ -1,5 +1,6 @@
 (ns meta-flow.ui.defs.authoring
   (:require [meta-flow.defs.authoring :as defs.authoring]
+            [meta-flow.defs.generation.core :as defs.generation]
             [meta-flow.defs.loader :as defs.loader]))
 
 (defn authoring-contract
@@ -63,6 +64,10 @@
 (defn create-task-type-draft!
   [defs-repo request]
   (defs.authoring/create-task-type-draft! defs-repo request))
+
+(defn generate-task-type-draft!
+  [defs-repo request]
+  (defs.generation/generate-task-type-draft! defs-repo request))
 
 (defn reload-definition-repository!
   [defs-repo]

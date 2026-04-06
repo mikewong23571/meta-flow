@@ -16,6 +16,7 @@
     "  clojure -M -m meta-flow.main defs create-runtime-profile --from <runtime-profile-id> --new-id <runtime-profile-id> --name <name>"
     "  clojure -M -m meta-flow.main defs publish-runtime-profile --id <runtime-profile-id> --version <version>"
     "  clojure -M -m meta-flow.main defs create-task-type --from <task-type-id> --new-id <task-type-id> --name <name>"
+    "  clojure -M -m meta-flow.main defs generate-task-type --description <text> [--new-id <task-type-id>] [--name <name>]"
     "  clojure -M -m meta-flow.main defs publish-task-type --id <task-type-id> --version <version>"
     "  clojure -M -m meta-flow.main runtime init-codex-home"
     "  clojure -M -m meta-flow.main enqueue [--work-key <work-key>]"
@@ -53,6 +54,10 @@
     (and (>= (count args) 2)
          (= ["defs" "create-task-type"] (subvec args 0 2)))
     (cli.defs/run-create-task-type! args)
+
+    (and (>= (count args) 2)
+         (= ["defs" "generate-task-type"] (subvec args 0 2)))
+    (cli.defs/run-generate-task-type! args)
 
     (and (>= (count args) 2)
          (= ["defs" "publish-task-type"] (subvec args 0 2)))
