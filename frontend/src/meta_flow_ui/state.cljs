@@ -50,6 +50,46 @@
    :detail-error nil
    :create-dialog default-create-dialog-state})
 
+(def default-defs-authoring-kind-state
+  {:templates []
+   :templates-loading? false
+   :templates-error nil
+   :selected-template-id nil
+   :selected-template-version nil
+   :form-values {}
+   :validation-result nil
+   :validation-loading? false
+   :validation-error nil
+   :drafts []
+   :drafts-loading? false
+   :drafts-error nil
+   :draft-detail nil
+   :draft-detail-loading? false
+   :draft-detail-error nil
+   :create-result nil
+   :submitting? false
+   :submit-error nil
+   :publish-result nil
+   :publishing-ref nil
+   :publish-error nil})
+
+(def default-defs-generation-state
+  {:form-values {}
+   :result nil
+   :submitting? false
+   :submit-error nil})
+
+(def default-defs-authoring-state
+  {:contract nil
+   :contract-loading? false
+   :contract-error nil
+   :reload-result nil
+   :reloading? false
+   :reload-error nil
+   :runtime-profile default-defs-authoring-kind-state
+   :task-type default-defs-authoring-kind-state
+   :generation default-defs-generation-state})
+
 (def default-defs-state
   {:items []
    :loading? false
@@ -62,7 +102,8 @@
    :runtime-error nil
    :runtime-detail nil
    :runtime-detail-loading? false
-   :runtime-detail-error nil})
+   :runtime-detail-error nil
+   :authoring default-defs-authoring-state})
 
 (defonce ui-state
   (r/atom {:preview default-preview-state

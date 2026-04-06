@@ -1,103 +1,30 @@
 (ns meta-flow-ui.pages.defs.state
-  (:require [meta-flow-ui.http :as http]
+  (:require [meta-flow-ui.pages.defs.authoring.read :as authoring-read]
+            [meta-flow-ui.pages.defs.authoring.state :as authoring-state]
+            [meta-flow-ui.pages.defs.catalog.state :as catalog-state]
             [meta-flow-ui.state :as state]))
 
-(defn defs-state []
+(defn defs-state
+  []
   (:defs @state/ui-state))
 
-(defn- error-message [error]
-  (or (-> error ex-data :payload :error)
-      (ex-message error)
-      "Request failed"))
-
-(defn load-items!
-  []
-  (swap! state/ui-state assoc-in [:defs :loading?] true)
-  (-> (http/fetch-json "/api/task-types")
-      (.then (fn [payload]
-               (swap! state/ui-state
-                      (fn [ui-state]
-                        (-> ui-state
-                            (assoc-in [:defs :items] (:items payload))
-                            (assoc-in [:defs :loading?] false)
-                            (assoc-in [:defs :error] nil))))))
-      (.catch (fn [error]
-                (swap! state/ui-state
-                       (fn [ui-state]
-                         (-> ui-state
-                             (assoc-in [:defs :loading?] false)
-                             (assoc-in [:defs :error] (error-message error)))))))))
-
-(defn load-detail!
-  [task-type-id task-type-version]
-  (swap! state/ui-state
-         (fn [ui-state]
-           (-> ui-state
-               (assoc-in [:defs :detail] nil)
-               (assoc-in [:defs :detail-loading?] true)
-               (assoc-in [:defs :detail-error] nil))))
-  (-> (http/fetch-json
-       (str "/api/task-types/detail?task-type-id="
-            (js/encodeURIComponent task-type-id)
-            "&task-type-version="
-            task-type-version))
-      (.then (fn [payload]
-               (swap! state/ui-state
-                      (fn [ui-state]
-                        (-> ui-state
-                            (assoc-in [:defs :detail] payload)
-                            (assoc-in [:defs :detail-loading?] false)
-                            (assoc-in [:defs :detail-error] nil))))))
-      (.catch (fn [error]
-                (swap! state/ui-state
-                       (fn [ui-state]
-                         (-> ui-state
-                             (assoc-in [:defs :detail-loading?] false)
-                             (assoc-in [:defs :detail-error] (error-message error))))))
-              nil)))
-
-(defn load-runtime-items!
-  []
-  (swap! state/ui-state assoc-in [:defs :runtime-loading?] true)
-  (-> (http/fetch-json "/api/runtime-profiles")
-      (.then (fn [payload]
-               (swap! state/ui-state
-                      (fn [ui-state]
-                        (-> ui-state
-                            (assoc-in [:defs :runtime-items] (:items payload))
-                            (assoc-in [:defs :runtime-loading?] false)
-                            (assoc-in [:defs :runtime-error] nil))))))
-      (.catch (fn [error]
-                (swap! state/ui-state
-                       (fn [ui-state]
-                         (-> ui-state
-                             (assoc-in [:defs :runtime-loading?] false)
-                             (assoc-in [:defs :runtime-error] (error-message error)))))))))
-
-(defn load-runtime-detail!
-  [runtime-profile-id runtime-profile-version]
-  (swap! state/ui-state
-         (fn [ui-state]
-           (-> ui-state
-               (assoc-in [:defs :runtime-detail] nil)
-               (assoc-in [:defs :runtime-detail-loading?] true)
-               (assoc-in [:defs :runtime-detail-error] nil))))
-  (-> (http/fetch-json
-       (str "/api/runtime-profiles/detail?runtime-profile-id="
-            (js/encodeURIComponent runtime-profile-id)
-            "&runtime-profile-version="
-            runtime-profile-version))
-      (.then (fn [payload]
-               (swap! state/ui-state
-                      (fn [ui-state]
-                        (-> ui-state
-                            (assoc-in [:defs :runtime-detail] payload)
-                            (assoc-in [:defs :runtime-detail-loading?] false)
-                            (assoc-in [:defs :runtime-detail-error] nil))))))
-      (.catch (fn [error]
-                (swap! state/ui-state
-                       (fn [ui-state]
-                         (-> ui-state
-                             (assoc-in [:defs :runtime-detail-loading?] false)
-                             (assoc-in [:defs :runtime-detail-error] (error-message error))))))
-              nil)))
+(def load-items! catalog-state/load-items!)
+(def load-detail! catalog-state/load-detail!)
+(def load-runtime-items! catalog-state/load-runtime-items!)
+(def load-runtime-detail! catalog-state/load-runtime-detail!)
+(def load-authoring-contract! authoring-read/load-authoring-contract!)
+(def load-runtime-profile-templates! authoring-read/load-runtime-profile-templates!)
+(def load-task-type-templates! authoring-read/load-task-type-templates!)
+(def load-runtime-profile-drafts! authoring-read/load-runtime-profile-drafts!)
+(def load-task-type-drafts! authoring-read/load-task-type-drafts!)
+(def load-runtime-profile-draft-detail! authoring-read/load-runtime-profile-draft-detail!)
+(def load-task-type-draft-detail! authoring-read/load-task-type-draft-detail!)
+(def validate-runtime-profile-draft! authoring-state/validate-runtime-profile-draft!)
+(def validate-task-type-draft! authoring-state/validate-task-type-draft!)
+(def create-runtime-profile-draft! authoring-state/create-runtime-profile-draft!)
+(def create-task-type-draft! authoring-state/create-task-type-draft!)
+(def publish-runtime-profile-draft! authoring-state/publish-runtime-profile-draft!)
+(def publish-task-type-draft! authoring-state/publish-task-type-draft!)
+(def reload-definitions! authoring-state/reload-definitions!)
+(def generate-task-type-draft! authoring-state/generate-task-type-draft!)
+(def load-authoring-bootstrap! authoring-state/load-authoring-bootstrap!)

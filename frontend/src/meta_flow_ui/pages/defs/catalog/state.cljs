@@ -1,0 +1,115 @@
+(ns meta-flow-ui.pages.defs.catalog.state
+  (:require [meta-flow-ui.http :as http]
+            [meta-flow-ui.state :as state]))
+
+(defn- error-message
+  [error]
+  (or (-> error ex-data :payload :error)
+      (ex-message error)
+      "Request failed"))
+
+(defn load-items!
+  []
+  (swap! state/ui-state assoc-in [:defs :loading?] true)
+  (-> (http/fetch-json "/api/task-types")
+      (.then
+       (fn [payload]
+         (swap! state/ui-state
+                (fn [ui-state]
+                  (-> ui-state
+                      (assoc-in [:defs :items] (:items payload))
+                      (assoc-in [:defs :loading?] false)
+                      (assoc-in [:defs :error] nil))))
+         payload))
+      (.catch
+       (fn [error]
+         (swap! state/ui-state
+                (fn [ui-state]
+                  (-> ui-state
+                      (assoc-in [:defs :loading?] false)
+                      (assoc-in [:defs :error] (error-message error)))))
+         nil))))
+
+(defn load-detail!
+  [task-type-id task-type-version]
+  (swap! state/ui-state
+         (fn [ui-state]
+           (-> ui-state
+               (assoc-in [:defs :detail] nil)
+               (assoc-in [:defs :detail-loading?] true)
+               (assoc-in [:defs :detail-error] nil))))
+  (-> (http/fetch-json
+       (str "/api/task-types/detail?task-type-id="
+            (js/encodeURIComponent task-type-id)
+            "&task-type-version="
+            task-type-version))
+      (.then
+       (fn [payload]
+         (swap! state/ui-state
+                (fn [ui-state]
+                  (-> ui-state
+                      (assoc-in [:defs :detail] payload)
+                      (assoc-in [:defs :detail-loading?] false)
+                      (assoc-in [:defs :detail-error] nil))))
+         payload))
+      (.catch
+       (fn [error]
+         (swap! state/ui-state
+                (fn [ui-state]
+                  (-> ui-state
+                      (assoc-in [:defs :detail-loading?] false)
+                      (assoc-in [:defs :detail-error] (error-message error)))))
+         nil))))
+
+(defn load-runtime-items!
+  []
+  (swap! state/ui-state assoc-in [:defs :runtime-loading?] true)
+  (-> (http/fetch-json "/api/runtime-profiles")
+      (.then
+       (fn [payload]
+         (swap! state/ui-state
+                (fn [ui-state]
+                  (-> ui-state
+                      (assoc-in [:defs :runtime-items] (:items payload))
+                      (assoc-in [:defs :runtime-loading?] false)
+                      (assoc-in [:defs :runtime-error] nil))))
+         payload))
+      (.catch
+       (fn [error]
+         (swap! state/ui-state
+                (fn [ui-state]
+                  (-> ui-state
+                      (assoc-in [:defs :runtime-loading?] false)
+                      (assoc-in [:defs :runtime-error] (error-message error)))))
+         nil))))
+
+(defn load-runtime-detail!
+  [runtime-profile-id runtime-profile-version]
+  (swap! state/ui-state
+         (fn [ui-state]
+           (-> ui-state
+               (assoc-in [:defs :runtime-detail] nil)
+               (assoc-in [:defs :runtime-detail-loading?] true)
+               (assoc-in [:defs :runtime-detail-error] nil))))
+  (-> (http/fetch-json
+       (str "/api/runtime-profiles/detail?runtime-profile-id="
+            (js/encodeURIComponent runtime-profile-id)
+            "&runtime-profile-version="
+            runtime-profile-version))
+      (.then
+       (fn [payload]
+         (swap! state/ui-state
+                (fn [ui-state]
+                  (-> ui-state
+                      (assoc-in [:defs :runtime-detail] payload)
+                      (assoc-in [:defs :runtime-detail-loading?] false)
+                      (assoc-in [:defs :runtime-detail-error] nil))))
+         payload))
+      (.catch
+       (fn [error]
+         (swap! state/ui-state
+                (fn [ui-state]
+                  (-> ui-state
+                      (assoc-in [:defs :runtime-detail-loading?] false)
+                      (assoc-in [:defs :runtime-detail-error] (error-message error)))))
+         nil))))
