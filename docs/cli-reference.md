@@ -25,10 +25,43 @@ bb defs:validate
 ## Definitions
 
 ```bash
+clojure -M -m meta-flow.main defs init-overlay
 clojure -M -m meta-flow.main defs validate
 ```
 
-Loads `resources/meta_flow/defs/` and validates cross-definition references.
+Initializes the writable `defs/` overlay and validates the merged bundled-plus-overlay repository.
+
+Clone-first authoring is also available from the CLI:
+
+```bash
+clojure -M -m meta-flow.main defs create-runtime-profile \
+  --from runtime-profile/codex-worker \
+  --new-id runtime-profile/repo-review \
+  --name "Codex repo review worker" \
+  --worker-prompt-path meta_flow/prompts/worker.md \
+  --web-search false
+
+clojure -M -m meta-flow.main defs publish-runtime-profile \
+  --id runtime-profile/repo-review \
+  --version 1
+
+clojure -M -m meta-flow.main defs create-task-type \
+  --from task-type/repo-arch-investigation \
+  --new-id task-type/repo-review \
+  --name "Repo review" \
+  --runtime-profile runtime-profile/repo-review
+
+clojure -M -m meta-flow.main defs publish-task-type \
+  --id task-type/repo-review \
+  --version 1
+```
+
+Notes:
+
+- `create-runtime-profile` supports `--from-version`, `--new-version`, `--worker-prompt-path`, and `--web-search`.
+- `create-task-type` supports `--from-version`, `--new-version`, `--runtime-profile`, and `--runtime-profile-version`.
+- `--runtime-profile` resolves the latest published version when `--runtime-profile-version` is omitted.
+- task-type drafts may only reference published runtime profiles; publish the runtime-profile draft first.
 
 ## Runtime Setup
 

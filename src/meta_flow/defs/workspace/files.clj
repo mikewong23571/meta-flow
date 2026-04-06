@@ -19,6 +19,20 @@
   (.getPath (io/file (draft-root-path overlay-root)
                      (name definition-key))))
 
+(defn draft-file-name
+  [definition-id version]
+  (str (namespace definition-id)
+       "_"
+       (name definition-id)
+       "_v"
+       version
+       ".edn"))
+
+(defn draft-file-path
+  [overlay-root definition-key definition-id version]
+  (.getPath (io/file (draft-directory-path overlay-root definition-key)
+                     (draft-file-name definition-id version))))
+
 (defn ensure-directory!
   [path]
   (.mkdirs (io/file path))

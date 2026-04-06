@@ -1,6 +1,7 @@
 (ns meta-flow.cli
   (:require [clojure.string :as str]
             [meta-flow.cli.commands :as commands]
+            [meta-flow.cli.defs :as cli.defs]
             [meta-flow.cli.inspect :as cli.inspect]
             [meta-flow.db :as db]
             [meta-flow.scheduler :as scheduler]))
@@ -12,6 +13,10 @@
     "  clojure -M -m meta-flow.main init"
     "  clojure -M -m meta-flow.main defs init-overlay"
     "  clojure -M -m meta-flow.main defs validate"
+    "  clojure -M -m meta-flow.main defs create-runtime-profile --from <runtime-profile-id> --new-id <runtime-profile-id> --name <name>"
+    "  clojure -M -m meta-flow.main defs publish-runtime-profile --id <runtime-profile-id> --version <version>"
+    "  clojure -M -m meta-flow.main defs create-task-type --from <task-type-id> --new-id <task-type-id> --name <name>"
+    "  clojure -M -m meta-flow.main defs publish-task-type --id <task-type-id> --version <version>"
     "  clojure -M -m meta-flow.main runtime init-codex-home"
     "  clojure -M -m meta-flow.main enqueue [--work-key <work-key>]"
     "  clojure -M -m meta-flow.main enqueue-repo-arch --repo <repo-url> --notify-email <email>"
@@ -36,6 +41,22 @@
 
     (= args ["defs" "validate"])
     (commands/run-defs-validate!)
+
+    (and (>= (count args) 2)
+         (= ["defs" "create-runtime-profile"] (subvec args 0 2)))
+    (cli.defs/run-create-runtime-profile! args)
+
+    (and (>= (count args) 2)
+         (= ["defs" "publish-runtime-profile"] (subvec args 0 2)))
+    (cli.defs/run-publish-runtime-profile! args)
+
+    (and (>= (count args) 2)
+         (= ["defs" "create-task-type"] (subvec args 0 2)))
+    (cli.defs/run-create-task-type! args)
+
+    (and (>= (count args) 2)
+         (= ["defs" "publish-task-type"] (subvec args 0 2)))
+    (cli.defs/run-publish-task-type! args)
 
     (= args ["runtime" "init-codex-home"])
     (commands/run-runtime-init-codex-home!)
