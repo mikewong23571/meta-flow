@@ -1,5 +1,6 @@
 (ns meta-flow.defs.authoring
   (:require [clojure.string :as str]
+            [meta-flow.defs.authoring.drafts :as authoring.drafts]
             [meta-flow.defs.authoring.kinds :as authoring.kinds]
             [meta-flow.defs.authoring.workspace :as authoring.workspace]
             [meta-flow.defs.protocol :as defs.protocol]
@@ -224,3 +225,14 @@
 (defn publish-task-type-draft!
   [defs-repo definition-ref]
   (publish-draft! defs-repo :task-type definition-ref))
+
+(defn list-definition-drafts
+  [defs-repo definition-kind]
+  (authoring.drafts/list-definition-drafts (overlay-root-for defs-repo)
+                                           definition-kind))
+
+(defn load-definition-draft
+  [defs-repo definition-kind definition-ref]
+  (authoring.drafts/load-definition-draft (overlay-root-for defs-repo)
+                                          definition-kind
+                                          definition-ref))

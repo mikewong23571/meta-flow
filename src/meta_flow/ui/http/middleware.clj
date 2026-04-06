@@ -39,8 +39,24 @@
       (str/starts-with? message "Run not found:") 404
       (str/starts-with? message "Task type not found:") 404
       (str/starts-with? message "Runtime profile not found:") 404
+      (str/starts-with? message "Template task type not found") 404
+      (str/starts-with? message "Template runtime profile not found") 404
+      (str/starts-with? message "Draft task type not found") 404
+      (str/starts-with? message "Draft runtime profile not found") 404
+      (str/starts-with? message "Schema validation failed for") 400
+      (str/starts-with? message "Unsupported task-type override keys") 400
+      (str/starts-with? message "Unsupported runtime-profile override keys") 400
+      (str/starts-with? message "Draft request must change id or version") 400
+      (str/starts-with? message ":authoring/from-id must use keyword namespace") 400
+      (str/starts-with? message ":authoring/new-id must use keyword namespace") 400
+      (str/starts-with? message ":definition/id must use keyword namespace") 400
+      (str/starts-with? message ":authoring/new-name must be a non-blank string") 400
       (str/starts-with? message "Required task input fields cannot be blank:") 400
       (str/starts-with? message "Work key cannot be blank") 400
+      (str/starts-with? message "Cannot create draft for") 409
+      (str/starts-with? message "Cannot publish") 409
+      (str/starts-with? message "Draft file contents do not match") 409
+      (str/starts-with? message "Task-type draft requests may only reference published runtime profiles.") 409
       (str/starts-with? message "Task type missing work-key-expr") 500
       :else 500)))
 

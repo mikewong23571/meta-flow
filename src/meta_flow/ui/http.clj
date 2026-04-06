@@ -1,6 +1,7 @@
 (ns meta-flow.ui.http
   (:require [meta-flow.db :as db]
-            [meta-flow.ui.defs :as ui.defs]
+            [meta-flow.defs.loader :as defs.loader]
+            [meta-flow.ui.http.defs :as http.defs]
             [meta-flow.ui.http.middleware :as http.middleware]
             [meta-flow.ui.scheduler :as ui.scheduler]
             [meta-flow.ui.tasks :as ui.tasks]
@@ -15,16 +16,6 @@
 
 (def ^:private run-id-path-params
   [:map [:run-id :string]])
-
-(def ^:private task-type-detail-query-params
-  [:map
-   [:task-type-id :string]
-   [:task-type-version :int]])
-
-(def ^:private runtime-profile-detail-query-params
-  [:map
-   [:runtime-profile-id :string]
-   [:runtime-profile-version :int]])
 
 (def ^:private create-task-body
   [:map
@@ -41,33 +32,6 @@
   [db-path _]
   {:status 200
    :body (ui.scheduler/load-overview db-path)})
-
-(defn- task-types-handler
-  [_]
-  {:status 200
-   :body {:items (ui.defs/list-task-types)}})
-
-(defn- task-type-create-options-handler
-  [_]
-  {:status 200
-   :body {:items (ui.defs/list-task-type-create-options)}})
-
-(defn- task-type-detail-handler
-  [{{{:keys [task-type-id task-type-version]} :query} :parameters}]
-  {:status 200
-   :body (ui.defs/load-task-type-detail (keyword task-type-id)
-                                        task-type-version)})
-
-(defn- runtime-profiles-handler
-  [_]
-  {:status 200
-   :body {:items (ui.defs/list-runtime-profiles)}})
-
-(defn- runtime-profile-detail-handler
-  [{{{:keys [runtime-profile-id runtime-profile-version]} :query} :parameters}]
-  {:status 200
-   :body (ui.defs/load-runtime-profile-detail (keyword runtime-profile-id)
-                                              runtime-profile-version)})
 
 (defn- tasks-handler
   [db-path _]
@@ -93,37 +57,26 @@
                                 (or input {}))})
 
 (defn- app
-  [db-path]
+  [db-path defs-repo]
   (http.middleware/wrap-app
    (ring/ring-handler
     (ring/router
      [["/healthz"
        {:get {:handler healthz-handler}}]
-      ["/api"
-       ["/scheduler/overview"
-        {:get {:handler (partial scheduler-overview-handler db-path)}}]
-       ["/task-types"
-        {:get {:handler task-types-handler}}]
-       ["/task-types/create-options"
-        {:get {:handler task-type-create-options-handler}}]
-       ["/task-types/detail"
-        {:get {:parameters {:query task-type-detail-query-params}
-               :handler task-type-detail-handler}}]
-       ["/runtime-profiles"
-        {:get {:handler runtime-profiles-handler}}]
-       ["/runtime-profiles/detail"
-        {:get {:parameters {:query runtime-profile-detail-query-params}
-               :handler runtime-profile-detail-handler}}]
-       ["/tasks"
-        {:get {:handler (partial tasks-handler db-path)}
-         :post {:parameters {:body create-task-body}
-                :handler (partial create-task-handler db-path)}}]
-       ["/tasks/:task-id"
-        {:get {:parameters {:path task-id-path-params}
-               :handler (partial task-detail-handler db-path)}}]
-       ["/runs/:run-id"
-        {:get {:parameters {:path run-id-path-params}
-               :handler (partial run-detail-handler db-path)}}]]]
+      (into ["/api"
+             ["/scheduler/overview"
+              {:get {:handler (partial scheduler-overview-handler db-path)}}]]
+            (concat (http.defs/routes defs-repo)
+                    [["/tasks"
+                      {:get {:handler (partial tasks-handler db-path)}
+                       :post {:parameters {:body create-task-body}
+                              :handler (partial create-task-handler db-path)}}]
+                     ["/tasks/:task-id"
+                      {:get {:parameters {:path task-id-path-params}
+                             :handler (partial task-detail-handler db-path)}}]
+                     ["/runs/:run-id"
+                      {:get {:parameters {:path run-id-path-params}
+                             :handler (partial run-detail-handler db-path)}}]]))]
      {:data {:coercion coercion.malli/coercion
              :middleware [parameters/parameters-middleware
                           ring.coercion/coerce-request-middleware]}})
@@ -135,15 +88,18 @@
 
 (defn start-server!
   ([] (start-server! {}))
-  ([{:keys [db-path port]
+  ([{:keys [db-path defs-repo port]
      :or {db-path db/default-db-path
           port 8788}}]
-   (let [server (http-kit/run-server (app db-path)
+   (let [defs-repo (or defs-repo
+                       (defs.loader/filesystem-definition-repository))
+         server (http-kit/run-server (app db-path defs-repo)
                                      {:port (int port)
                                       :legacy-return-value? false})]
      {:server server
       :port (:port (bean server))
-      :db-path db-path})))
+      :db-path db-path
+      :defs-repo defs-repo})))
 
 (defn stop-server!
   [{:keys [server]}]
