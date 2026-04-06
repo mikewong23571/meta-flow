@@ -1,6 +1,8 @@
 (ns meta-flow.lint.check
   (:gen-class)
-  (:require [meta-flow.lint.check.execution :as execution]
+  (:require [meta-flow.governance.core :as governance]
+            [meta-flow.governance.runner :as runner]
+            [meta-flow.lint.check.execution :as execution]
             [meta-flow.lint.check.frontend :as frontend]
             [meta-flow.lint.check.report :as report]
             [meta-flow.lint.coverage :as coverage]
@@ -154,40 +156,49 @@
 
 (def frontend-build-gate frontend/frontend-build-gate)
 
-(defn- spawn-gate
-  [runner]
-  (future (runner)))
+(defn gate-entries
+  []
+  [{:id :format-hygiene
+    :label "format-hygiene"
+    :run run-format-check!}
+   {:id :static-analysis
+    :label "static-analysis"
+    :run run-static-analysis!}
+   {:id :structure-governance
+    :label "structure-governance"
+    :run #(run-structure-governance! default-source-roots)}
+   {:id :frontend-architecture
+    :label "frontend-architecture"
+    :run frontend-architecture-gate}
+   {:id :frontend-shared-component-placement
+    :label "frontend-shared-component-placement"
+    :run frontend-shared-component-placement-gate}
+   {:id :frontend-shared-component-facade
+    :label "frontend-shared-component-facade"
+    :run frontend-shared-component-facade-gate}
+   {:id :frontend-ui-layering
+    :label "frontend-ui-layering"
+    :run frontend-ui-layering-gate}
+   {:id :frontend-page-role
+    :label "frontend-page-role"
+    :run frontend-page-role-gate}
+   {:id :frontend-semantics
+    :label "frontend-semantics"
+    :run frontend-semantics-gate}
+   {:id :frontend-style
+    :label "frontend-style"
+    :run frontend-style-gate}
+   {:id :frontend-build
+    :label "frontend-build"
+    :run frontend-build-gate}])
 
 (defn check-gates
   []
-  (let [execution-future (spawn-gate coverage/evaluate-coverage)
-        format-future (spawn-gate run-format-check!)
-        static-analysis-future (spawn-gate run-static-analysis!)
-        structure-future (spawn-gate run-structure-governance!)
-        frontend-architecture-future (spawn-gate frontend-architecture-gate)
-        frontend-shared-component-placement-future (spawn-gate frontend-shared-component-placement-gate)
-        frontend-shared-component-facade-future (spawn-gate frontend-shared-component-facade-gate)
-        frontend-ui-layering-future (spawn-gate frontend-ui-layering-gate)
-        frontend-page-role-future (spawn-gate frontend-page-role-gate)
-        frontend-semantics-future (spawn-gate frontend-semantics-gate)
-        frontend-style-future (spawn-gate frontend-style-gate)
-        frontend-build-future (spawn-gate frontend-build-gate)
-        execution-result @execution-future
-        execution-gates (execution-gates-from-coverage execution-result)]
-    (into [@format-future
-           @static-analysis-future
-           @structure-future
-           @frontend-architecture-future
-           @frontend-shared-component-placement-future
-           @frontend-shared-component-facade-future
-           @frontend-ui-layering-future
-           @frontend-page-role-future
-           @frontend-semantics-future
-           @frontend-style-future
-           @frontend-build-future]
-          execution-gates)))
+  (let [execution-gates (execution-gates-from-coverage (coverage/evaluate-coverage))
+        gates (runner/run-entries! (gate-entries))]
+    (into gates execution-gates)))
 
-(def overall-status report/overall-status)
+(def overall-status governance/overall-status)
 
 (def print-report! report/print-report!)
 
@@ -199,8 +210,6 @@
 
 (defn -main
   [& _]
-  (let [gates (check-gates)
-        status (report/overall-status gates)]
+  (let [gates (check-gates)]
     (print-report! gates)
-    (finish-process! (when (= :blocked status)
-                       1))))
+    (finish-process! (governance/exit-code gates))))

@@ -6,6 +6,8 @@
             [meta-flow.lint.check.frontend.semantics :as semantics]
             [meta-flow.lint.check.frontend.shared-ui :as shared-ui]
             [meta-flow.lint.check.frontend.style :as style]
+            [meta-flow.governance.core :as governance]
+            [meta-flow.governance.runner :as runner]
             [meta-flow.lint.check.report :as report]))
 
 (def frontend-source-roots
@@ -41,16 +43,36 @@
 (def frontend-build-gate
   build/frontend-build-gate)
 
+(defn frontend-gate-entries
+  []
+  [{:id :frontend-architecture
+    :label "frontend-architecture"
+    :run frontend-architecture-gate}
+   {:id :frontend-shared-component-placement
+    :label "frontend-shared-component-placement"
+    :run frontend-shared-component-placement-gate}
+   {:id :frontend-shared-component-facade
+    :label "frontend-shared-component-facade"
+    :run frontend-shared-component-facade-gate}
+   {:id :frontend-ui-layering
+    :label "frontend-ui-layering"
+    :run frontend-ui-layering-gate}
+   {:id :frontend-page-role
+    :label "frontend-page-role"
+    :run frontend-page-role-gate}
+   {:id :frontend-semantics
+    :label "frontend-semantics"
+    :run frontend-semantics-gate}
+   {:id :frontend-style
+    :label "frontend-style"
+    :run frontend-style-gate}
+   {:id :frontend-build
+    :label "frontend-build"
+    :run frontend-build-gate}])
+
 (defn frontend-gates
   []
-  [(frontend-architecture-gate)
-   (frontend-shared-component-placement-gate)
-   (frontend-shared-component-facade-gate)
-   (frontend-ui-layering-gate)
-   (frontend-page-role-gate)
-   (frontend-semantics-gate)
-   (frontend-style-gate)
-   (frontend-build-gate)])
+  (runner/run-entries! (frontend-gate-entries)))
 
 (defn finish-process!
   [exit-code]
@@ -60,8 +82,6 @@
 
 (defn -main
   [& _]
-  (let [gates (frontend-gates)
-        status (report/overall-status gates)]
+  (let [gates (frontend-gates)]
     (report/print-report! gates)
-    (finish-process! (when (= :blocked status)
-                       1))))
+    (finish-process! (governance/exit-code gates))))

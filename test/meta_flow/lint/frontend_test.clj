@@ -120,7 +120,7 @@
   (let [calls (atom [])]
     (with-redefs [check/run-format-check! (fn [] {:label "format-hygiene" :status :pass})
                   check/run-static-analysis! (fn [] {:label "static-analysis" :status :pass})
-                  check/run-structure-governance! (fn [] {:label "structure-governance" :status :pass})
+                  check/run-structure-governance! (fn [_] {:label "structure-governance" :status :pass})
                   check/frontend-architecture-gate (fn [] {:label "frontend-architecture-governance" :status :pass})
                   check/frontend-shared-component-placement-gate (fn [] {:label "frontend-shared-component-placement-governance" :status :pass})
                   check/frontend-shared-component-facade-gate (fn [] {:label "frontend-shared-component-facade-governance" :status :pass})

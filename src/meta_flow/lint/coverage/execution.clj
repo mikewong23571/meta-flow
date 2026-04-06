@@ -113,7 +113,12 @@
             :src-ns-path (if (seq source-paths) source-paths ["src"])
             :test-ns-path (if (seq test-paths) test-paths ["test"])
             :ns-regex []
-            :ns-exclude-regex [#"^meta-flow\.lint\..*"]
+            ;; Governance/lint orchestration namespaces remain active after
+            ;; coverage completes inside the same JVM during `bb check`.
+            ;; Excluding them avoids leaving Cloverage wrappers on the code
+            ;; that prints and aggregates the final governance report.
+            :ns-exclude-regex [#"^meta-flow\.lint\..*"
+                               #"^meta-flow\.governance\..*"]
             :exclude-call []
             :test-ns-regex []
             :runner governed-runner
