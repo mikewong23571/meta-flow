@@ -13,6 +13,7 @@
 (def generate-task-type-draft! mutate/generate-task-type-draft!)
 (def reset-runtime-profile-authoring-feedback! reset/reset-runtime-profile-authoring-feedback!)
 (def reset-task-type-authoring-feedback! reset/reset-task-type-authoring-feedback!)
+(def reset-task-type-generation-feedback! reset/reset-task-type-generation-feedback!)
 (def reset-runtime-profile-validation-preview! reset/reset-runtime-profile-validation-preview!)
 (def reset-task-type-validation-preview! reset/reset-task-type-validation-preview!)
 (def load-authoring-bootstrap! bootstrap/load-authoring-bootstrap!)

@@ -212,6 +212,10 @@
                                                  [[:defs :authoring :generation :submit-error] nil]])))
          (authoring-read/load-runtime-profile-drafts!)
          (authoring-read/load-task-type-drafts!)
+         (when-let [task-definition (get-in payload [:task-type :definition])]
+           (authoring-read/load-task-type-draft-detail!
+            (:task-type/id task-definition)
+            (:task-type/version task-definition)))
          payload))
       (.catch
        (fn [error]

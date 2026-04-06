@@ -42,6 +42,9 @@
 (def reset-task-type-authoring-feedback!
   authoring-state/reset-task-type-authoring-feedback!)
 
+(def reset-task-type-generation-feedback!
+  authoring-state/reset-task-type-generation-feedback!)
+
 (def reset-runtime-profile-validation-preview!
   authoring-state/reset-runtime-profile-validation-preview!)
 

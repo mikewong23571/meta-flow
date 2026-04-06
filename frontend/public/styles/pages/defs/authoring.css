@@ -168,8 +168,27 @@
 
 .defs-authoring-footer-actions {
   display: flex;
+  gap: var(--space-sm);
   justify-content: flex-end;
   margin-top: var(--space-lg);
+}
+
+.defs-authoring-generation-panel {
+  margin-top: var(--space-lg);
+}
+
+.defs-authoring-generation-grid {
+  display: grid;
+  gap: var(--space-md);
+}
+
+.defs-authoring-note-list {
+  margin: var(--space-sm) 0 0;
+  padding-left: 1.1rem;
+}
+
+.defs-authoring-note-list li + li {
+  margin-top: 0.35rem;
 }
 
 @media (max-width: 1024px) {

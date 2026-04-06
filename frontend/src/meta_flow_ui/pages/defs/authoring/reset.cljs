@@ -23,6 +23,15 @@
   []
   (reset-kind-feedback! :task-type))
 
+(defn reset-task-type-generation-feedback!
+  []
+  (swap! state/ui-state
+         (fn [ui-state]
+           (authoring-read/assoc-in-many ui-state
+                                         [[[:defs :authoring :generation :result] nil]
+                                          [[:defs :authoring :generation :submitting?] false]
+                                          [[:defs :authoring :generation :submit-error] nil]]))))
+
 (defn- reset-kind-validation-preview!
   [definition-kind]
   (let [base-path (authoring-read/authoring-path definition-kind)]
