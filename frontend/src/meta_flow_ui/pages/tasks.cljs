@@ -5,14 +5,7 @@
             [meta-flow-ui.pages.tasks.create :as task-create]
             [meta-flow-ui.pages.tasks.detail :as task-detail]
             [meta-flow-ui.pages.tasks.state :as tasks-page-state]
-            [meta-flow-ui.routes :as routes]
             [reagent.core :as r]))
-
-(def primary-tabs
-  [{:label "Scheduler" :route :scheduler}
-   {:label "Tasks" :route :tasks}
-   {:label "Defs" :route :defs}
-   {:label "Preview" :route :preview}])
 
 (defn task-state-label
   [value]
@@ -115,20 +108,19 @@
         visible-items (filtered-items page-state)
         task-type-options (distinct-options items #(str (:task/type-id %)))
         task-state-options (distinct-options items #(str (:task/state %)))]
-    [:main {:className "app-shell"}
-     [:section {:className "scheduler-topbar"}
-      [:div {:className "scheduler-heading"}
-       [:h1 {:className "scheduler-title"} "Tasks"]]
-      [:div {:className "scheduler-topbar-actions"}
-       [components/nav-tabs primary-tabs :tasks routes/navigate!]
-       [:button {:className "button button-icon button-ghost"
-                 :title "New Task"
-                 :on-click tasks-page-state/open-create-dialog!}
-        [icons/plus]]
-       [:button {:className "button button-icon button-primary"
-                 :title "Refresh"
-                 :on-click tasks-page-state/load-items!}
-        [icons/refresh]]]]
+    [components/page-shell
+     {:active-route :tasks
+      :title "Tasks"
+      :subtitle "Filter and inspect task state, summaries, and latest run activity."
+      :actions [:<>
+                [:button {:className "button button-icon button-ghost"
+                          :title "New Task"
+                          :on-click tasks-page-state/open-create-dialog!}
+                 [icons/plus]]
+                [:button {:className "button button-icon button-primary"
+                          :title "Refresh"
+                          :on-click tasks-page-state/load-items!}
+                 [icons/refresh]]]}
      [:section {:className "tasks-filter-bar"}
       [:label {:className "tasks-filter"}
        [:span {:className "stat-label"} "Task state"]

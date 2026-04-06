@@ -18,6 +18,9 @@
       :defs [defs/defs-page route]
       :defs-detail ^{:key (str (:task-type-id route) ":" (:task-type-version route))}
       [defs/defs-page route]
+      :defs-runtimes [defs/defs-page route]
+      :defs-runtime-detail ^{:key (str (:runtime-profile-id route) ":" (:runtime-profile-version route))}
+      [defs/defs-page route]
       [scheduler/scheduler-page])))
 
 (defn mount! []

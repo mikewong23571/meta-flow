@@ -1,7 +1,8 @@
 (ns meta-flow-ui.pages.scheduler.detail
   (:require [clojure.string :as str]
             [meta-flow-ui.components :as components]
-            [meta-flow-ui.icons :as icons]))
+            [meta-flow-ui.icons :as icons]
+            [meta-flow-ui.routes :as routes]))
 
 (defn- short-state
   [value]
@@ -14,6 +15,14 @@
   [ref-value]
   (when ref-value
     (str (:definition/id ref-value) " v" (:definition/version ref-value))))
+
+(defn- runtime-profile-link
+  [ref-value]
+  (when ref-value
+    [:button {:className "button button-ghost"
+              :on-click #(routes/navigate-to-runtime-profile! (:definition/id ref-value)
+                                                              (:definition/version ref-value))}
+     (format-ref ref-value)]))
 
 (defn- status-tone
   [label]
@@ -63,7 +72,7 @@
           [components/detail-row "Task type" (format-ref (:task/task-type-ref detail))]
           [components/detail-row "Task FSM" (format-ref (:task/task-fsm-ref detail))]
           [components/detail-row "Run FSM" (format-ref (:task/run-fsm-ref detail))]
-          [components/detail-row "Runtime profile" (format-ref (:task/runtime-profile-ref detail))]
+          [components/detail-row "Runtime profile" [runtime-profile-link (:task/runtime-profile-ref detail)]]
           [components/detail-row "Artifact contract" (format-ref (:task/artifact-contract-ref detail))]
           [components/detail-row "Validator" (format-ref (:task/validator-ref detail))]
           [components/detail-row "Resource policy" (format-ref (:task/resource-policy-ref detail))]

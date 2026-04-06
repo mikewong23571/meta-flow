@@ -1,4 +1,4 @@
-(ns meta-flow.ui.defs-test
+(ns meta-flow.ui.defs-task-type-test
   (:require [clojure.test :refer [deftest is testing]]
             [meta-flow.defs.protocol :as defs.protocol]
             [meta-flow.ui.defs :as ui.defs]))

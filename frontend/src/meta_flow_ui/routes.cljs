@@ -3,6 +3,7 @@
             [reagent.core :as r]))
 
 (defonce route-state (r/atom {:page :scheduler}))
+
 (defonce routing-installed? (atom false))
 
 (defn- parse-int
@@ -29,6 +30,15 @@
            :task-type-id task-type-id
            :task-type-version task-type-version}
           {:page :defs}))
+      "/defs/runtimes" {:page :defs-runtimes}
+      "/defs/runtime-detail"
+      (let [runtime-profile-id (.get params "runtime-profile-id")
+            runtime-profile-version (parse-int (.get params "runtime-profile-version"))]
+        (if (and runtime-profile-id runtime-profile-version)
+          {:page :defs-runtime-detail
+           :runtime-profile-id runtime-profile-id
+           :runtime-profile-version runtime-profile-version}
+          {:page :defs-runtimes}))
       "/scheduler" {:page :scheduler}
       {:page :scheduler})))
 
@@ -37,7 +47,8 @@
 
 (defn route->hash
   [route]
-  (let [{:keys [page task-type-id task-type-version]} (if (keyword? route) {:page route} route)]
+  (let [{:keys [page task-type-id task-type-version runtime-profile-id runtime-profile-version]}
+        (if (keyword? route) {:page route} route)]
     (case page
       :home "/home"
       :preview "/preview"
@@ -47,6 +58,11 @@
                         (js/encodeURIComponent task-type-id)
                         "&task-type-version="
                         task-type-version)
+      :defs-runtimes "/defs/runtimes"
+      :defs-runtime-detail (str "/defs/runtime-detail?runtime-profile-id="
+                                (js/encodeURIComponent runtime-profile-id)
+                                "&runtime-profile-version="
+                                runtime-profile-version)
       :scheduler "/scheduler"
       "/scheduler")))
 
@@ -62,6 +78,12 @@
   (navigate! {:page :defs-detail
               :task-type-id task-type-id
               :task-type-version task-type-version}))
+
+(defn navigate-to-runtime-profile!
+  [runtime-profile-id runtime-profile-version]
+  (navigate! {:page :defs-runtime-detail
+              :runtime-profile-id runtime-profile-id
+              :runtime-profile-version runtime-profile-version}))
 
 (defn ensure-routing! []
   (sync-route!)

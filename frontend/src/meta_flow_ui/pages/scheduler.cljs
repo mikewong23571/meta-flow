@@ -4,14 +4,7 @@
             [meta-flow-ui.icons :as icons]
             [meta-flow-ui.pages.scheduler.detail :as scheduler-detail]
             [meta-flow-ui.pages.scheduler.state :as scheduler-page-state]
-            [meta-flow-ui.routes :as routes]
             [reagent.core :as r]))
-
-(def primary-tabs
-  [{:label "Scheduler" :route :scheduler}
-   {:label "Tasks" :route :tasks}
-   {:label "Defs" :route :defs}
-   {:label "Preview" :route :preview}])
 
 (def bucket-config
   [{:rank 1
@@ -59,17 +52,6 @@
     (let [t (.indexOf iso-str "T")]
       (if (>= t 0) (subs iso-str (inc t) (min (+ t 9) (count iso-str))) iso-str))))
 
-(defn summary-value
-  [snapshot collection key-name]
-  (case key-name
-    :dispatch      (if (get-in snapshot [:dispatch-paused?]) "Paused" "Active")
-    :cooldown      (if (get-in snapshot [:dispatch-cooldown-active?])
-                     (str "Until " (get-in snapshot [:dispatch-cooldown-until]))
-                     "Inactive")
-    :active-runs   (str (or (:active-run-count snapshot) 0))
-    :snapshot-time (or (snapshot-time (:now snapshot)) "n/a")
-    :policy        (or (short-ref (:resource-policy-ref collection)) "n/a")))
-
 (defn bucket-row
   [snapshot {:keys [rank count-key ids-key kind label tone]}]
   (let [count-value (get snapshot count-key 0)
@@ -97,45 +79,55 @@
   (let [page-state (scheduler-page-state/scheduler-state)
         {:keys [overview overview-loading? overview-error poll-interval-ms]} page-state
         snapshot   (:snapshot overview)
-        collection (:collection overview)]
-    [:main {:className "app-shell"}
-     [:section {:className "scheduler-topbar"}
-      [:div {:className "scheduler-heading"}
-       [:h1 {:className "scheduler-title"} "Scheduler"]]
-      [:div {:className "scheduler-topbar-actions"}
-       [components/nav-tabs primary-tabs :scheduler routes/navigate!]
-       [:button {:className "button button-icon button-primary"
-                 :title "Refresh"
-                 :on-click scheduler-page-state/load-overview!}
-        [icons/refresh]]]]
-     [:section {:className "scheduler-summary-strip"}
-      (for [[label value-key] [["Dispatch" :dispatch]
-                               ["Cooldown" :cooldown]
-                               ["Active runs" :active-runs]
-                               ["Snapshot" :snapshot-time]
-                               ["Policy" :policy]]]
-        ^{:key label}
-        [:article {:className "panel scheduler-kpi-card"}
-         [:p {:className "stat-label"} label]
-         [:p {:className "scheduler-kpi-value"} (summary-value snapshot collection value-key)]])
-      [:article {:className "panel scheduler-kpi-card"}
-       [:p {:className "stat-label"} "Polling"]
-       [:div {:className "poll-status"}
-        [:span {:className (str "scheduler-kpi-value"
-                                (when (scheduler-page-state/stale?) " poll-status-label-stale"))}
-         (cond overview-loading? "Refreshing" (scheduler-page-state/stale?) "Stale" :else "Fresh")]
-        [:span {:className (str "poll-dot"
-                                (cond overview-loading? " poll-dot-loading"
-                                      (scheduler-page-state/stale?) " poll-dot-stale"
-                                      :else             ""))}]
-        [:span {:className "poll-interval"}
-         (str (/ poll-interval-ms 1000) "s")]]]]
+        collection (:collection overview)
+        paused?    (:dispatch-paused? snapshot)
+        cooldown?  (:dispatch-cooldown-active? snapshot)]
+    [components/page-shell
+     {:active-route :scheduler
+      :title "Scheduler"
+      :subtitle "Dispatch status, active runs, and queue pressure."}
+     [:section {:className "scheduler-stat-strip"}
+      [:span {:className "scheduler-stat-item"}
+       [:span {:className "stat-label"} "Dispatch"]
+       [:span {:className (str "scheduler-stat-value"
+                               (if paused? " scheduler-stat-paused" " scheduler-stat-ok"))}
+        (if paused? "Paused" "Active")]]
+      [:span {:className "scheduler-stat-item"}
+       [:span {:className "stat-label"} "Runs"]
+       [:span {:className "scheduler-stat-value"}
+        (str (or (:active-run-count snapshot) 0))]]
+      (when cooldown?
+        [:span {:className "scheduler-stat-item"}
+         [:span {:className "stat-label"} "Cooldown"]
+         [:span {:className "scheduler-stat-value scheduler-stat-warning"}
+          (str "Until " (:dispatch-cooldown-until snapshot))]])]
      (when overview-error
        [:section {:className "scheduler-inline-error"}
         [:article {:className "panel scheduler-error-card"}
          [:p {:className "scheduler-error-copy"} overview-error]]])
      [:section {:className "detail-layout"}
       [:section {:className "panel scheduler-table-panel"}
+       [:div {:className "scheduler-table-header"}
+        [:h2 {:className "component-title"} "Work queue"]
+        [:div {:className "scheduler-table-meta"}
+         (when (:now snapshot)
+           [:span {:className "scheduler-meta-mono"} (snapshot-time (:now snapshot))])
+         (when-let [policy-ref (:resource-policy-ref collection)]
+           [:span {:className "scheduler-meta-mono"} (short-ref policy-ref)])
+         [:div {:className "poll-status"}
+          [:span {:className (str "scheduler-meta-mono"
+                                  (when (scheduler-page-state/stale?) " poll-status-label-stale"))}
+           (cond overview-loading? "Refreshing" (scheduler-page-state/stale?) "Stale" :else "Fresh")]
+          [:span {:className (str "poll-dot"
+                                  (cond overview-loading? " poll-dot-loading"
+                                        (scheduler-page-state/stale?) " poll-dot-stale"
+                                        :else             ""))}]
+          [:span {:className "poll-interval"}
+           (str (/ poll-interval-ms 1000) "s")]]
+         [:button {:className "button button-icon button-ghost"
+                   :title "Refresh"
+                   :on-click scheduler-page-state/load-overview!}
+          [icons/refresh]]]]
        [:div {:className "scheduler-table-wrap"}
         [:table {:className "scheduler-table"}
          [:colgroup

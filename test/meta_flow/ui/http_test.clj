@@ -9,6 +9,16 @@
             [meta-flow.ui.http :as ui.http]
             [meta-flow.ui.http-support :as http.support]))
 
+(deftest healthz-endpoint-returns-ok-json
+  (let [server (ui.http/start-server! {:port 0})]
+    (try
+      (let [response (http.support/http-get (:port server) "/healthz")
+            body (json/parse-string (:body response) true)]
+        (is (= 200 (:status response)))
+        (is (= {:ok true} body)))
+      (finally
+        (ui.http/stop-server! server)))))
+
 (deftest scheduler-overview-endpoint-returns-projection-backed-json
   (let [{:keys [store db-path]} (support/test-system)
         now "2026-04-01T00:00:00Z"

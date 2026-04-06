@@ -47,3 +47,42 @@
           " active / "
           (or (some-> item :task-type/resource-policy :resource-policy/max-attempts) "n/a")
           " attempts")]]])
+
+(defn runtime-profile-row
+  [item]
+  [:tr {:className "scheduler-table-row defs-table-row"
+        :key (str (:runtime-profile/id item) ":" (:runtime-profile/version item))
+        :on-click #(routes/navigate-to-runtime-profile! (:runtime-profile/id item)
+                                                        (:runtime-profile/version item))
+        :style {:cursor "pointer"}}
+   [:td
+    [:div {:className "tasks-summary-primary"
+           :title (:runtime-profile/name item)}
+     (:runtime-profile/name item)]
+    [:div {:className "table-subtext table-subtext-mono"}
+     (str (:runtime-profile/id item) " v" (:runtime-profile/version item))]]
+   [:td
+    [:div {:className "tasks-summary-primary"}
+     (some-> item :runtime-profile/adapter-id presenter/seg)]
+    [:div {:className "table-subtext table-subtext-mono"}
+     (some-> item :runtime-profile/dispatch-mode presenter/seg)]]
+   [:td
+    [:div {:className "tasks-summary-primary"}
+     (or (some-> item :runtime-profile/default-launch-mode presenter/seg) "managed")]
+    [:div {:className "table-subtext table-subtext-mono"}
+     (if (= true (:runtime-profile/web-search-enabled? item))
+       "web on"
+       "web off")]]
+   [:td
+    [:div {:className "tasks-summary-primary"
+           :title (:definition/name (:runtime-profile/artifact-contract item))}
+     (or (some-> item :runtime-profile/artifact-contract :definition/name) "n/a")]
+    [:div {:className "table-subtext table-subtext-mono"}
+     (or (:runtime-profile/worker-prompt-path item) "no prompt path")]]
+   [:td
+    [:div {:className "tasks-summary-primary"}
+     (:runtime-profile/task-type-count item)]
+    [:div {:className "table-subtext"}
+     (if (= 1 (:runtime-profile/task-type-count item))
+       "task type"
+       "task types")]]])

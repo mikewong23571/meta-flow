@@ -8,13 +8,11 @@
             [meta-flow-ui.routes :as routes]
             [reagent.core :as r]))
 
-(def primary-tabs
-  [{:label "Scheduler" :route :scheduler}
-   {:label "Tasks" :route :tasks}
-   {:label "Defs" :route :defs}
-   {:label "Preview" :route :preview}])
+(def defs-tabs
+  [{:label "Task Types" :route :defs}
+   {:label "Runtime Profiles" :route :defs-runtimes}])
 
-(defn- visible-items
+(defn- visible-task-types
   [items query]
   (let [query-text (some-> query str/lower-case str/trim)]
     (if (str/blank? query-text)
@@ -30,29 +28,52 @@
                             (some-> item :task-type/resource-policy :definition/name)])))
            vec))))
 
-(defn- defs-list-page-body []
+(defn- visible-runtime-profiles
+  [items query]
+  (let [query-text (some-> query str/lower-case str/trim)]
+    (if (str/blank? query-text)
+      items
+      (letfn [(matches? [value]
+                (and value
+                     (str/includes? (str/lower-case (str value)) query-text)))]
+        (->> items
+             (filter (fn [item]
+                       (or (some matches?
+                                 [(:runtime-profile/id item)
+                                  (:runtime-profile/name item)
+                                  (:runtime-profile/adapter-id item)
+                                  (:runtime-profile/dispatch-mode item)
+                                  (:runtime-profile/default-launch-mode item)
+                                  (:runtime-profile/worker-prompt-path item)
+                                  (some-> item :runtime-profile/artifact-contract :definition/name)])
+                           (some (fn [task-type]
+                                   (or (matches? (:task-type/id task-type))
+                                       (matches? (:task-type/name task-type))))
+                                 (:runtime-profile/task-types item)))))
+             vec)))))
+
+(defn- task-type-list-page-body
+  []
   (let [search-text (r/atom "")]
     (fn []
       (let [{:keys [items loading? error]} (defs-state/defs-state)
-            filtered-items (visible-items items @search-text)
+            filtered-items (visible-task-types items @search-text)
             table-rows (if (empty? filtered-items)
                          [[:tr
                            [:td {:colSpan 5}
                             [:span {:className "scheduler-empty"}
                              "No task types match the current search."]]]]
                          (map defs-list/task-type-row filtered-items))]
-        [:main {:className "app-shell"}
-         [:section {:className "scheduler-topbar"}
-          [:div {:className "scheduler-heading"}
-           [:h1 {:className "scheduler-title"} "Task Types"]
-           [:p {:className "scheduler-subtitle"}
-            "Use the list view to compare stable signals. Open a task type to inspect the full definition surface."]]
-          [:div {:className "scheduler-topbar-actions"}
-           [components/nav-tabs primary-tabs :defs routes/navigate!]
-           [:button {:className "button button-icon button-primary"
-                     :title "Refresh"
-                     :on-click defs-state/load-items!}
-            [icons/refresh]]]]
+        [components/page-shell
+         {:active-route :defs
+          :title "Defs"
+          :subtitle "Task types, runtime profiles, and the workflow contracts bundled with this repo."
+          :actions [:button {:className "button button-icon button-primary"
+                             :title "Refresh"
+                             :on-click defs-state/load-items!}
+                    [icons/refresh]]
+          :subnav [:div {:className "defs-subnav"}
+                   [components/nav-tabs defs-tabs :defs routes/navigate! "Definition sections"]]}
          [:section {:className "tasks-filter-bar defs-filter-bar"}
           [:label {:className "tasks-filter tasks-filter-query defs-filter-query"}
            [:span {:className "stat-label"} "Search"]
@@ -96,18 +117,97 @@
                 [:th "Policy"]]]
               (into [:tbody] table-rows)]]])]))))
 
-(defn- defs-list-page []
-  (r/with-let [_ (defs-state/load-items!)]
-    [defs-list-page-body]))
+(defn- runtime-list-page-body
+  []
+  (let [search-text (r/atom "")]
+    (fn []
+      (let [{:keys [runtime-items runtime-loading? runtime-error]} (defs-state/defs-state)
+            filtered-items (visible-runtime-profiles runtime-items @search-text)
+            table-rows (if (empty? filtered-items)
+                         [[:tr
+                           [:td {:colSpan 5}
+                            [:span {:className "scheduler-empty"}
+                             "No runtime profiles match the current search."]]]]
+                         (map defs-list/runtime-profile-row filtered-items))]
+        [components/page-shell
+         {:active-route :defs
+          :title "Defs"
+          :subtitle "Task types, runtime profiles, and the workflow contracts bundled with this repo."
+          :actions [:button {:className "button button-icon button-primary"
+                             :title "Refresh"
+                             :on-click defs-state/load-runtime-items!}
+                    [icons/refresh]]
+          :subnav [:div {:className "defs-subnav"}
+                   [components/nav-tabs defs-tabs :defs-runtimes routes/navigate! "Definition sections"]]}
+         [:section {:className "tasks-filter-bar defs-filter-bar"}
+          [:label {:className "tasks-filter tasks-filter-query defs-filter-query"}
+           [:span {:className "stat-label"} "Search"]
+           [:input {:className "text-input"
+                    :value @search-text
+                    :placeholder "name, id, adapter, prompt path, task type"
+                    :on-change #(reset! search-text (.. % -target -value))}]]]
+         (when runtime-error
+           [:section {:className "scheduler-inline-error"}
+            [:article {:className "panel scheduler-error-card"}
+             [:p {:className "scheduler-error-copy"} runtime-error]]])
+         (cond
+           (and runtime-loading? (empty? runtime-items))
+           [:p {:className "scheduler-empty"} "Loading runtime profiles..."]
 
-(defn- defs-detail-page
+           (and (not runtime-loading?) (empty? runtime-items))
+           [:p {:className "scheduler-empty"} "No runtime profiles found."]
+
+           :else
+           [:section {:className "panel scheduler-table-panel"}
+            [:div {:className "scheduler-table-header"}
+             [:div {:className "tasks-table-status"}
+              [:span {:className "tasks-visible-count"}
+               (str (count filtered-items) " / " (count runtime-items))]
+              [:span {:className (str "poll-dot"
+                                      (when runtime-loading? " poll-dot-loading"))}]]]
+            [:div {:className "scheduler-table-wrap"}
+             [:table {:className "scheduler-table defs-table defs-runtime-table"}
+              [:colgroup
+               [:col {:className "defs-col-runtime-name"}]
+               [:col {:className "defs-col-runtime-adapter"}]
+               [:col {:className "defs-col-runtime-launch"}]
+               [:col {:className "defs-col-runtime-artifact"}]
+               [:col {:className "defs-col-runtime-task-types"}]]
+              [:thead
+               [:tr
+                [:th "Runtime profile"]
+                [:th "Adapter"]
+                [:th "Launch"]
+                [:th "Artifacts"]
+                [:th "Task types"]]]
+              (into [:tbody] table-rows)]]])]))))
+
+(defn- task-type-list-page
+  []
+  (r/with-let [_ (defs-state/load-items!)]
+    [task-type-list-page-body]))
+
+(defn- runtime-list-page
+  []
+  (r/with-let [_ (defs-state/load-runtime-items!)]
+    [runtime-list-page-body]))
+
+(defn- task-type-detail-page
   [route]
   (r/with-let [_ (defs-state/load-detail! (:task-type-id route)
                                           (:task-type-version route))]
-    [defs-detail/detail-page route (defs-state/defs-state) primary-tabs]))
+    [defs-detail/task-type-detail-page route (defs-state/defs-state) defs-tabs]))
+
+(defn- runtime-detail-page
+  [route]
+  (r/with-let [_ (defs-state/load-runtime-detail! (:runtime-profile-id route)
+                                                  (:runtime-profile-version route))]
+    [defs-detail/runtime-profile-detail-page route (defs-state/defs-state) defs-tabs]))
 
 (defn defs-page
   [route]
   (case (:page route)
-    :defs-detail [defs-detail-page route]
-    [defs-list-page]))
+    :defs-detail [task-type-detail-page route]
+    :defs-runtimes [runtime-list-page]
+    :defs-runtime-detail [runtime-detail-page route]
+    [task-type-list-page]))

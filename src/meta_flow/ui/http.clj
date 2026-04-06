@@ -1,192 +1,154 @@
 (ns meta-flow.ui.http
-  (:require [cheshire.core :as json]
-            [clojure.string :as str]
-            [meta-flow.db :as db]
+  (:require [meta-flow.db :as db]
             [meta-flow.ui.defs :as ui.defs]
+            [meta-flow.ui.http.middleware :as http.middleware]
             [meta-flow.ui.scheduler :as ui.scheduler]
-            [meta-flow.ui.tasks :as ui.tasks])
-  (:import (com.sun.net.httpserver HttpExchange HttpHandler HttpServer)
-           (java.net InetSocketAddress URLDecoder)
-           (java.nio.charset StandardCharsets)))
+            [meta-flow.ui.tasks :as ui.tasks]
+            [org.httpkit.server :as http-kit]
+            [reitit.coercion.malli :as coercion.malli]
+            [reitit.ring :as ring]
+            [reitit.ring.coercion :as ring.coercion]
+            [reitit.ring.middleware.parameters :as parameters]))
 
-(def ^:private json-content-type "application/json; charset=utf-8")
+(def ^:private task-id-path-params
+  [:map [:task-id :string]])
 
-(defn- decode-path-segment
-  [value]
-  (URLDecoder/decode value (str StandardCharsets/UTF_8)))
+(def ^:private run-id-path-params
+  [:map [:run-id :string]])
 
-(defn- split-path
-  [^HttpExchange exchange]
-  (let [path (.. exchange getRequestURI getPath)]
-    (->> (str/split path #"/")
-         (remove str/blank?)
-         (mapv decode-path-segment))))
+(def ^:private task-type-detail-query-params
+  [:map
+   [:task-type-id :string]
+   [:task-type-version :int]])
 
-(defn- query-params
-  [^HttpExchange exchange]
-  (let [raw-query (some-> exchange .getRequestURI .getRawQuery)]
-    (if (str/blank? raw-query)
-      {}
-      (->> (str/split raw-query #"&")
-           (map #(str/split % #"=" 2))
-           (reduce (fn [params [k v]]
-                     (assoc params
-                            (keyword k)
-                            (decode-path-segment (or v ""))))
-                   {})))))
+(def ^:private runtime-profile-detail-query-params
+  [:map
+   [:runtime-profile-id :string]
+   [:runtime-profile-version :int]])
 
-(defn- exchange-method
-  [^HttpExchange exchange]
-  (.getRequestMethod exchange))
+(def ^:private create-task-body
+  [:map
+   [:task-type-id :string]
+   [:task-type-version {:optional true} :int]
+   [:input {:optional true} [:map-of keyword? any?]]])
 
-(defn- response-bytes
-  [body]
-  (.getBytes (json/generate-string body) StandardCharsets/UTF_8))
+(defn- healthz-handler
+  [_]
+  {:status 200
+   :body {:ok true}})
 
-(defn- add-common-headers!
-  [^HttpExchange exchange]
-  (doto (.getResponseHeaders exchange)
-    (.add "Content-Type" json-content-type)
-    (.add "Access-Control-Allow-Origin" "*")
-    (.add "Access-Control-Allow-Methods" "GET, POST, OPTIONS")
-    (.add "Access-Control-Allow-Headers" "Content-Type, Accept")))
+(defn- scheduler-overview-handler
+  [db-path _]
+  {:status 200
+   :body (ui.scheduler/load-overview db-path)})
 
-(defn- send-json!
-  [^HttpExchange exchange status body]
-  (let [payload (response-bytes body)]
-    (add-common-headers! exchange)
-    (.sendResponseHeaders exchange status (long (alength payload)))
-    (with-open [out (.getResponseBody exchange)]
-      (.write out payload))))
+(defn- task-types-handler
+  [_]
+  {:status 200
+   :body {:items (ui.defs/list-task-types)}})
 
-(defn- send-empty!
-  [^HttpExchange exchange status]
-  (add-common-headers! exchange)
-  (.sendResponseHeaders exchange status -1)
-  (.close exchange))
+(defn- task-type-create-options-handler
+  [_]
+  {:status 200
+   :body {:items (ui.defs/list-task-type-create-options)}})
 
-(defn- method-not-allowed!
-  [^HttpExchange exchange]
-  (send-json! exchange 405 {:error "Method not allowed"}))
+(defn- task-type-detail-handler
+  [{{{:keys [task-type-id task-type-version]} :query} :parameters}]
+  {:status 200
+   :body (ui.defs/load-task-type-detail (keyword task-type-id)
+                                        task-type-version)})
 
-(defn- root-cause-message
-  [throwable]
-  (or (.getMessage throwable)
-      (some-> throwable ex-data :error/message)
-      (str throwable)))
+(defn- runtime-profiles-handler
+  [_]
+  {:status 200
+   :body {:items (ui.defs/list-runtime-profiles)}})
 
-(defn- read-body!
-  [^HttpExchange exchange]
-  (with-open [in (.getRequestBody exchange)]
-    (slurp in)))
+(defn- runtime-profile-detail-handler
+  [{{{:keys [runtime-profile-id runtime-profile-version]} :query} :parameters}]
+  {:status 200
+   :body (ui.defs/load-runtime-profile-detail (keyword runtime-profile-id)
+                                              runtime-profile-version)})
 
-(defn- ex-info-status
-  [throwable]
-  (let [message (or (.getMessage throwable) "")]
-    (cond
-      (str/starts-with? message "Task not found:") 404
-      (str/starts-with? message "Run not found:") 404
-      (str/starts-with? message "Task type not found:") 404
-      (str/starts-with? message "Required task input fields cannot be blank:") 400
-      (str/starts-with? message "Work key cannot be blank") 400
-      (str/starts-with? message "Task type missing work-key-expr") 500
-      :else 500)))
+(defn- tasks-handler
+  [db-path _]
+  {:status 200
+   :body {:items (ui.tasks/list-tasks db-path)}})
 
-(defn- handle-get
-  [db-path path-parts query]
-  (cond
-    (= ["api" "scheduler" "overview"] path-parts)
-    {:status 200
-     :body (ui.scheduler/load-overview db-path)}
+(defn- task-detail-handler
+  [db-path {{{:keys [task-id]} :path} :parameters}]
+  {:status 200
+   :body (ui.scheduler/load-task db-path task-id)})
 
-    (= ["api" "task-types"] path-parts)
-    {:status 200
-     :body {:items (ui.defs/list-task-types)}}
+(defn- run-detail-handler
+  [db-path {{{:keys [run-id]} :path} :parameters}]
+  {:status 200
+   :body (ui.scheduler/load-run db-path run-id)})
 
-    (= ["api" "task-types" "create-options"] path-parts)
-    {:status 200
-     :body {:items (ui.defs/list-task-type-create-options)}}
+(defn- create-task-handler
+  [db-path {{{:keys [task-type-id task-type-version input]} :body} :parameters}]
+  {:status 201
+   :body (ui.tasks/create-task! db-path
+                                (keyword task-type-id)
+                                (int (or task-type-version 1))
+                                (or input {}))})
 
-    (= ["api" "task-types" "detail"] path-parts)
-    {:status 200
-     :body (ui.defs/load-task-type-detail (keyword (:task-type-id query))
-                                          (Integer/parseInt (:task-type-version query)))}
-
-    (= ["api" "tasks"] path-parts)
-    {:status 200
-     :body {:items (ui.tasks/list-tasks db-path)}}
-
-    (and (= 3 (count path-parts))
-         (= ["api" "tasks"] (subvec path-parts 0 2)))
-    {:status 200
-     :body (ui.scheduler/load-task db-path (nth path-parts 2))}
-
-    (and (= 3 (count path-parts))
-         (= ["api" "runs"] (subvec path-parts 0 2)))
-    {:status 200
-     :body (ui.scheduler/load-run db-path (nth path-parts 2))}
-
-    :else
-    {:status 404
-     :body {:error "Not found"}}))
-
-(defn- http-handler
+(defn- app
   [db-path]
-  (reify HttpHandler
-    (handle [_ exchange]
-      (try
-        (case (exchange-method exchange)
-          "OPTIONS"
-          (send-empty! exchange 204)
-
-          "GET"
-          (let [{:keys [status body]} (handle-get db-path
-                                                  (split-path exchange)
-                                                  (query-params exchange))]
-            (send-json! exchange status body))
-
-          "POST"
-          (let [body-str (read-body! exchange)
-                body (json/parse-string body-str true)
-                path-parts (split-path exchange)]
-            (cond
-              (= ["api" "tasks"] path-parts)
-              (let [result (ui.tasks/create-task! db-path
-                                                  (keyword (:task-type-id body))
-                                                  (int (:task-type-version body 1))
-                                                  (or (:input body) {}))]
-                (send-json! exchange 201 result))
-              :else
-              (send-json! exchange 404 {:error "Not found"})))
-
-          (method-not-allowed! exchange))
-        (catch clojure.lang.ExceptionInfo throwable
-          (send-json! exchange
-                      (ex-info-status throwable)
-                      {:error (root-cause-message throwable)
-                       :data (ex-data throwable)}))
-        (catch Throwable throwable
-          (send-json! exchange
-                      500
-                      {:error (root-cause-message throwable)}))))))
+  (http.middleware/wrap-app
+   (ring/ring-handler
+    (ring/router
+     [["/healthz"
+       {:get {:handler healthz-handler}}]
+      ["/api"
+       ["/scheduler/overview"
+        {:get {:handler (partial scheduler-overview-handler db-path)}}]
+       ["/task-types"
+        {:get {:handler task-types-handler}}]
+       ["/task-types/create-options"
+        {:get {:handler task-type-create-options-handler}}]
+       ["/task-types/detail"
+        {:get {:parameters {:query task-type-detail-query-params}
+               :handler task-type-detail-handler}}]
+       ["/runtime-profiles"
+        {:get {:handler runtime-profiles-handler}}]
+       ["/runtime-profiles/detail"
+        {:get {:parameters {:query runtime-profile-detail-query-params}
+               :handler runtime-profile-detail-handler}}]
+       ["/tasks"
+        {:get {:handler (partial tasks-handler db-path)}
+         :post {:parameters {:body create-task-body}
+                :handler (partial create-task-handler db-path)}}]
+       ["/tasks/:task-id"
+        {:get {:parameters {:path task-id-path-params}
+               :handler (partial task-detail-handler db-path)}}]
+       ["/runs/:run-id"
+        {:get {:parameters {:path run-id-path-params}
+               :handler (partial run-detail-handler db-path)}}]]]
+     {:data {:coercion coercion.malli/coercion
+             :middleware [parameters/parameters-middleware
+                          ring.coercion/coerce-request-middleware]}})
+    (ring/create-default-handler
+     {:not-found (fn [_] {:status 404
+                          :body {:error "Not found"}})
+      :method-not-allowed (fn [_] {:status 405
+                                   :body {:error "Method not allowed"}})}))))
 
 (defn start-server!
   ([] (start-server! {}))
   ([{:keys [db-path port]
      :or {db-path db/default-db-path
           port 8788}}]
-   (let [server (HttpServer/create (InetSocketAddress. (int port)) 0)]
-     (.createContext server "/" (http-handler db-path))
-     (.setExecutor server nil)
-     (.start server)
+   (let [server (http-kit/run-server (app db-path)
+                                     {:port (int port)
+                                      :legacy-return-value? false})]
      {:server server
-      :port (.getPort (.getAddress server))
+      :port (:port (bean server))
       :db-path db-path})))
 
 (defn stop-server!
   [{:keys [server]}]
   (when server
-    (.stop ^HttpServer server 0)
+    (http-kit/server-stop! server)
     true))
 
 (defn block-forever!

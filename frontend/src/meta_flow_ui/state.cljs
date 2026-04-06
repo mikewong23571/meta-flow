@@ -56,7 +56,13 @@
    :error nil
    :detail nil
    :detail-loading? false
-   :detail-error nil})
+   :detail-error nil
+   :runtime-items []
+   :runtime-loading? false
+   :runtime-error nil
+   :runtime-detail nil
+   :runtime-detail-loading? false
+   :runtime-detail-error nil})
 
 (defonce ui-state
   (r/atom {:preview default-preview-state

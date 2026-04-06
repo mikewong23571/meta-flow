@@ -1,6 +1,7 @@
 (ns meta-flow-ui.pages.tasks.detail
   (:require [meta-flow-ui.components :as components]
-            [meta-flow-ui.icons :as icons]))
+            [meta-flow-ui.icons :as icons]
+            [meta-flow-ui.routes :as routes]))
 
 (defn status-tone
   [label]
@@ -14,6 +15,14 @@
     (or (= label "completed")
         (= label "queued")) "success"
     :else "info"))
+
+(defn- runtime-profile-link
+  [ref-value]
+  (when ref-value
+    [:button {:className "button button-ghost"
+              :on-click #(routes/navigate-to-runtime-profile! (:definition/id ref-value)
+                                                              (:definition/version ref-value))}
+     (str (:definition/id ref-value) " v" (:definition/version ref-value))]))
 
 (defn detail-panel
   [{:keys [selected-kind selected-id detail detail-loading? detail-error]}
@@ -52,9 +61,7 @@
                 " v"
                 (get-in detail [:task/task-type-ref :definition/version]))]
           [components/detail-row "Runtime profile"
-           (str (get-in detail [:task/runtime-profile-ref :definition/id])
-                " v"
-                (get-in detail [:task/runtime-profile-ref :definition/version]))]
+           [runtime-profile-link (:task/runtime-profile-ref detail)]]
           [components/detail-row "Created at" (:task/created-at detail)]
           [components/detail-row "Updated at" (:task/updated-at detail)]]
 
