@@ -111,6 +111,20 @@ Current implementation code lives in:
 - `src/meta_flow/defs/generation.clj`
 - `src/meta_flow/defs/generation/description.clj`
 
+## 1C. Observe An Authored Definition In Runtime
+
+The minimal end-to-end proof path uses the existing mock adapter so the authored
+definitions can be exercised without external worker setup.
+
+Suggested flow:
+
+1. create and publish a new `runtime-profile` by cloning `runtime-profile/mock-worker`
+2. create and publish a new `task-type` by cloning `task-type/default` and pointing it at the published runtime profile
+3. create a task through `POST /api/tasks` or `clojure -M -m meta-flow.main` task creation flows
+4. run the scheduler until the task reaches a terminal state
+5. inspect the stored task or run detail and confirm the task and run still point at the authored runtime-profile ref
+6. inspect `var/runs/<run-id>/runtime-profile.edn` or the mock artifact manifest to confirm the runtime path used the authored ref during execution
+
 ## 2. Add A Runtime Adapter
 
 Runtime adapters implement `RuntimeAdapter` in `src/meta_flow/runtime/protocol.clj`.

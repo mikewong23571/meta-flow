@@ -15,16 +15,21 @@
   (json/parse-string (:body response) true))
 
 (defn start-test-server!
-  []
-  (let [overlay-root (temp-overlay-root)
-        defs-repo (defs.loader/filesystem-definition-repository
-                   {:resource-base "meta_flow/defs"
-                    :overlay-root overlay-root})
-        server (ui.http/start-server! {:defs-repo defs-repo
-                                       :port 0})]
-    {:overlay-root overlay-root
-     :defs-repo defs-repo
-     :server server}))
+  ([]
+   (start-test-server! {}))
+  ([{:keys [db-path]}]
+   (let [overlay-root (temp-overlay-root)
+         defs-repo (defs.loader/filesystem-definition-repository
+                    {:resource-base "meta_flow/defs"
+                     :overlay-root overlay-root})
+         server-opts (cond-> {:defs-repo defs-repo
+                              :port 0}
+                       db-path (assoc :db-path db-path))
+         server (ui.http/start-server! server-opts)]
+     {:overlay-root overlay-root
+      :defs-repo defs-repo
+      :server server
+      :db-path db-path})))
 
 (defn stop-test-server!
   [{:keys [server]}]

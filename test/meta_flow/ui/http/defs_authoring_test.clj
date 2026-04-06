@@ -1,5 +1,10 @@
 (ns meta-flow.ui.http.defs-authoring-test
-  (:require [clojure.test :refer [deftest is testing]]
+  (:require [clojure.edn :as edn]
+            [clojure.test :refer [deftest is testing]]
+            [meta-flow.defs.loader :as defs.loader]
+            [meta-flow.runtime.mock.fs :as mock.fs]
+            [meta-flow.scheduler :as scheduler]
+            [meta-flow.scheduler.support.test-support :as scheduler.support]
             [meta-flow.ui.http-support :as http.support]
             [meta-flow.ui.http.defs-support :as defs.support]))
 
@@ -118,5 +123,81 @@
                  (get-in live-detail-body [:task-type/runtime-profile :definition/id])))
           (is (= 200 (:status reload-response)))
           (is (= "ok" (:status reload-body)))))
+      (finally
+        (defs.support/stop-test-server! test-env)))))
+
+(deftest authored-task-types-can-create-tasks-and-run-through-the-mock-runtime
+  (let [{:keys [db-path artifacts-dir runs-dir]} (scheduler.support/temp-system)
+        {:keys [server defs-repo] :as test-env}
+        (defs.support/start-test-server! {:db-path db-path})]
+    (try
+      (let [runtime-response (http.support/http-post-json (:port server)
+                                                          "/api/defs/runtime-profiles/drafts"
+                                                          {:authoring/from-id "runtime-profile/mock-worker"
+                                                           :authoring/new-id "runtime-profile/repo-review-mock"
+                                                           :authoring/new-name "Repo review mock worker"})
+            runtime-publish-response (http.support/http-post-json (:port server)
+                                                                  "/api/defs/runtime-profiles/drafts/publish"
+                                                                  {:definition/id "runtime-profile/repo-review-mock"
+                                                                   :definition/version 1})
+            task-response (http.support/http-post-json (:port server)
+                                                       "/api/defs/task-types/drafts"
+                                                       {:authoring/from-id "task-type/default"
+                                                        :authoring/new-id "task-type/repo-review-mock"
+                                                        :authoring/new-name "Repo review mock"
+                                                        :authoring/overrides {:task-type/description "Authored mock-backed repo review task"
+                                                                              :task-type/runtime-profile-ref {:definition/id "runtime-profile/repo-review-mock"
+                                                                                                              :definition/version 1}}})
+            task-publish-response (http.support/http-post-json (:port server)
+                                                               "/api/defs/task-types/drafts/publish"
+                                                               {:definition/id "task-type/repo-review-mock"
+                                                                :definition/version 1})
+            create-task-response (http.support/http-post-json (:port server)
+                                                              "/api/tasks"
+                                                              {:task-type-id "task-type/repo-review-mock"
+                                                               :task-type-version 1
+                                                               :input {"work-key" "repo-review/acme"}})
+            create-task-body (defs.support/json-body create-task-response)
+            task-id (:task/id create-task-body)
+            created-task-response (http.support/http-get (:port server)
+                                                         (str "/api/tasks/" task-id))
+            created-task-body (defs.support/json-body created-task-response)]
+        (is (= 201 (:status runtime-response)))
+        (is (= 200 (:status runtime-publish-response)))
+        (is (= 201 (:status task-response)))
+        (is (= 200 (:status task-publish-response)))
+        (is (= 201 (:status create-task-response)))
+        (is (= "task.state/queued" (:task/state create-task-body)))
+        (is (= 200 (:status created-task-response)))
+        (is (= {:definition/id "runtime-profile/repo-review-mock"
+                :definition/version 1}
+               (:task/runtime-profile-ref created-task-body)))
+        (binding [mock.fs/*artifact-root-dir* artifacts-dir
+                  mock.fs/*run-root-dir* runs-dir]
+          (with-redefs [defs.loader/filesystem-definition-repository (fn
+                                                                       ([] defs-repo)
+                                                                       ([_] defs-repo))]
+            (dotimes [_ 8]
+              (scheduler/run-scheduler-step db-path))))
+        (let [completed-task-response (http.support/http-get (:port server)
+                                                             (str "/api/tasks/" task-id))
+              completed-task-body (defs.support/json-body completed-task-response)
+              task-list-body (defs.support/json-body (http.support/http-get (:port server)
+                                                                            "/api/tasks"))
+              task-item (first (filter #(= task-id (:task/id %))
+                                       (:items task-list-body)))
+              run-id (get-in task-item [:latest-run :run/id])
+              run-body (defs.support/json-body (http.support/http-get (:port server)
+                                                                      (str "/api/runs/" run-id)))
+              runtime-profile-ref (edn/read-string (slurp (str runs-dir "/" run-id "/runtime-profile.edn")))]
+          (is (= 200 (:status completed-task-response)))
+          (is (= "task.state/completed" (:task/state completed-task-body)))
+          (is (= {:definition/id "runtime-profile/repo-review-mock"
+                  :definition/version 1}
+                 (:task/runtime-profile-ref completed-task-body)))
+          (is (= "run.state/finalized" (:run/state run-body)))
+          (is (= {:definition/id :runtime-profile/repo-review-mock
+                  :definition/version 1}
+                 runtime-profile-ref))))
       (finally
         (defs.support/stop-test-server! test-env)))))

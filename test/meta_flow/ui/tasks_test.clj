@@ -31,9 +31,9 @@
   (let [task-rows [{:task_edn :repo-task
                     :run_edn :repo-run}
                    {:task_edn :fallback-task
-                    :run_edn nil}]]
-    (with-redefs [defs.loader/filesystem-definition-repository (fn [] :defs-repo)
-                  sql/with-connection (fn [db-path f]
+                    :run_edn nil}]
+        defs-repo :defs-repo]
+    (with-redefs [sql/with-connection (fn [db-path f]
                                         (is (= "tasks.sqlite3" db-path))
                                         (f :connection))
                   sql/query-rows (fn [_ _ params]
@@ -58,7 +58,8 @@
                                                                                    :definition/version 9}
                                                               :task/created-at "2026-04-01T00:01:00Z"
                                                               :task/updated-at "2026-04-01T00:02:00Z"}))
-                  defs.protocol/find-task-type-def (fn [_ task-type-id version]
+                  defs.protocol/find-task-type-def (fn [repo task-type-id version]
+                                                     (is (= defs-repo repo))
                                                      (case [task-type-id version]
                                                        [:task-type/repo-arch-investigation 1]
                                                        {:task-type/name "Repo architecture investigation"}
@@ -69,7 +70,7 @@
                                    :run/state :run.state/running
                                    :run/attempt 2
                                    :run/updated-at "2026-04-01T00:04:00Z"})]
-      (let [items (ui.tasks/list-tasks "tasks.sqlite3" 5)
+      (let [items (ui.tasks/list-tasks defs-repo "tasks.sqlite3" 5)
             repo-item (first items)
             fallback-item (second items)]
         (testing "repo architecture tasks use task-specific summary fields"
@@ -105,7 +106,8 @@
                  fallback-item)))))))
 
 (deftest create-task-rejects-missing-required-input-fields
-  (let [task-type {:task-type/id :task-type/repo-arch-investigation
+  (let [defs-repo :defs-repo
+        task-type {:task-type/id :task-type/repo-arch-investigation
                    :task-type/version 1
                    :task-type/task-fsm-ref {:definition/id :task-fsm/default
                                             :definition/version 3}
@@ -132,8 +134,8 @@
                                              :work-key/fields [:input/repo-url :input/notify-email]}}
         bad-inputs [{} {:input/repo-url "" :input/notify-email "   "}]]
     (doseq [input bad-inputs]
-      (with-redefs [defs.loader/filesystem-definition-repository (fn [] :defs-repo)
-                    defs.protocol/find-task-type-def (fn [_ task-type-id version]
+      (with-redefs [defs.protocol/find-task-type-def (fn [repo task-type-id version]
+                                                       (is (= defs-repo repo))
                                                        (is (= [:task-type/repo-arch-investigation 1]
                                                               [task-type-id version]))
                                                        task-type)
@@ -142,7 +144,8 @@
                     store.protocol/enqueue-task! (fn [_ _]
                                                    (throw (ex-info "enqueue should not be reached" {})))]
         (let [exception (try
-                          (ui.tasks/create-task! "tasks.sqlite3"
+                          (ui.tasks/create-task! defs-repo
+                                                 "tasks.sqlite3"
                                                  :task-type/repo-arch-investigation
                                                  1
                                                  input)

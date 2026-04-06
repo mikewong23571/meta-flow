@@ -109,10 +109,19 @@
 
 (defn create-task!
   ([task-type-id task-type-version input]
-   (create-task! db/default-db-path task-type-id task-type-version input))
+   (create-task! (defs.loader/filesystem-definition-repository)
+                 db/default-db-path
+                 task-type-id
+                 task-type-version
+                 input))
   ([db-path task-type-id task-type-version input]
-   (let [defs-repo (defs.loader/filesystem-definition-repository)
-         task-type (defs.protocol/find-task-type-def defs-repo task-type-id task-type-version)
+   (create-task! (defs.loader/filesystem-definition-repository)
+                 db-path
+                 task-type-id
+                 task-type-version
+                 input))
+  ([defs-repo db-path task-type-id task-type-version input]
+   (let [task-type (defs.protocol/find-task-type-def defs-repo task-type-id task-type-version)
          _ (when-not task-type
              (throw (ex-info (str "Task type not found: " task-type-id)
                              {:task-type-id task-type-id :task-type-version task-type-version})))
@@ -148,11 +157,20 @@
       :task/state (:task/state result)})))
 
 (defn list-tasks
-  ([] (list-tasks db/default-db-path default-task-list-limit))
-  ([db-path] (list-tasks db-path default-task-list-limit))
+  ([]
+   (list-tasks (defs.loader/filesystem-definition-repository)
+               db/default-db-path
+               default-task-list-limit))
+  ([db-path]
+   (list-tasks (defs.loader/filesystem-definition-repository)
+               db-path
+               default-task-list-limit))
   ([db-path limit]
-   (let [defs-repo (defs.loader/filesystem-definition-repository)]
-     (sql/with-connection db-path
-       (fn [connection]
-         (mapv #(task-row->item defs-repo %)
-               (latest-run-rows-query connection limit)))))))
+   (list-tasks (defs.loader/filesystem-definition-repository)
+               db-path
+               limit))
+  ([defs-repo db-path limit]
+   (sql/with-connection db-path
+     (fn [connection]
+       (mapv #(task-row->item defs-repo %)
+             (latest-run-rows-query connection limit))))))

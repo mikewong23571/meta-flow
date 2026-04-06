@@ -34,9 +34,9 @@
    :body (ui.scheduler/load-overview db-path)})
 
 (defn- tasks-handler
-  [db-path _]
+  [db-path defs-repo _]
   {:status 200
-   :body {:items (ui.tasks/list-tasks db-path)}})
+   :body {:items (ui.tasks/list-tasks defs-repo db-path 200)}})
 
 (defn- task-detail-handler
   [db-path {{{:keys [task-id]} :path} :parameters}]
@@ -49,9 +49,10 @@
    :body (ui.scheduler/load-run db-path run-id)})
 
 (defn- create-task-handler
-  [db-path {{{:keys [task-type-id task-type-version input]} :body} :parameters}]
+  [db-path defs-repo {{{:keys [task-type-id task-type-version input]} :body} :parameters}]
   {:status 201
-   :body (ui.tasks/create-task! db-path
+   :body (ui.tasks/create-task! defs-repo
+                                db-path
                                 (keyword task-type-id)
                                 (int (or task-type-version 1))
                                 (or input {}))})
@@ -68,9 +69,9 @@
               {:get {:handler (partial scheduler-overview-handler db-path)}}]]
             (concat (http.defs/routes defs-repo)
                     [["/tasks"
-                      {:get {:handler (partial tasks-handler db-path)}
+                      {:get {:handler (partial tasks-handler db-path defs-repo)}
                        :post {:parameters {:body create-task-body}
-                              :handler (partial create-task-handler db-path)}}]
+                              :handler (partial create-task-handler db-path defs-repo)}}]
                      ["/tasks/:task-id"
                       {:get {:parameters {:path task-id-path-params}
                              :handler (partial task-detail-handler db-path)}}]

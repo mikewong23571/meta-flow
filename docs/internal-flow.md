@@ -57,7 +57,11 @@ flowchart LR
 
 ### 1. Definition data
 
-Versioned EDN under `resources/meta_flow/defs/`.
+Versioned EDN from bundled defaults under `resources/meta_flow/defs/` plus an
+optional project-local `defs/` overlay at the repository root.
+
+Draft authoring files live under `defs/drafts/` and are excluded from the live
+repository until an explicit publish step copies them into the active overlay.
 
 Important definition kinds:
 
@@ -72,6 +76,10 @@ Important definition kinds:
 
 These definitions are loaded through `DefinitionRepository` and then pinned into
 task and run records so in-flight meaning does not drift when definitions change.
+
+`task-type` and `runtime-profile` are now authorable in this data layer.
+Runtime adapters and validator engines are still code-defined seams in
+`src/meta_flow/runtime/` and `src/meta_flow/service/validation.clj`.
 
 ### 2. Runtime truth
 
