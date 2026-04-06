@@ -24,13 +24,30 @@ All development commands go through `bb`. Run `bb tasks` to see the full list.
 | `bb coverage` | Run Kaocha + Cloverage and enforce coverage governance: overall line coverage below 88% warns and below 85% fails |
 | `bb fmt` | Reformat all source files in place (cljfmt fix) |
 | `bb fmt:check` | Check formatting without modifying files |
-| `bb check` | Run the unified governance gate with concise output: format, static analysis, structure, frontend, executable correctness, and coverage |
-| `bb check:verbose` | Run the step-by-step human-debugging gate: fmt:check → lint → ui:governance → test → coverage |
+| `bb check` | Run the backend/core governance gate with concise output: format, static analysis, structure, executable correctness, and coverage |
+| `bb check:full` | Run the whole-repository governance gate: backend/core plus one mounted UI governance node |
+| `bb check:verbose` | Run the step-by-step human-debugging gate: fmt:check → lint → test → coverage |
 | `bb init` | Initialize SQLite database and runtime directories |
 | `bb defs:validate` | Validate bundled EDN workflow definitions |
-| `bb ui:install` | Install frontend npm dependencies |
-| `bb ui:watch` | Start the frontend preview at `http://localhost:8787` |
-| `bb ui:release` | Build the frontend preview release bundle |
+| `bb ui:api` | Serve the backend JSON API consumed by the browser UI |
+
+### UI subproject commands
+
+Run these from `ui/`:
+
+| Command | What it does |
+|---------|-------------|
+| `bb install` | Install UI npm dependencies |
+| `bb watch` | Start the UI preview at `http://localhost:8787` |
+| `bb compile:check` | Compile-check the UI project |
+| `bb lint` | Run UI ClojureScript static analysis |
+| `bb fmt` | Reformat UI ClojureScript source |
+| `bb fmt:check` | Check UI ClojureScript formatting |
+| `bb governance` | Run detailed UI governance gates |
+| `bb node` | Emit one machine-facing UI governance node payload |
+| `bb test` | Run the UI governance test suite |
+| `bb check` | Run the UI pre-PR gate |
+| `bb release` | Build the UI preview release bundle |
 
 ### Daily development loop
 
@@ -48,20 +65,34 @@ When you want automatic reruns on file change instead:
 
 For the browser preview:
 
-    bb ui:install
-    bb ui:watch
+    bb ui:api
+
+In a second terminal:
+
+    cd ui
+    bb install
+    bb watch
 
 Then open `http://localhost:8787`.
 
 ### Full pipeline
 
-    bb check       # unified governance gate (same as pre-commit)
+    bb check
+
+For the UI project:
+
+    cd ui
+    bb check
+
+If you need the aggregated root view that includes UI as one node:
+
+    bb check:full
 
 Run this before opening a PR to confirm everything is green.
 
 ## Pre-commit hook
 
-`.git/hooks/pre-commit` runs `bb check` automatically on every `git commit`.
+`.git/hooks/pre-commit` runs `bb check:full` automatically on every `git commit`.
 If it fails, the commit is aborted and the output tells you what to fix.
 
 To bypass in an emergency (not recommended):
@@ -72,14 +103,13 @@ The hook is not versioned — if you clone fresh, re-create it:
 
     cp .git/hooks/pre-commit.sample .git/hooks/pre-commit  # not needed
     # just write the one-liner manually:
-    echo '#!/usr/bin/env bash\nset -euo pipefail\nexec bb check' > .git/hooks/pre-commit
+    echo '#!/usr/bin/env bash\nset -euo pipefail\nexec bb check:full' > .git/hooks/pre-commit
     chmod +x .git/hooks/pre-commit
 
 ## Project initialization
 
 Create the SQLite database and runtime directories before first use:
 
-    bb ui:install
     bb init
 
 Validate that the bundled workflow definitions are well-formed:
@@ -108,3 +138,4 @@ For Codex runtime behavior and smoke testing, see:
     deps.edn              dependency and alias declarations
     bb.edn                task runner
     tests.edn             kaocha test runner configuration
+    ui/                   standalone UI project (bb, tests, deps, npm, shadow-cljs, src, public)

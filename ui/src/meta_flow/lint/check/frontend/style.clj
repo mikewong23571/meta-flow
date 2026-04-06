@@ -3,7 +3,7 @@
             [clojure.string :as str]))
 
 (def frontend-style-roots
-  ["frontend/public/styles"])
+  ["public/styles"])
 
 (def raw-color-allowed-files
   #{"tokens.css" "theme.css"})

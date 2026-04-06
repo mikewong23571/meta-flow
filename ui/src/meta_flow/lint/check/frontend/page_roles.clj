@@ -4,7 +4,7 @@
             [meta-flow.lint.check.frontend.shared-ui-support :as support]))
 
 (def frontend-pages-root
-  "frontend/src/meta_flow_ui/pages")
+  "src/meta_flow_ui/pages")
 
 (defn- cljs-file?
   [file]

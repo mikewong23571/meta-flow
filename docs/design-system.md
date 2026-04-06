@@ -83,7 +83,7 @@ Text labels are noise.
 | Navigate forward | → (`icons/arrow-right`) | Hero CTAs |
 | Home / back | ⌂ (`icons/home`) | Return to entry |
 
-Add new icons to `frontend/src/meta_flow_ui/icons.cljs` as inline SVG components.
+Add new icons to `ui/src/meta_flow_ui/icons.cljs` as inline SVG components.
 Do not use icon fonts or external icon CDNs.
 
 ---

@@ -179,8 +179,18 @@ Daily development commands go through `bb`:
 - `bb fmt`
 - `bb fmt:check`
 - `bb check`
+- `bb check:full`
 - `bb check:verbose`
 - `bb init`
 - `bb defs:validate`
+
+The browser UI is a separate same-repo project under `ui/`. Run UI tasks from there, for example:
+
+- `cd ui && bb install`
+- `cd ui && bb watch`
+- `cd ui && bb compile:check`
+- `cd ui && bb governance`
+- `cd ui && bb node`
+- `cd ui && bb check`
 
 See [../dev.md](../dev.md) for the local development loop.

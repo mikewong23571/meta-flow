@@ -1,0 +1,4 @@
+-m
+clj-kondo.main
+--lint
+src

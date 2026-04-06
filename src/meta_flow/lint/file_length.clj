@@ -22,7 +22,7 @@
        "to add source files at the same level."))
 
 (def governance-roots
-  ["src" "test" "frontend/src"])
+  ["src" "test"])
 
 (defn clojure-source-file?
   [file]

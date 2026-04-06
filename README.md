@@ -22,7 +22,6 @@ Prerequisites:
 Initialize local state:
 
 ```bash
-bb ui:install
 bb init
 bb defs:validate
 ```
@@ -33,10 +32,18 @@ Run the default local gate:
 bb check
 ```
 
+Run the whole-repository aggregate gate:
+
+```bash
+bb check:full
+```
+
 Start the preview UI:
 
 ```bash
-bb ui:watch
+bb ui:api
+cd ui && bb install
+cd ui && bb watch
 ```
 
 Then open `http://localhost:8787`.
@@ -108,4 +115,5 @@ Historical material:
 - `resources/meta_flow/prompts/` worker prompts
 - `resources/meta_flow/codex_home/` bundled `CODEX_HOME` templates
 - `docs/` current repository documentation
-- `frontend/` browser preview app and static assets
+- `ui/` browser preview app and static assets
+  This subproject owns its own `bb` tasks and check pipeline; run UI checks from `ui/`, while root `bb check:full` mounts the UI as one governance node.

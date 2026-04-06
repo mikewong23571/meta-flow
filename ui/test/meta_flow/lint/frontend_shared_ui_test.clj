@@ -60,9 +60,9 @@
 
 (deftest frontend-shared-component-placement-gate-detects-misplaced-shared-ui-files
   (let [root (temp-dir-path)
-        shared-ui-root (.toString (.resolve root "frontend/src/meta_flow_ui/ui"))]
+        shared-ui-root (.toString (.resolve root "src/meta_flow_ui/ui"))]
     (try
-      (write-file! root "frontend/src/meta_flow_ui/ui/shared.cljs"
+      (write-file! root "src/meta_flow_ui/ui/shared.cljs"
                    "(ns meta-flow-ui.ui.shared)\n(defn shared-panel [] [:section])\n")
       (with-redefs [frontend-shared-ui/shared-ui-root shared-ui-root]
         (let [gate (frontend-shared-ui/frontend-shared-component-placement-gate)]
@@ -74,7 +74,7 @@
 
 (deftest frontend-shared-component-facade-gate-detects-implementation
   (let [root (temp-dir-path)
-        facade-file (write-file! root "frontend/src/meta_flow_ui/components.cljs"
+        facade-file (write-file! root "src/meta_flow_ui/components.cljs"
                                  "(ns meta-flow-ui.components)\n(defn badge [] [:span])\n")]
     (try
       (with-redefs [frontend-shared-ui/shared-component-facade-file facade-file]
@@ -87,11 +87,11 @@
 
 (deftest frontend-ui-layering-gate-detects-page-and-state-dependencies
   (let [root (temp-dir-path)
-        shared-ui-root (.toString (.resolve root "frontend/src/meta_flow_ui/ui"))]
+        shared-ui-root (.toString (.resolve root "src/meta_flow_ui/ui"))]
     (try
-      (write-file! root "frontend/src/meta_flow_ui/ui/layout.cljs"
+      (write-file! root "src/meta_flow_ui/ui/layout.cljs"
                    "(ns meta-flow-ui.ui.layout\n  (:require [meta-flow-ui.pages.scheduler :as scheduler]\n            [meta-flow-ui.state :as state]))\n(defn shell [] [:main])\n")
-      (write-file! root "frontend/src/meta_flow_ui/ui/patterns.cljs"
+      (write-file! root "src/meta_flow_ui/ui/patterns.cljs"
                    "(ns meta-flow-ui.ui.patterns\n  (:require [meta-flow-ui.pages.tasks :as tasks]))\n(defn detail-row [] [:div])\n")
       (with-redefs [frontend-shared-ui/shared-ui-root shared-ui-root]
         (let [gate (frontend-shared-ui/frontend-ui-layering-gate)]

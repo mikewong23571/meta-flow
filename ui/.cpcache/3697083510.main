@@ -1,0 +1,4 @@
+-m
+cljfmt.main
+check
+src

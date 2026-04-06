@@ -1,5 +1,7 @@
 # Browser UI For Definition Authoring
 
+Current command-boundary note (2026-04-07): the browser UI now owns its own `bb` tasks inside `ui/`. Historical progress entries below may mention older root-level `bb ui:*` wrappers; use `cd ui && bb ...` for current UI commands, and use root `bb ui:api` only for the backend JSON API process.
+
 This ExecPlan is a living document. The sections `Progress`, `Surprises & Discoveries`, `Decision Log`, and `Outcomes & Retrospective` must be kept up to date as work proceeds.
 
 This document must be maintained in accordance with `.agent/PLANS.md`.
@@ -16,16 +18,16 @@ The result must be observable in the browser, not merely through tests. The Defs
 
 - [x] (2026-04-06 11:01Z) Re-read `.agent/PLANS.md` and confirmed this plan must be self-contained, prose-first, novice-guiding, and outcome-focused.
 - [x] (2026-04-06 11:01Z) Re-read the existing definitions authoring ExecPlan and confirmed that backend authoring is already implemented through `/api/defs/...` and should be treated as the stable foundation for browser work.
-- [x] (2026-04-06 11:06Z) Re-read the current frontend structure under `frontend/src/meta_flow_ui/` and confirmed that the browser app already has a Defs page, route handling, page-local state modules, and Tasks create-dialog patterns that can host authoring UI without introducing a second frontend architecture.
+- [x] (2026-04-06 11:06Z) Re-read the current frontend structure under `ui/src/meta_flow_ui/` and confirmed that the browser app already has a Defs page, route handling, page-local state modules, and Tasks create-dialog patterns that can host authoring UI without introducing a second frontend architecture.
 - [x] (2026-04-06 11:06Z) Chose the target scope for this plan: add browser UI for clone-first `runtime-profile` and `task-type` authoring plus draft inspection and publish; do not add a schema-first visual editor or arbitrary definition-kind editing in the first pass.
 - [x] (2026-04-06 11:10Z) Re-reviewed this plan against repo reality and a live browser spike, and tightened it around four concrete friction points: no dedicated CLJS test harness exists yet, browser create does not need validate as a hard prerequisite, generation can return one or two draft results plus notes, and local `ui:api` / `shadow-cljs` processes may already be running or stale during manual acceptance.
 - [x] (2026-04-06 11:24Z) Ran a narrow frontend state/orchestration spike for Defs authoring, proved that a `:defs :authoring` subtree plus a larger `pages/defs/state.cljs` orchestration layer compiles cleanly under `npm run ui:check`, then removed the spike code so the repo stays clean until feature work starts.
-- [x] (2026-04-06 12:24Z) Confirmed Milestone 1 substrate is now present in the frontend tree: browser-side authoring contract/templates/drafts/reload wrappers and shared `:defs :authoring` state live under `frontend/src/meta_flow_ui/pages/defs/authoring/` and compile cleanly as the stable base for browser controls.
+- [x] (2026-04-06 12:24Z) Confirmed Milestone 1 substrate is now present in the frontend tree: browser-side authoring contract/templates/drafts/reload wrappers and shared `:defs :authoring` state live under `ui/src/meta_flow_ui/pages/defs/authoring/` and compile cleanly as the stable base for browser controls.
 - [x] (2026-04-06 12:24Z) Implemented Milestone 2 on `#/defs/runtimes`: the page now shows a runtime-profile authoring summary, a clone-first modal dialog with validate and create actions, runtime draft list and inspection panels, publish controls, and a reload path that keeps the published runtime list live without restarting the server.
 - [x] (2026-04-06 12:24Z) Verified the runtime-profile browser authoring surface with `bb ui:check`, `bb test --focus meta-flow.ui.http.defs-authoring-test`, and a Playwright smoke against `http://localhost:8787/index.html#/defs/runtimes` that confirmed the runtime authoring section and dialog fields render in the browser.
 - [x] (2026-04-06 12:24Z) Implemented frontend HTTP wrappers and page state for defs authoring endpoints, including draft validation, draft creation, draft listing/detail, publish, reload, and description generation.
 - [x] (2026-04-06 12:55Z) Implemented Milestone 3 on `#/defs`: the task-type tab now shows a task-type authoring summary, a clone-first modal dialog, published-runtime-only runtime override selection, task-type draft list and inspection panels, publish controls, and page bootstrap that keeps task-type authoring data live alongside the published catalog.
-- [x] (2026-04-06 12:55Z) Fixed a browser-facing request encoding bug in `frontend/src/meta_flow_ui/http.cljs` so authoring POST bodies preserve namespaced keys like `authoring/from-id` and `task-type/runtime-profile-ref`; without that fix, both runtime-profile and task-type create/validate routes were being rejected by request coercion.
+- [x] (2026-04-06 12:55Z) Fixed a browser-facing request encoding bug in `ui/src/meta_flow_ui/http.cljs` so authoring POST bodies preserve namespaced keys like `authoring/from-id` and `task-type/runtime-profile-ref`; without that fix, both runtime-profile and task-type create/validate routes were being rejected by request coercion.
 - [x] (2026-04-06 12:55Z) Verified the task-type browser authoring flow with `bb ui:check`, `bb test --focus meta-flow.ui.http.defs-authoring-test`, a Playwright smoke that rendered the new task-type authoring panel/dialog at `http://localhost:8787/#/defs`, and a browser create/publish walkthrough that published `runtime-profile/browser-m3-ui-smoke-3` followed by `task-type/browser-m3-ui-smoke-3` from the live UI before cleaning the generated overlay drafts back out of the repo.
 - [x] (2026-04-06 13:24Z) Implemented Milestone 4 on `#/defs`: the task-type authoring tab now exposes a description-generation dialog with optional template/id overrides, a persisted generation result panel that renders whichever draft results the backend actually returned, direct affordances to inspect the generated task-type draft or jump to runtime drafts, and automatic refresh plus task-draft inspection after generation succeeds.
 - [x] (2026-04-06 13:24Z) Verified the Milestone 4 browser flow with `bb ui:check`, `bb test --focus meta-flow.ui.http.defs-generation-test`, `bb test --focus meta-flow.ui.http.defs-authoring-test`, and a Playwright smoke at `http://localhost:8787/index.html#/defs` that generated `runtime-profile/repo-review` plus `task-type/repo-review`, rendered the returned notes in the browser, and then cleaned the temporary overlay drafts back out of the repo.
@@ -36,22 +38,22 @@ The result must be observable in the browser, not merely through tests. The Defs
 ## Surprises & Discoveries
 
 - Observation: the repository already has a browser Defs page, but it is read-only.
-  Evidence: `frontend/src/meta_flow_ui/pages/defs.cljs` renders task-type and runtime-profile list/detail screens, and `frontend/src/meta_flow_ui/pages/defs/state.cljs` only calls `/api/task-types`, `/api/task-types/detail`, `/api/runtime-profiles`, and `/api/runtime-profiles/detail`.
+  Evidence: `ui/src/meta_flow_ui/pages/defs.cljs` renders task-type and runtime-profile list/detail screens, and `ui/src/meta_flow_ui/pages/defs/state.cljs` only calls `/api/task-types`, `/api/task-types/detail`, `/api/runtime-profiles`, and `/api/runtime-profiles/detail`.
 
 - Observation: the frontend already has a working create-dialog pattern that is close to the needed authoring UI shape.
-  Evidence: `frontend/src/meta_flow_ui/pages/tasks/create.cljs` renders a modal dialog with per-field validation, page-local state updates, submit handling, and cancel behavior. The same pattern can host clone-first definition authoring with less risk than inventing a new UI framework.
+  Evidence: `ui/src/meta_flow_ui/pages/tasks/create.cljs` renders a modal dialog with per-field validation, page-local state updates, submit handling, and cancel behavior. The same pattern can host clone-first definition authoring with less risk than inventing a new UI framework.
 
 - Observation: the backend contract is broader than the current browser app uses.
   Evidence: `src/meta_flow/ui/http/defs/handlers.clj` already exposes `/api/defs/contract`, templates, drafts list/detail, validate, publish, reload, and generation routes for both `runtime-profile` and `task-type`, but the browser HTTP helper does not yet wrap these endpoints.
 
 - Observation: the frontend architecture is intentionally narrow and governed.
-  Evidence: `frontend/src/meta_flow_ui/app.cljs`, `frontend/src/meta_flow_ui/routes.cljs`, and `src/meta_flow/lint/check/frontend/shared_ui_support.clj` show that new browser work must stay inside page namespaces plus `ui/layout` and `ui/patterns`, and must not introduce page-specific implementation into shared UI facades.
+  Evidence: `ui/src/meta_flow_ui/app.cljs`, `ui/src/meta_flow_ui/routes.cljs`, and `ui/src/meta_flow/lint/check/frontend/shared_ui_support.clj` show that new browser work must stay inside page namespaces plus `ui/layout` and `ui/patterns`, and must not introduce page-specific implementation into shared UI facades.
 
 - Observation: the browser app and API server run on different ports in local development, so “observable acceptance” must mention both processes explicitly.
-  Evidence: `bb.edn` defines `bb ui:watch` for `http://localhost:8787` and `bb ui:api` for `http://localhost:8788`, and `frontend/src/meta_flow_ui/http.cljs` already special-cases port `8787` to call the API server on `8788`.
+  Evidence: `bb.edn` defines `bb ui:watch` for `http://localhost:8787` and `bb ui:api` for `http://localhost:8788`, and `ui/src/meta_flow_ui/http.cljs` already special-cases port `8787` to call the API server on `8788`.
 
 - Observation: the repo does not currently include a dedicated CLJS test runner or browser component-test harness.
-  Evidence: `bb.edn` exposes `ui:watch`, `ui:release`, `ui:check`, `ui:governance`, and JVM-side `bb test`, but there is no frontend test task, and repository search does not show `cljs.test`, `doo`, or another configured browser-test runner under `frontend/`.
+  Evidence: `bb.edn` exposes `ui:watch`, `ui:release`, `ui:check`, `ui:governance`, and JVM-side `bb test`, but there is no frontend test task, and repository search does not show `cljs.test`, `doo`, or another configured browser-test runner under `ui/`.
 
 - Observation: the create routes already perform draft planning and validation internally, so an explicit browser-side validate call is useful as preview but is not required before create.
   Evidence: `src/meta_flow/ui/http/defs/handlers.clj` exposes `POST /api/defs/.../drafts` independently from `POST /api/defs/.../drafts/validate`, and `src/meta_flow/defs/authoring.clj` shows `create-definition-draft!` calling `plan-definition-draft!` before writing the draft.
@@ -63,7 +65,7 @@ The result must be observable in the browser, not merely through tests. The Defs
   Evidence: a local spike hit `bb ui:api` with “Address already in use”, `bb ui:watch` with “shadow-cljs already running”, and a live process on `:8788` returned a stale authoring contract that did not match the current source tree.
 
 - Observation: a narrow Defs authoring state spike compiled cleanly without requiring a new frontend architecture, but leaving that half-implementation checked in would create more noise than value before the real UI work starts.
-  Evidence: a temporary `:defs :authoring` state subtree plus expanded `frontend/src/meta_flow_ui/pages/defs/state.cljs` orchestration compiled successfully with `npm run ui:check`, and the spike was then intentionally removed after capturing the design conclusion in this plan.
+  Evidence: a temporary `:defs :authoring` state subtree plus expanded `ui/src/meta_flow_ui/pages/defs/state.cljs` orchestration compiled successfully with `npm run ui:check`, and the spike was then intentionally removed after capturing the design conclusion in this plan.
 
 - Observation: the Tasks browser dialog depends on more than the raw task-type id and version; it consumes `create-options` input-schema placeholders and renders task-list secondary text from task-type names rather than ids.
   Evidence: the first Milestone 5 test revision failed until its expectations were updated to match `/api/task-types/create-options` returning `:field/placeholder "my-unique-work-key"` and `/api/tasks` returning `:task/summary {:secondary "Repo review mock"}` for the authored task type.
@@ -131,17 +133,17 @@ The main lesson from the final milestone is that proof has to match the real bro
 
 ## Context and Orientation
 
-The browser UI lives under `frontend/src/meta_flow_ui/`. This is a ClojureScript application compiled by `shadow-cljs` into static assets under `frontend/public/`. In local development, `bb ui:watch` serves the browser app on `http://localhost:8787` and recompiles on change, while `bb ui:api` serves the backend JSON API on `http://localhost:8788`.
+The browser UI lives under `ui/src/meta_flow_ui/`. This is a ClojureScript application compiled by `shadow-cljs` into static assets under `ui/public/`. In local development, `bb ui:watch` serves the browser app on `http://localhost:8787` and recompiles on change, while `bb ui:api` serves the backend JSON API on `http://localhost:8788`.
 
 Milestone 4 is now delivered in that frontend tree. The task-type authoring page still carries the clone-first dialog from Milestone 3, but it now also includes a second browser entry point for description-driven generation and a result section that explicitly keeps generated outputs in draft state until publish. The practical effect is that a novice can stay on `#/defs`, ask the browser UI to derive a task type from plain language, and immediately see whether the backend produced one task-type draft or a linked runtime-profile plus task-type pair, along with the publish-order notes returned by the server.
 
-The current browser entry point is `frontend/src/meta_flow_ui/app.cljs`. It chooses which page component to render based on route state from `frontend/src/meta_flow_ui/routes.cljs`. Routes are hash-based, so a path like `#/defs` selects the definitions page without server-side routing changes.
+The current browser entry point is `ui/src/meta_flow_ui/app.cljs`. It chooses which page component to render based on route state from `ui/src/meta_flow_ui/routes.cljs`. Routes are hash-based, so a path like `#/defs` selects the definitions page without server-side routing changes.
 
-The definitions browser page today is `frontend/src/meta_flow_ui/pages/defs.cljs`. It renders task-type and runtime-profile list/detail views by calling helpers in `frontend/src/meta_flow_ui/pages/defs/state.cljs`, `frontend/src/meta_flow_ui/pages/defs/list.cljs`, and `frontend/src/meta_flow_ui/pages/defs/detail.cljs`. A “page-local state module” here means a namespace that reads and updates a slice of the shared Reagent atom in `frontend/src/meta_flow_ui/state.cljs`.
+The definitions browser page today is `ui/src/meta_flow_ui/pages/defs.cljs`. It renders task-type and runtime-profile list/detail views by calling helpers in `ui/src/meta_flow_ui/pages/defs/state.cljs`, `ui/src/meta_flow_ui/pages/defs/list.cljs`, and `ui/src/meta_flow_ui/pages/defs/detail.cljs`. A “page-local state module” here means a namespace that reads and updates a slice of the shared Reagent atom in `ui/src/meta_flow_ui/state.cljs`.
 
-The shared browser state lives in `frontend/src/meta_flow_ui/state.cljs` inside `ui-state`. The current `:defs` state only holds list and detail data for published task types and runtime profiles. It does not yet hold authoring form data, template lists, draft lists, submit state, or validation errors.
+The shared browser state lives in `ui/src/meta_flow_ui/state.cljs` inside `ui-state`. The current `:defs` state only holds list and detail data for published task types and runtime profiles. It does not yet hold authoring form data, template lists, draft lists, submit state, or validation errors.
 
-The frontend HTTP wrapper is `frontend/src/meta_flow_ui/http.cljs`. It currently exposes `fetch-json` and `post-json`. The browser Defs page uses it only for read-only endpoints. The backend authoring endpoints already exist in `src/meta_flow/ui/http/defs/handlers.clj`. Those routes support:
+The frontend HTTP wrapper is `ui/src/meta_flow_ui/http.cljs`. It currently exposes `fetch-json` and `post-json`. The browser Defs page uses it only for read-only endpoints. The backend authoring endpoints already exist in `src/meta_flow/ui/http/defs/handlers.clj`. Those routes support:
 
 - `/api/defs/contract`
 - `/api/defs/runtime-profiles/templates`
@@ -157,7 +159,7 @@ The frontend HTTP wrapper is `frontend/src/meta_flow_ui/http.cljs`. It currently
 - `/api/defs/task-types/generate`
 - `/api/defs/reload`
 
-The existing Tasks page provides the closest browser pattern for authoring UI. `frontend/src/meta_flow_ui/pages/tasks.cljs` opens a modal dialog from a page action button, while `frontend/src/meta_flow_ui/pages/tasks/create.cljs` renders the dialog fields and submit actions. `frontend/src/meta_flow_ui/pages/tasks/state.cljs` manages the dialog state and POST submission flow. The new definition authoring browser work should mirror that pattern so a novice sees a familiar create-then-submit interaction.
+The existing Tasks page provides the closest browser pattern for authoring UI. `ui/src/meta_flow_ui/pages/tasks.cljs` opens a modal dialog from a page action button, while `ui/src/meta_flow_ui/pages/tasks/create.cljs` renders the dialog fields and submit actions. `ui/src/meta_flow_ui/pages/tasks/state.cljs` manages the dialog state and POST submission flow. The new definition authoring browser work should mirror that pattern so a novice sees a familiar create-then-submit interaction.
 
 The previous ExecPlan at `docs/architecture/description-driven-extension-execplan.md` already completed the backend authoring milestone. That matters because this plan should not redefine what a draft is. In this repository, a “draft” means a definition file stored under `defs/drafts/` that is visible through `/api/defs/.../drafts` but is not part of the live repository until an explicit publish step copies it into `defs/`.
 
@@ -195,11 +197,11 @@ The proof is a test and a manual walkthrough that uses the browser UI plus the s
 
 ## Plan of Work
 
-Start by expanding the frontend state model in `frontend/src/meta_flow_ui/state.cljs`. Add a dedicated `:authoring` sub-map under `:defs` rather than scattering new atoms through multiple namespaces. The first release needs separate state for runtime-profile authoring and task-type authoring, each with template lists, drafts lists, selected template id/version, form values, validation result, submit error, submitting flag, publish-in-flight flag, and any currently viewed draft detail. Also add state for description generation so generated drafts can reuse the same visible draft lists.
+Start by expanding the frontend state model in `ui/src/meta_flow_ui/state.cljs`. Add a dedicated `:authoring` sub-map under `:defs` rather than scattering new atoms through multiple namespaces. The first release needs separate state for runtime-profile authoring and task-type authoring, each with template lists, drafts lists, selected template id/version, form values, validation result, submit error, submitting flag, publish-in-flight flag, and any currently viewed draft detail. Also add state for description generation so generated drafts can reuse the same visible draft lists.
 
-Next, extend `frontend/src/meta_flow_ui/pages/defs/state.cljs` so it becomes the single browser-facing orchestration layer for the Defs page. Add wrappers that call the existing authoring endpoints through `meta-flow-ui.http/post-json` and `meta-flow-ui.http/fetch-json`. Keep the current read-only loaders intact, but add new functions with explicit names such as `load-authoring-contract!`, `load-runtime-profile-templates!`, `load-task-type-templates!`, `load-runtime-profile-drafts!`, `load-task-type-drafts!`, `validate-runtime-profile-draft!`, `create-runtime-profile-draft!`, `publish-runtime-profile-draft!`, `validate-task-type-draft!`, `create-task-type-draft!`, `publish-task-type-draft!`, `generate-task-type-draft!`, and `reload-definitions!`. Each must update the shared `:defs` state predictably on success and failure.
+Next, extend `ui/src/meta_flow_ui/pages/defs/state.cljs` so it becomes the single browser-facing orchestration layer for the Defs page. Add wrappers that call the existing authoring endpoints through `meta-flow-ui.http/post-json` and `meta-flow-ui.http/fetch-json`. Keep the current read-only loaders intact, but add new functions with explicit names such as `load-authoring-contract!`, `load-runtime-profile-templates!`, `load-task-type-templates!`, `load-runtime-profile-drafts!`, `load-task-type-drafts!`, `validate-runtime-profile-draft!`, `create-runtime-profile-draft!`, `publish-runtime-profile-draft!`, `validate-task-type-draft!`, `create-task-type-draft!`, `publish-task-type-draft!`, `generate-task-type-draft!`, and `reload-definitions!`. Each must update the shared `:defs` state predictably on success and failure.
 
-Then add browser controls in `frontend/src/meta_flow_ui/pages/defs.cljs` and, if the file grows too large, split authoring UI into new namespaces under `frontend/src/meta_flow_ui/pages/defs/authoring/`. Reuse the page-shell action area the same way the Tasks page does. The runtime profile tab should gain a “New Runtime Profile” action; the task type tab should gain a “New Task Type” action and a “Generate From Description” action. Use modal dialogs for data entry in the first pass because the repository already has a proven modal create flow in the Tasks page and because dialogs keep the browsing context visible behind the authoring interaction.
+Then add browser controls in `ui/src/meta_flow_ui/pages/defs.cljs` and, if the file grows too large, split authoring UI into new namespaces under `ui/src/meta_flow_ui/pages/defs/authoring/`. Reuse the page-shell action area the same way the Tasks page does. The runtime profile tab should gain a “New Runtime Profile” action; the task type tab should gain a “New Task Type” action and a “Generate From Description” action. Use modal dialogs for data entry in the first pass because the repository already has a proven modal create flow in the Tasks page and because dialogs keep the browsing context visible behind the authoring interaction.
 
 Add reusable rendering helpers for the forms and draft panels. Runtime-profile authoring should expose only the stable clone-first fields: template, new id, new name, optional new version, web-search toggle when applicable, and worker prompt path when applicable. Task-type authoring should expose template, new id, new name, optional new version, description override, runtime-profile selector constrained to published runtime profiles, input schema override only if the backend contract already supports it safely, and work-key override only if it can be represented clearly. The browser must not invent fields that the backend contract does not support.
 
@@ -209,7 +211,7 @@ Add browser-side UX for validation without making it mandatory. The backend alre
 
 Update routing only where necessary. The first browser authoring release does not need a completely separate route tree if dialogs are sufficient. However, if draft detail becomes large or needs deep-linking, add hash routes such as `#/defs/drafts/...` only after keeping the browsing story simple. Prefer reusing `#/defs` and `#/defs/runtimes` until a deeper route clearly improves behavior.
 
-Add CSS in page-specific styles rather than generic shared files unless the pattern is truly shared. The existing Defs page already uses `frontend/public/styles/pages/defs.css` and `frontend/public/styles/pages/defs/detail.css`, and `frontend/public/index.html` already loads those files. Extend those page styles or add a sibling `frontend/public/styles/pages/defs/authoring.css` if the volume becomes large enough. Do not move page-specific authoring visuals into `components.css` or shared UI layers.
+Add CSS in page-specific styles rather than generic shared files unless the pattern is truly shared. The existing Defs page already uses `ui/public/styles/pages/defs.css` and `ui/public/styles/pages/defs/detail.css`, and `ui/public/index.html` already loads those files. Extend those page styles or add a sibling `ui/public/styles/pages/defs/authoring.css` if the volume becomes large enough. Do not move page-specific authoring visuals into `components.css` or shared UI layers.
 
 Finally, add proof coverage. Frontend tests in this repository are light today, so the first browser-facing acceptance should rely on backend HTTP tests, the existing frontend compile/governance gates, and a documented browser walkthrough or transcript. If a low-friction CLJS/state test harness becomes available during implementation, add targeted state tests for the new Defs orchestration helpers; if not, do not block the browser milestone on frontend harness work. Keep the repository’s unified gates green: formatting, lint, frontend build governance, unit tests, and coverage.
 
@@ -347,12 +349,12 @@ The most important files this plan is expected to touch are:
 - `docs/architecture/defs-authoring-browser-ui-execplan.md`, this plan
 - `docs/architecture/defs-authoring-browser-ui-walkthrough.md` for the Milestone 5 novice-facing proof transcript
 - `docs/architecture/assets/defs-authoring-browser-ui/defs-published.png` and `docs/architecture/assets/defs-authoring-browser-ui/tasks-completed.png` for browser-visible evidence
-- `frontend/src/meta_flow_ui/state.cljs` for the expanded defs authoring state shape
-- `frontend/src/meta_flow_ui/pages/defs/state.cljs` for authoring HTTP orchestration
-- `frontend/src/meta_flow_ui/pages/defs.cljs` for authoring actions and draft sections
-- `frontend/src/meta_flow_ui/pages/defs/list.cljs` and `frontend/src/meta_flow_ui/pages/defs/detail.cljs` if list/detail rendering must expose draft or publish affordances
-- new `frontend/src/meta_flow_ui/pages/defs/authoring/*.cljs` namespaces if the dialogs and forms need to be split out
-- `frontend/public/styles/pages/defs.css` and possibly a new authoring-specific defs stylesheet
+- `ui/src/meta_flow_ui/state.cljs` for the expanded defs authoring state shape
+- `ui/src/meta_flow_ui/pages/defs/state.cljs` for authoring HTTP orchestration
+- `ui/src/meta_flow_ui/pages/defs.cljs` for authoring actions and draft sections
+- `ui/src/meta_flow_ui/pages/defs/list.cljs` and `ui/src/meta_flow_ui/pages/defs/detail.cljs` if list/detail rendering must expose draft or publish affordances
+- new `ui/src/meta_flow_ui/pages/defs/authoring/*.cljs` namespaces if the dialogs and forms need to be split out
+- `ui/public/styles/pages/defs.css` and possibly a new authoring-specific defs stylesheet
 - backend tests under `test/meta_flow/ui/http/` that prove the browser path’s backing API behavior
 
 Expected manual success story after implementation:
@@ -382,7 +384,7 @@ Expected manual success story after implementation:
 
 ## Interfaces and Dependencies
 
-In `frontend/src/meta_flow_ui/state.cljs`, extend the `default-defs-state` map with an `:authoring` subtree. At the end of implementation, that subtree must be rich enough to store:
+In `ui/src/meta_flow_ui/state.cljs`, extend the `default-defs-state` map with an `:authoring` subtree. At the end of implementation, that subtree must be rich enough to store:
 
 - backend contract metadata
 - template lists for `runtime-profile` and `task-type`
@@ -392,11 +394,11 @@ In `frontend/src/meta_flow_ui/state.cljs`, extend the `default-defs-state` map w
 - generation form state for description-driven task-type draft generation
 - validation results and submit errors
 
-In `frontend/src/meta_flow_ui/pages/defs/state.cljs`, define stable browser orchestration functions that wrap the backend authoring routes. They should mirror the backend contract names so a novice can match browser code to API routes directly.
+In `ui/src/meta_flow_ui/pages/defs/state.cljs`, define stable browser orchestration functions that wrap the backend authoring routes. They should mirror the backend contract names so a novice can match browser code to API routes directly.
 
-In `frontend/src/meta_flow_ui/pages/defs.cljs`, keep the current page-shell entry point but add authoring actions and sections. If the file becomes too large or violates frontend governance, split visual authoring components into new page-specific namespaces under `frontend/src/meta_flow_ui/pages/defs/authoring/`.
+In `ui/src/meta_flow_ui/pages/defs.cljs`, keep the current page-shell entry point but add authoring actions and sections. If the file becomes too large or violates frontend governance, split visual authoring components into new page-specific namespaces under `ui/src/meta_flow_ui/pages/defs/authoring/`.
 
-In `frontend/src/meta_flow_ui/http.cljs`, keep using the existing `fetch-json` and `post-json` helpers. No new transport abstraction is needed in this milestone.
+In `ui/src/meta_flow_ui/http.cljs`, keep using the existing `fetch-json` and `post-json` helpers. No new transport abstraction is needed in this milestone.
 
 In `src/meta_flow/ui/http/defs/handlers.clj`, the backend route contract should remain stable. This plan assumes the browser is a consumer of those routes, not a reason to redesign them.
 
@@ -404,7 +406,7 @@ Use the existing frontend stack already present in the repository:
 
 - Reagent for browser state and components
 - shadow-cljs for compilation and local watch mode
-- the current page-shell and dialog patterns from `frontend/src/meta_flow_ui/components.cljs` and the Tasks page
+- the current page-shell and dialog patterns from `ui/src/meta_flow_ui/components.cljs` and the Tasks page
 
 Do not introduce a second frontend state library, router, form library, or CSS framework for this milestone.
 

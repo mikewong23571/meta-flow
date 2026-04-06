@@ -74,7 +74,7 @@ The rule is:
 Recommended initial file shape:
 
 ```text
-frontend/src/meta_flow_ui/styles/
+ui/public/styles/
   tokens.css
   theme.css
   base.css
@@ -267,25 +267,31 @@ The frontend may:
 ## Integration Model For This Repository
 
 The frontend will be integrated as a separate subtree in the same repository.
+It owns its own `bb.edn`, `tests.edn`, npm lifecycle, and governance/test commands.
+The repository root must not proxy individual UI checks. It may only mount the UI
+project as one governance node in an aggregate command such as `bb check:full`.
 
 Recommended layout:
 
 ```text
-frontend/
+ui/
+  bb.edn
+  deps.edn
+  tests.edn
+  package.json
+  shadow-cljs.edn
   public/
     index.html
+    styles/
   src/
     meta_flow_ui/
       app.cljs
       routes.cljs
       http.cljs
       state.cljs
-      styles/
-      views/
-      components/
-
-package.json
-shadow-cljs.edn
+  test/
+    meta_flow/
+      lint/
 ```
 
 This is preferred over putting browser namespaces into `src/meta_flow/` because:
@@ -295,6 +301,7 @@ This is preferred over putting browser namespaces into `src/meta_flow/` because:
 - the split prevents accidental namespace and responsibility drift
 
 The frontend remains same-repo, but not same-layer.
+Run UI verification from inside `ui/`, for example `cd ui && bb check`.
 
 ## Backend Integration Boundary
 
@@ -647,7 +654,7 @@ For the first Meta-Flow frontend:
 - manage JavaScript dependencies with `npm`
 - use semantic design tokens via app-owned CSS custom properties
 - keep styling app-owned even when using Radix primitives
-- keep frontend code in a dedicated `frontend/` subtree
+- keep frontend code in a dedicated `ui/` subtree
 - integrate through thin backend JSON APIs over existing read models
 - keep the first UI read-oriented and operationally narrow
 - defer `re-frame`, code splitting, and broader architectural expansion until justified

@@ -8,8 +8,7 @@
 /target/
 /classes/
 /.shadow-cljs/
-/node_modules/
-/frontend/public/js/
+/ui/public/js/
 
 # REPL / editor artifacts
 /.nrepl-port

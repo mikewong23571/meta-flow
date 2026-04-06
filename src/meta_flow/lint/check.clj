@@ -3,13 +3,15 @@
   (:require [meta-flow.governance.core :as governance]
             [meta-flow.governance.runner :as runner]
             [meta-flow.lint.check.execution :as execution]
-            [meta-flow.lint.check.frontend :as frontend]
             [meta-flow.lint.check.report :as report]
             [meta-flow.lint.coverage :as coverage]
             [meta-flow.lint.file-length :as file-length]))
 
+(def backend-source-roots
+  ["src" "test"])
+
 (def default-source-roots
-  ["src" "test" "frontend/src"])
+  backend-source-roots)
 
 (defn resolve-var!
   [sym]
@@ -108,7 +110,7 @@
       "no structure-governance issues")))
 
 (defn run-structure-governance!
-  ([] (run-structure-governance! file-length/governance-roots))
+  ([] (run-structure-governance! backend-source-roots))
   ([roots]
    (let [issues (file-length/governance-issues roots)
          errors (count (filter #(= :error (:level %)) issues))
@@ -140,23 +142,7 @@
 
 (def execution-gates-from-coverage execution/execution-gates-from-coverage)
 
-(def frontend-semantics-gate frontend/frontend-semantics-gate)
-
-(def frontend-style-gate frontend/frontend-style-gate)
-
-(def frontend-architecture-gate frontend/frontend-architecture-gate)
-
-(def frontend-shared-component-placement-gate frontend/frontend-shared-component-placement-gate)
-
-(def frontend-shared-component-facade-gate frontend/frontend-shared-component-facade-gate)
-
-(def frontend-ui-layering-gate frontend/frontend-ui-layering-gate)
-
-(def frontend-page-role-gate frontend/frontend-page-role-gate)
-
-(def frontend-build-gate frontend/frontend-build-gate)
-
-(defn gate-entries
+(defn backend-gate-entries
   []
   [{:id :format-hygiene
     :label "format-hygiene"
@@ -166,37 +152,19 @@
     :run run-static-analysis!}
    {:id :structure-governance
     :label "structure-governance"
-    :run #(run-structure-governance! default-source-roots)}
-   {:id :frontend-architecture
-    :label "frontend-architecture"
-    :run frontend-architecture-gate}
-   {:id :frontend-shared-component-placement
-    :label "frontend-shared-component-placement"
-    :run frontend-shared-component-placement-gate}
-   {:id :frontend-shared-component-facade
-    :label "frontend-shared-component-facade"
-    :run frontend-shared-component-facade-gate}
-   {:id :frontend-ui-layering
-    :label "frontend-ui-layering"
-    :run frontend-ui-layering-gate}
-   {:id :frontend-page-role
-    :label "frontend-page-role"
-    :run frontend-page-role-gate}
-   {:id :frontend-semantics
-    :label "frontend-semantics"
-    :run frontend-semantics-gate}
-   {:id :frontend-style
-    :label "frontend-style"
-    :run frontend-style-gate}
-   {:id :frontend-build
-    :label "frontend-build"
-    :run frontend-build-gate}])
+    :run #(run-structure-governance! backend-source-roots)}])
+
+(defn backend-gates
+  []
+  (runner/run-entries! (backend-gate-entries)))
+
+(defn execution-gates
+  []
+  (execution-gates-from-coverage (coverage/evaluate-coverage)))
 
 (defn check-gates
   []
-  (let [execution-gates (execution-gates-from-coverage (coverage/evaluate-coverage))
-        gates (runner/run-entries! (gate-entries))]
-    (into gates execution-gates)))
+  (into (backend-gates) (execution-gates)))
 
 (def overall-status governance/overall-status)
 

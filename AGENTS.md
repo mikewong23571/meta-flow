@@ -35,7 +35,10 @@ Use the local Babashka task runner; it wraps the repo’s Clojure aliases and av
 - `bb coverage` runs Kaocha with Cloverage and applies overall line-coverage governance: below 88% warns and below 85% fails, with messaging that frames coverage as a responsibility-governance signal rather than a vanity metric.
 - `bb fmt` rewrites formatting with `cljfmt`.
 - `bb fmt:check` verifies formatting without edits.
-- `bb check` runs the unified governance gate with concise output across format hygiene, static analysis, structure governance, frontend governance, executable correctness, and coverage; treat it as the pre-PR gate.
+- `bb check` runs the backend/core governance gate with concise output across format hygiene, static analysis, structure governance, executable correctness, and coverage.
+- `bb check:full` runs the whole-repository governance gate by mounting the UI project as one node through `ui/bb.edn`.
+- Treat `bb check:full` as the default pre-PR and pre-commit gate.
+- The browser UI under top-level `ui/` is a separate same-repo project with its own `bb.edn`, `tests.edn`, and check pipeline. Run UI checks from `ui/`, not from the repository root.
 - `bb init` initializes the SQLite DB and runtime directories.
 - `bb defs:validate` validates bundled EDN workflow definitions.
 - `clojure -T:build prep` copies `src` and `resources` into `target/classes`.

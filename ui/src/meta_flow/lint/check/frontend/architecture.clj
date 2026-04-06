@@ -10,9 +10,9 @@
   [shared-ui/shared-ui-root])
 
 (def shared-frontend-style-files
-  ["frontend/public/styles/base.css"
-   "frontend/public/styles/components.css"
-   "frontend/public/styles/shared/interactive.css"])
+  ["public/styles/base.css"
+   "public/styles/components.css"
+   "public/styles/shared/interactive.css"])
 
 (def page-specific-class-pattern
   #"\b(?:scheduler|tasks|defs|preview)-[a-z0-9-]+\b")

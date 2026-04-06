@@ -23,10 +23,10 @@
 
 (deftest frontend-page-role-gate-detects-authoring-state-implementation
   (let [root (temp-dir-path)
-        pages-root (.toString (.resolve root "frontend/src/meta_flow_ui/pages"))]
+        pages-root (.toString (.resolve root "src/meta_flow_ui/pages"))]
     (try
       (write-file! root
-                   "frontend/src/meta_flow_ui/pages/defs/authoring/state.cljs"
+                   "src/meta_flow_ui/pages/defs/authoring/state.cljs"
                    "(ns meta-flow-ui.pages.defs.authoring.state\n  (:require [meta-flow-ui.pages.defs.authoring.mutate :as mutate]))\n(def submit! mutate/submit!)\n(defn helper [] :bad)\n")
       (with-redefs [page-roles/frontend-pages-root pages-root]
         (let [gate (page-roles/frontend-page-role-gate)]
@@ -38,13 +38,13 @@
 
 (deftest frontend-page-role-gate-detects-non-orchestration-files-reaching-into-http-and-global-state
   (let [root (temp-dir-path)
-        pages-root (.toString (.resolve root "frontend/src/meta_flow_ui/pages"))]
+        pages-root (.toString (.resolve root "src/meta_flow_ui/pages"))]
     (try
       (write-file! root
-                   "frontend/src/meta_flow_ui/pages/defs/authoring/runtime_profile/dialog.cljs"
+                   "src/meta_flow_ui/pages/defs/authoring/runtime_profile/dialog.cljs"
                    "(ns meta-flow-ui.pages.defs.authoring.runtime-profile.dialog\n  (:require [meta-flow-ui.http :as http]))\n(defn dialog [] http/post-json)\n")
       (write-file! root
-                   "frontend/src/meta_flow_ui/pages/defs/authoring/runtime_profile/shared.cljs"
+                   "src/meta_flow_ui/pages/defs/authoring/runtime_profile/shared.cljs"
                    "(ns meta-flow-ui.pages.defs.authoring.runtime-profile.shared\n  (:require [meta-flow-ui.state :as state]))\n(defn summary [] state/ui-state)\n")
       (with-redefs [page-roles/frontend-pages-root pages-root]
         (let [gate (page-roles/frontend-page-role-gate)]
@@ -57,10 +57,10 @@
 
 (deftest frontend-page-role-gate-detects-other-authoring-files-reaching-into-http-and-global-state
   (let [root (temp-dir-path)
-        pages-root (.toString (.resolve root "frontend/src/meta_flow_ui/pages"))]
+        pages-root (.toString (.resolve root "src/meta_flow_ui/pages"))]
     (try
       (write-file! root
-                   "frontend/src/meta_flow_ui/pages/defs/authoring/task_type/generation.cljs"
+                   "src/meta_flow_ui/pages/defs/authoring/task_type/generation.cljs"
                    "(ns meta-flow-ui.pages.defs.authoring.task-type.generation\n  (:require [meta-flow-ui.http :as http]\n            [meta-flow-ui.state :as state]))\n(defn generate [] [http/post-json state/ui-state])\n")
       (with-redefs [page-roles/frontend-pages-root pages-root]
         (let [gate (page-roles/frontend-page-role-gate)]
@@ -73,13 +73,13 @@
 
 (deftest frontend-page-role-gate-allows-thin-facades-and-view-modules-without-http-or-global-state
   (let [root (temp-dir-path)
-        pages-root (.toString (.resolve root "frontend/src/meta_flow_ui/pages"))]
+        pages-root (.toString (.resolve root "src/meta_flow_ui/pages"))]
     (try
       (write-file! root
-                   "frontend/src/meta_flow_ui/pages/defs/authoring/state.cljs"
+                   "src/meta_flow_ui/pages/defs/authoring/state.cljs"
                    "(ns meta-flow-ui.pages.defs.authoring.state\n  (:require [meta-flow-ui.pages.defs.authoring.mutate :as mutate]))\n(def submit! mutate/submit!)\n")
       (write-file! root
-                   "frontend/src/meta_flow_ui/pages/defs/authoring/runtime_profile/dialog.cljs"
+                   "src/meta_flow_ui/pages/defs/authoring/runtime_profile/dialog.cljs"
                    "(ns meta-flow-ui.pages.defs.authoring.runtime-profile.dialog\n  (:require [meta-flow-ui.pages.defs.authoring.runtime-profile.shared :as shared]))\n(defn dialog [] shared/title)\n")
       (with-redefs [page-roles/frontend-pages-root pages-root]
         (let [gate (page-roles/frontend-page-role-gate)]

@@ -1,11 +1,9 @@
 (ns meta-flow.lint.frontend-test
   (:require [clojure.test :refer [deftest is]]
-            [meta-flow.lint.check :as check]
             [meta-flow.lint.check.frontend :as frontend]
             [meta-flow.lint.check.frontend.build :as frontend-build]
             [meta-flow.lint.check.frontend.style :as frontend-style]
-            [meta-flow.lint.check.shared :as shared]
-            [meta-flow.lint.coverage :as coverage])
+            [meta-flow.lint.check.shared :as shared])
   (:import (java.nio.file Files Path)))
 
 (defn temp-dir-path
@@ -100,11 +98,11 @@
                 (fn []
                   {:state :missing-node-modules
                    :headline "frontend bootstrap is incomplete because npm dependencies are not installed"
-                   :action "Run `bb ui:install` and rerun `bb check`."})]
+                   :action "Run `bb install` and rerun `bb governance`."})]
     (let [gate (frontend-build/frontend-build-gate)]
       (is (= :error (:status gate)))
       (is (= "frontend bootstrap is incomplete because npm dependencies are not installed" (:headline gate)))
-      (is (= "Run `bb ui:install` and rerun `bb check`." (:action gate))))))
+      (is (= "Run `bb install` and rerun `bb governance`." (:action gate))))))
 
 (deftest build-bootstrap-status-prefers-missing-npm-over-missing-node-modules
   (let [status (frontend-build/build-bootstrap-status-from
@@ -115,53 +113,6 @@
     (is (= :missing-npm (:state status)))
     (is (= "frontend bootstrap is incomplete because npm is not available in PATH"
            (:headline status)))))
-
-(deftest check-gates-include-frontend-governance
-  (let [calls (atom [])]
-    (with-redefs [check/run-format-check! (fn [] {:label "format-hygiene" :status :pass})
-                  check/run-static-analysis! (fn [] {:label "static-analysis" :status :pass})
-                  check/run-structure-governance! (fn [_] {:label "structure-governance" :status :pass})
-                  check/frontend-architecture-gate (fn [] {:label "frontend-architecture-governance" :status :pass})
-                  check/frontend-shared-component-placement-gate (fn [] {:label "frontend-shared-component-placement-governance" :status :pass})
-                  check/frontend-shared-component-facade-gate (fn [] {:label "frontend-shared-component-facade-governance" :status :pass})
-                  check/frontend-ui-layering-gate (fn [] {:label "frontend-ui-layering-governance" :status :pass})
-                  check/frontend-page-role-gate (fn [] {:label "frontend-page-role-governance" :status :pass})
-                  check/frontend-semantics-gate (fn [] {:label "frontend-semantics-governance" :status :pass})
-                  check/frontend-style-gate (fn [] {:label "frontend-style-governance" :status :pass})
-                  check/frontend-build-gate (fn [] {:label "frontend-build" :status :pass})
-                  coverage/evaluate-coverage
-                  (fn
-                    ([] (swap! calls conj :default)
-                        {:exit 0
-                         :counts {:tests 1}
-                         :combined ""
-                         :summary {:line-coverage 90.0
-                                   :level nil
-                                   :lowest-namespaces []}})
-                    ([opts]
-                     (swap! calls conj opts)
-                     {:exit 0
-                      :counts {:tests 1}
-                      :combined ""
-                      :summary {:line-coverage 90.0
-                                :level nil
-                                :lowest-namespaces []}}))]
-      (let [labels (mapv :label (check/check-gates))]
-        (is (= ["format-hygiene"
-                "static-analysis"
-                "structure-governance"
-                "frontend-architecture-governance"
-                "frontend-shared-component-placement-governance"
-                "frontend-shared-component-facade-governance"
-                "frontend-ui-layering-governance"
-                "frontend-page-role-governance"
-                "frontend-semantics-governance"
-                "frontend-style-governance"
-                "frontend-build"
-                "executable-correctness"
-                "coverage-governance"]
-               labels))
-        (is (= [:default] @calls))))))
 
 (deftest frontend-gates-return-all-frontend-governance-gates
   (with-redefs [frontend/frontend-architecture-gate (fn [] {:label "frontend-architecture-governance" :status :pass})

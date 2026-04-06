@@ -2,7 +2,7 @@
   (:require [meta-flow.lint.check.frontend.shared-ui-support :as support]))
 
 (def frontend-ui-root
-  "frontend/src/meta_flow_ui")
+  "src/meta_flow_ui")
 
 (def shared-ui-root
   (str frontend-ui-root "/ui"))

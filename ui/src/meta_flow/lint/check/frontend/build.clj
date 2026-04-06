@@ -13,7 +13,7 @@
 
 (defn- bootstrap-action
   [message]
-  (str message " Then run `bb ui:install` and rerun `bb check`."))
+  (str message " Then run `bb install` and rerun `bb governance`."))
 
 (defn- path-exists?
   [path]
@@ -40,17 +40,17 @@
     (not npm-available?)
     {:state :missing-npm
      :headline "frontend bootstrap is incomplete because npm is not available in PATH"
-     :action "Install Node.js/npm, verify `npm --version`, then run `bb ui:install` and rerun `bb check`."}
+     :action "Install Node.js/npm, verify `npm --version`, then run `bb install` and rerun `bb governance`."}
 
     (not node-modules?)
     {:state :missing-node-modules
      :headline "frontend bootstrap is incomplete because npm dependencies are not installed"
-     :action "Run `bb ui:install` and rerun `bb check`."}
+     :action "Run `bb install` and rerun `bb governance`."}
 
     (not shadow-cljs-package?)
     {:state :missing-shadow-cljs-package
      :headline "frontend bootstrap is incomplete because shadow-cljs is missing from node_modules"
-     :action (bootstrap-action "Restore the frontend dependency install.")}
+     :action (bootstrap-action "Restore the local dependency install.")}
 
     :else
     {:state :ready}))
@@ -73,7 +73,7 @@
          :status :error
          :headline headline
          :action action}
-        (let [{:keys [exit combined]} (shared/run-command! ["npm" "run" "ui:check"])
+        (let [{:keys [exit combined]} (shared/run-command! ["npm" "run" "compile:check"])
               cause (when-not (zero? exit)
                       (or (shared/first-matching-line combined #"^shadow-cljs")
                           (shared/first-matching-line combined #"^Execution error")

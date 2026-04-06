@@ -1,0 +1,19 @@
+{:paths ["src"]
+ :deps {org.clojure/clojure {:mvn/version "1.12.0"}}
+ :aliases
+ {:dev {:extra-deps {thheller/shadow-cljs {:mvn/version "3.3.8"}
+                     org.clojure/clojurescript {:mvn/version "1.12.134"}
+                     reagent/reagent {:mvn/version "2.0.1"}}}
+  :lint {:extra-deps {clj-kondo/clj-kondo {:mvn/version "2026.01.19"}}
+         :main-opts ["-m" "clj-kondo.main" "--lint" "src"]}
+  :fmt {:extra-deps {io.github.weavejester/cljfmt
+                     {:git/tag "0.13.0"
+                      :git/sha "eb6d5ee"}}
+        :main-opts ["-m" "cljfmt.main" "fix" "src"]}
+  :fmt/check {:extra-deps {io.github.weavejester/cljfmt
+                           {:git/tag "0.13.0"
+                            :git/sha "eb6d5ee"}}
+              :main-opts ["-m" "cljfmt.main" "check" "src"]}
+  :test {:extra-paths ["test"]
+         :extra-deps {lambdaisland/kaocha {:mvn/version "1.91.1392"}}
+         :main-opts ["-m" "kaocha.runner"]}}}

@@ -4,7 +4,7 @@
             [meta-flow.lint.check.frontend.shared-ui-support :as support]))
 
 (def frontend-source-roots
-  ["frontend/src"])
+  ["src"])
 
 (defn- cljs-file?
   [file]

@@ -1,0 +1,58 @@
+{:tasks
+ {install
+  {:doc "Install UI npm dependencies"
+   :requires ([babashka.tasks :refer [shell]])
+   :task (shell "npm ci")}
+
+  watch
+  {:doc "Watch UI preview at http://localhost:8787"
+   :requires ([babashka.tasks :refer [shell]])
+   :task (shell "npm run watch")}
+
+  release
+  {:doc "Build the UI preview release bundle"
+   :requires ([babashka.tasks :refer [shell]])
+   :task (shell "npm run release")}
+
+  compile:check
+  {:doc "Run the UI compile check"
+   :requires ([babashka.tasks :refer [shell]])
+   :task (shell "npm run compile:check")}
+
+  lint
+  {:doc "Run UI ClojureScript static analysis"
+   :requires ([babashka.tasks :refer [shell]])
+   :task (shell "clojure -M:lint")}
+
+  fmt
+  {:doc "Reformat UI ClojureScript source"
+   :requires ([babashka.tasks :refer [shell]])
+   :task (shell "clojure -M:fmt")}
+
+  fmt:check
+  {:doc "Check UI ClojureScript formatting"
+   :requires ([babashka.tasks :refer [shell]])
+   :task (shell "clojure -M:fmt/check")}
+
+  governance
+  {:doc "Run detailed UI governance gates"
+   :requires ([babashka.tasks :refer [shell]])
+   :task (shell "clojure -M -m meta-flow.lint.check.frontend")}
+
+  node
+  {:doc "Emit one machine-facing UI governance node payload"
+   :requires ([babashka.tasks :refer [shell]])
+   :task (shell "clojure -M -m meta-flow.lint.check.frontend-node")}
+
+  test
+  {:doc "Run the UI governance test suite"
+   :requires ([babashka.tasks :refer [shell]])
+   :task (apply shell "clojure -M:test" *command-line-args*)}
+
+  check
+  {:doc "Run the UI pre-PR gate: fmt:check -> lint -> governance -> test"
+   :requires ([babashka.tasks :refer [run]])
+   :task (do (run 'fmt:check)
+             (run 'lint)
+             (run 'governance)
+             (run 'test))}}}

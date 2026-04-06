@@ -1,5 +1,7 @@
 # Defs Authoring Browser UI Walkthrough
 
+Current command-boundary note (2026-04-07): run browser UI commands from `ui/` with `bb`, and run root `bb ui:api` only for the backend JSON API process.
+
 This document records the Milestone 5 browser proof for `docs/architecture/defs-authoring-browser-ui-execplan.md`. It is intentionally concrete: it shows the exact commands, browser-visible outcomes, and runtime evidence needed to prove that a definition authored from the browser can be used immediately by the Tasks browser UI and then executed by the scheduler with the authored runtime profile.
 
 ## Purpose
@@ -34,7 +36,8 @@ Observed output:
 
 Compile the browser app:
 
-    bb ui:check
+    cd ui
+    bb compile:check
 
 Observed output:
 
@@ -52,7 +55,8 @@ Observed output:
 
 In a second shell, start the browser preview:
 
-    bb ui:watch
+    cd ui
+    bb watch
 
 Observed output:
 

@@ -16,11 +16,6 @@
  {:dev {:extra-paths ["dev"]}
   :native-access {:jvm-opts ["--enable-native-access=ALL-UNNAMED"]}
   :run {:main-opts ["-m" "meta-flow.main"]}
-  :cljs {:extra-paths ["frontend/src"]
-         :extra-deps {thheller/shadow-cljs {:mvn/version "3.3.8"}
-                      org.clojure/clojurescript {:mvn/version "1.12.134"}
-                      reagent/reagent {:mvn/version "2.0.1"}}}
-
   :kaocha {:extra-paths ["test"]
            :extra-deps {lambdaisland/kaocha {:mvn/version "1.91.1392"}
                         clj-kondo/clj-kondo {:mvn/version "2026.01.19"}
@@ -41,18 +36,18 @@
 
   ;; ── lint ──────────────────────────────────────────────────────────────
   :lint {:extra-deps {clj-kondo/clj-kondo {:mvn/version "2026.01.19"}}
-         :main-opts ["-m" "clj-kondo.main" "--lint" "src" "test" "frontend/src"]}
+         :main-opts ["-m" "clj-kondo.main" "--lint" "src" "test"]}
 
   ;; ── format ────────────────────────────────────────────────────────────
   :fmt {:extra-deps {io.github.weavejester/cljfmt
                      {:git/tag "0.13.0"
                       :git/sha "eb6d5ee"}}
-        :main-opts ["-m" "cljfmt.main" "fix" "src" "test" "frontend/src"]}
+        :main-opts ["-m" "cljfmt.main" "fix" "src" "test"]}
 
   :fmt/check {:extra-deps {io.github.weavejester/cljfmt
                             {:git/tag "0.13.0"
                              :git/sha "eb6d5ee"}}
-              :main-opts ["-m" "cljfmt.main" "check" "src" "test" "frontend/src"]}
+              :main-opts ["-m" "cljfmt.main" "check" "src" "test"]}
 
   ;; ── REPL / tooling ────────────────────────────────────────────────────
   :nrepl {:extra-deps {nrepl/nrepl {:mvn/version "1.3.0"}}

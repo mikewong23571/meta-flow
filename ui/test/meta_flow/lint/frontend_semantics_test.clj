@@ -24,9 +24,9 @@
 (deftest frontend-semantics-gate-detects-text-inside-button-icon-controls
   (let [root (temp-dir-path)]
     (try
-      (write-file! root "frontend/src/demo/page.cljs"
+      (write-file! root "src/demo/page.cljs"
                    "(ns demo.page)\n(defn page [] [:button {:className \"button button-icon button-primary\"} \"New Task Type\"])\n")
-      (let [gate (semantics/frontend-semantics-gate [(.toString (.resolve root "frontend/src"))])]
+      (let [gate (semantics/frontend-semantics-gate [(.toString (.resolve root "src"))])]
         (is (= :error (:status gate)))
         (is (= 1 (count (:findings gate))))
         (is (= :button-icon-visible-text
@@ -37,9 +37,9 @@
 (deftest frontend-semantics-gate-allows-text-buttons-without-button-icon
   (let [root (temp-dir-path)]
     (try
-      (write-file! root "frontend/src/demo/page.cljs"
+      (write-file! root "src/demo/page.cljs"
                    "(ns demo.page)\n(defn page [] [:button {:className \"button button-primary\"} \"New Task Type\"])\n")
-      (let [gate (semantics/frontend-semantics-gate [(.toString (.resolve root "frontend/src"))])]
+      (let [gate (semantics/frontend-semantics-gate [(.toString (.resolve root "src"))])]
         (is (= :pass (:status gate)))
         (is (= "frontend semantic component usage looks consistent"
                (:headline gate))))

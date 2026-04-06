@@ -11,7 +11,7 @@
             [meta-flow.lint.check.report :as report]))
 
 (def frontend-source-roots
-  ["frontend/src"])
+  ["src"])
 
 (def frontend-style-roots
   style/frontend-style-roots)
