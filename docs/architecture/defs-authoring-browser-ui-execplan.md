@@ -29,8 +29,9 @@ The result must be observable in the browser, not merely through tests. The Defs
 - [x] (2026-04-06 12:55Z) Verified the task-type browser authoring flow with `bb ui:check`, `bb test --focus meta-flow.ui.http.defs-authoring-test`, a Playwright smoke that rendered the new task-type authoring panel/dialog at `http://localhost:8787/#/defs`, and a browser create/publish walkthrough that published `runtime-profile/browser-m3-ui-smoke-3` followed by `task-type/browser-m3-ui-smoke-3` from the live UI before cleaning the generated overlay drafts back out of the repo.
 - [x] (2026-04-06 13:24Z) Implemented Milestone 4 on `#/defs`: the task-type authoring tab now exposes a description-generation dialog with optional template/id overrides, a persisted generation result panel that renders whichever draft results the backend actually returned, direct affordances to inspect the generated task-type draft or jump to runtime drafts, and automatic refresh plus task-draft inspection after generation succeeds.
 - [x] (2026-04-06 13:24Z) Verified the Milestone 4 browser flow with `bb ui:check`, `bb test --focus meta-flow.ui.http.defs-generation-test`, `bb test --focus meta-flow.ui.http.defs-authoring-test`, and a Playwright smoke at `http://localhost:8787/index.html#/defs` that generated `runtime-profile/repo-review` plus `task-type/repo-review`, rendered the returned notes in the browser, and then cleaned the temporary overlay drafts back out of the repo.
-- [ ] Add browser acceptance coverage proving a user can create and publish authored definitions from the browser-facing code path and then create a task that uses the new task type.
-- [ ] Update docs and screenshots/transcripts so a novice can run `bb ui:api` and `bb ui:watch`, open the browser UI, and observe the authoring flow end to end.
+- [x] (2026-04-06 14:09Z) Tightened Milestone 5 backend acceptance in `test/meta_flow/ui/http/defs_authoring_test.clj` so the authored-task proof now asserts `/api/task-types/create-options` exposes the published task type exactly as the Tasks dialog consumes it, then still proves task creation, pinned runtime refs, task-list rendering, and finalized mock execution.
+- [x] (2026-04-06 14:09Z) Verified the full Milestone 5 browser path in a live UI session: started `bb ui:api` and `bb ui:watch`, authored and published `runtime-profile/browser-m5-ui-proof` plus `task-type/browser-m5-ui-proof`, created task `task-0a45aa47-f099-45fc-918a-b51f2d6c428e` from `#/tasks`, ran `bb scheduler:run --task-id task-0a45aa47-f099-45fc-918a-b51f2d6c428e`, and observed completion with run `run-457c749b-de4e-4f5d-b45c-6dda0bf379e5` and runtime profile `runtime-profile/browser-m5-ui-proof`.
+- [x] (2026-04-06 14:09Z) Added `docs/architecture/defs-authoring-browser-ui-walkthrough.md` plus screenshots under `docs/architecture/assets/defs-authoring-browser-ui/` so a novice can reproduce the browser path, compare expected startup and scheduler transcripts, and verify the runtime-profile ref in both the browser and `var/runs/.../runtime-profile.edn`.
 
 ## Surprises & Discoveries
 
@@ -63,6 +64,12 @@ The result must be observable in the browser, not merely through tests. The Defs
 
 - Observation: a narrow Defs authoring state spike compiled cleanly without requiring a new frontend architecture, but leaving that half-implementation checked in would create more noise than value before the real UI work starts.
   Evidence: a temporary `:defs :authoring` state subtree plus expanded `frontend/src/meta_flow_ui/pages/defs/state.cljs` orchestration compiled successfully with `npm run ui:check`, and the spike was then intentionally removed after capturing the design conclusion in this plan.
+
+- Observation: the Tasks browser dialog depends on more than the raw task-type id and version; it consumes `create-options` input-schema placeholders and renders task-list secondary text from task-type names rather than ids.
+  Evidence: the first Milestone 5 test revision failed until its expectations were updated to match `/api/task-types/create-options` returning `:field/placeholder "my-unique-work-key"` and `/api/tasks` returning `:task/summary {:secondary "Repo review mock"}` for the authored task type.
+
+- Observation: the default browser authoring proof writes into a repo-local overlay at `defs/`, so manual Milestone 5 acceptance must either clean that directory afterward or deliberately keep the authored overlay files.
+  Evidence: `src/meta_flow/defs/source.clj` sets `default-overlay-root` to `"defs"`, and the live walkthrough created `defs/drafts/runtime-profiles/runtime-profile_browser-m5-ui-proof_v1.edn` and `defs/drafts/task-types/task-type_browser-m5-ui-proof_v1.edn` during proof.
 
 ## Decision Log
 
@@ -106,11 +113,21 @@ The result must be observable in the browser, not merely through tests. The Defs
   Rationale: the goal of the current phase is to reduce execution friction, not to accumulate partial implementation. Once the spike proved that the proposed state shape and orchestration layer compile cleanly, the useful artifact became the plan update, not the temporary code.
   Date/Author: 2026-04-06 / Codex
 
+- Decision: Milestone 5 backend acceptance will prove the Tasks browser path by asserting `/api/task-types/create-options`, not by introducing a new CLJS component-test harness.
+  Rationale: the Tasks page creates tasks from the `create-options` endpoint, so asserting that contract keeps the proof browser-aligned while preserving the repo's existing testing posture.
+  Date/Author: 2026-04-06 / Codex
+
+- Decision: the live browser proof should be captured as a checked-in walkthrough with screenshots and terminal transcripts, but the generated `defs/` overlay must still be treated as disposable proof output rather than source.
+  Rationale: the milestone explicitly asks for browser-visible proof. A durable walkthrough document plus artifacts satisfies that requirement, while cleaning repo-local overlay files avoids shipping accidental authored data with the feature.
+  Date/Author: 2026-04-06 / Codex
+
 ## Outcomes & Retrospective
 
-This plan starts from a better place than the prior authoring plan did. The backend authoring system is already real, tested, and observable through CLI and HTTP. The remaining gap is not backend capability; it is usability. A user currently has to know curl payloads or CLI flags to extend definitions, even though the repository already ships a browser UI for inspecting definitions and creating tasks. This plan closes that mismatch by making the browser surface capable of the same guided authoring flow as the backend.
+Milestone 5 is now delivered. The browser authoring feature is no longer proven only by intermediate UI renders and backend endpoint tests; it now has a browser-aligned HTTP acceptance test for the Tasks dialog contract plus a checked-in walkthrough showing the live UI path from authored defs to task completion. A novice can follow one document, run the local UI, compare expected browser and terminal output, and confirm that the finalized run preserved the authored runtime-profile ref.
 
-No retained implementation work has happened yet under this plan. A narrow frontend spike was used to validate the proposed authoring state shape and orchestration layering, but that code was intentionally removed after the compile proof. The main risk is not technical feasibility but product clarity and proof discipline: the browser must clearly show what is a draft, what is published, what can be cloned, which override fields are supported, why task-type publish order depends on runtime-profile publish order, and how generation may create one or two drafts. The plan therefore emphasizes visible draft/publish workflow, low-friction browser proof, and realistic local-dev startup steps over raw field coverage or premature frontend-test infrastructure.
+This plan started from a better place than the prior authoring plan did because the backend authoring system was already real, tested, and observable through CLI and HTTP. The remaining gap was usability and proof. That gap is now closed: the repository ships a browser authoring surface, an acceptance test that covers the browser task-creation contract, and screenshots/transcripts that demonstrate the intended user story end to end without requiring a frontend-specific test runner.
+
+The main lesson from the final milestone is that proof has to match the real browser contract, not just the underlying data model. The last acceptance gap was not missing backend behavior; it was missing evidence that the exact `Tasks` dialog input source and task-detail/runtime evidence held together after authoring. The completed milestone therefore favors contract-shaped acceptance and explicit cleanup guidance for the repo-local `defs/` overlay over introducing heavier frontend test infrastructure.
 
 ## Context and Orientation
 
@@ -328,6 +345,8 @@ If the user reloads the browser tab mid-authoring, published data must still be 
 The most important files this plan is expected to touch are:
 
 - `docs/architecture/defs-authoring-browser-ui-execplan.md`, this plan
+- `docs/architecture/defs-authoring-browser-ui-walkthrough.md` for the Milestone 5 novice-facing proof transcript
+- `docs/architecture/assets/defs-authoring-browser-ui/defs-published.png` and `docs/architecture/assets/defs-authoring-browser-ui/tasks-completed.png` for browser-visible evidence
 - `frontend/src/meta_flow_ui/state.cljs` for the expanded defs authoring state shape
 - `frontend/src/meta_flow_ui/pages/defs/state.cljs` for authoring HTTP orchestration
 - `frontend/src/meta_flow_ui/pages/defs.cljs` for authoring actions and draft sections
@@ -390,3 +409,4 @@ Use the existing frontend stack already present in the repository:
 Do not introduce a second frontend state library, router, form library, or CSS framework for this milestone.
 
 Revision note: 2026-04-06 / Codex. Created this ExecPlan to add the missing browser UI layer on top of the already completed definition authoring backend. The plan chooses an incremental route: first wire state and API bindings, then add runtime-profile and task-type dialogs, then prove the authored definitions work through the existing Tasks UI.
+Revision note: 2026-04-06 / Codex. Updated the plan after completing Milestone 5. The revision marks the final acceptance work complete, records the browser-aligned `create-options` test tightening, documents the repo-local overlay cleanup concern, and links the new walkthrough and screenshot artifacts that prove the browser flow end to end.

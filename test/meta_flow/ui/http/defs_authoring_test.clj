@@ -126,7 +126,7 @@
       (finally
         (defs.support/stop-test-server! test-env)))))
 
-(deftest authored-task-types-can-create-tasks-and-run-through-the-mock-runtime
+(deftest authored-task-types-appear-in-browser-create-options-and-run-through-the-mock-runtime
   (let [{:keys [db-path artifacts-dir runs-dir]} (scheduler.support/temp-system)
         {:keys [server defs-repo] :as test-env}
         (defs.support/start-test-server! {:db-path db-path})]
@@ -152,6 +152,12 @@
                                                                "/api/defs/task-types/drafts/publish"
                                                                {:definition/id "task-type/repo-review-mock"
                                                                 :definition/version 1})
+            create-options-response (http.support/http-get (:port server)
+                                                           "/api/task-types/create-options")
+            create-options-body (defs.support/json-body create-options-response)
+            create-option (some #(when (= "task-type/repo-review-mock" (:task-type/id %))
+                                   %)
+                                (:items create-options-body))
             create-task-response (http.support/http-post-json (:port server)
                                                               "/api/tasks"
                                                               {:task-type-id "task-type/repo-review-mock"
@@ -166,6 +172,17 @@
         (is (= 200 (:status runtime-publish-response)))
         (is (= 201 (:status task-response)))
         (is (= 200 (:status task-publish-response)))
+        (is (= 200 (:status create-options-response)))
+        (is (= {:task-type/id "task-type/repo-review-mock"
+                :task-type/version 1
+                :task-type/name "Repo review mock"
+                :task-type/description "Authored mock-backed repo review task"
+                :task-type/input-schema [{:field/id "work-key"
+                                          :field/label "Work Key"
+                                          :field/type "field.type/text"
+                                          :field/required? true
+                                          :field/placeholder "my-unique-work-key"}]}
+               create-option))
         (is (= 201 (:status create-task-response)))
         (is (= "task.state/queued" (:task/state create-task-body)))
         (is (= 200 (:status created-task-response)))
@@ -182,8 +199,9 @@
         (let [completed-task-response (http.support/http-get (:port server)
                                                              (str "/api/tasks/" task-id))
               completed-task-body (defs.support/json-body completed-task-response)
-              task-list-body (defs.support/json-body (http.support/http-get (:port server)
-                                                                            "/api/tasks"))
+              task-list-response (http.support/http-get (:port server)
+                                                        "/api/tasks")
+              task-list-body (defs.support/json-body task-list-response)
               task-item (first (filter #(= task-id (:task/id %))
                                        (:items task-list-body)))
               run-id (get-in task-item [:latest-run :run/id])
@@ -195,6 +213,11 @@
           (is (= {:definition/id "runtime-profile/repo-review-mock"
                   :definition/version 1}
                  (:task/runtime-profile-ref completed-task-body)))
+          (is (= 200 (:status task-list-response)))
+          (is (= "task-type/repo-review-mock" (:task/type-id task-item)))
+          (is (= {:primary "repo-review/acme"
+                  :secondary "Repo review mock"}
+                 (:task/summary task-item)))
           (is (= "run.state/finalized" (:run/state run-body)))
           (is (= {:definition/id :runtime-profile/repo-review-mock
                   :definition/version 1}
