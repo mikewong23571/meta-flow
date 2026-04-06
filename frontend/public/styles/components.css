@@ -275,9 +275,10 @@
 
 .component-title {
   margin: 0 0 var(--space-xs);
-  font-family: var(--font-display);
+  font-family: var(--font-sans);
   font-size: var(--text-lg);
   font-weight: 700;
+  line-height: 1.2;
   letter-spacing: -0.01em;
 }
 

@@ -3,6 +3,7 @@
   (:require [meta-flow.lint.check.frontend.architecture :as architecture]
             [meta-flow.lint.check.frontend.build :as build]
             [meta-flow.lint.check.frontend.page-roles :as page-roles]
+            [meta-flow.lint.check.frontend.semantics :as semantics]
             [meta-flow.lint.check.frontend.shared-ui :as shared-ui]
             [meta-flow.lint.check.frontend.style :as style]
             [meta-flow.lint.check.report :as report]))
@@ -31,6 +32,9 @@
 (def frontend-page-role-gate
   page-roles/frontend-page-role-gate)
 
+(def frontend-semantics-gate
+  semantics/frontend-semantics-gate)
+
 (def frontend-style-gate
   style/frontend-style-gate)
 
@@ -44,6 +48,7 @@
    (frontend-shared-component-facade-gate)
    (frontend-ui-layering-gate)
    (frontend-page-role-gate)
+   (frontend-semantics-gate)
    (frontend-style-gate)
    (frontend-build-gate)])
 

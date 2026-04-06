@@ -56,7 +56,7 @@
 
     :else
     [:p {:className "defs-authoring-copy"}
-     "Validation shows the normalized backend request without writing a draft."]))
+     "Run Validate to inspect the normalized request before creating a draft."]))
 
 (defn runtime-profile-dialog
   [dialog-state runtime-authoring]
@@ -77,7 +77,7 @@
          [:div
           [:h2 {:className "component-title"} "New Runtime Profile"]
           [:p {:className "defs-authoring-copy"}
-           "Clone-first authoring against the existing runtime-profile templates."]]]
+           "Clone a published template into a new runtime-profile draft."]]]
         [:div {:className "dialog-body"}
          (when (:templates-error runtime-authoring)
            [:p {:className "form-submit-error"} (:templates-error runtime-authoring)])
@@ -136,7 +136,7 @@
            [:div
             [:h3 {:className "component-title"} "Validation Preview"]
             [:p {:className "defs-authoring-copy"}
-             "Useful for checking the normalized request before you write a draft."]]]
+             "Check the normalized backend request before writing a draft."]]]
           [validate-preview runtime-authoring]]]
         [:div {:className "dialog-footer"}
          [:button {:className "button button-ghost"

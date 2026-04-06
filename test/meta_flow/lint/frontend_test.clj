@@ -126,6 +126,7 @@
                   check/frontend-shared-component-facade-gate (fn [] {:label "frontend-shared-component-facade-governance" :status :pass})
                   check/frontend-ui-layering-gate (fn [] {:label "frontend-ui-layering-governance" :status :pass})
                   check/frontend-page-role-gate (fn [] {:label "frontend-page-role-governance" :status :pass})
+                  check/frontend-semantics-gate (fn [] {:label "frontend-semantics-governance" :status :pass})
                   check/frontend-style-gate (fn [] {:label "frontend-style-governance" :status :pass})
                   check/frontend-build-gate (fn [] {:label "frontend-build" :status :pass})
                   coverage/evaluate-coverage
@@ -154,6 +155,7 @@
                 "frontend-shared-component-facade-governance"
                 "frontend-ui-layering-governance"
                 "frontend-page-role-governance"
+                "frontend-semantics-governance"
                 "frontend-style-governance"
                 "frontend-build"
                 "executable-correctness"
@@ -167,6 +169,7 @@
                 frontend/frontend-shared-component-facade-gate (fn [] {:label "frontend-shared-component-facade-governance" :status :pass})
                 frontend/frontend-ui-layering-gate (fn [] {:label "frontend-ui-layering-governance" :status :pass})
                 frontend/frontend-page-role-gate (fn [] {:label "frontend-page-role-governance" :status :pass})
+                frontend/frontend-semantics-gate (fn [] {:label "frontend-semantics-governance" :status :pass})
                 frontend/frontend-style-gate (fn [] {:label "frontend-style-governance" :status :pass})
                 frontend/frontend-build-gate (fn [] {:label "frontend-build" :status :skipped})]
     (is (= ["frontend-architecture-governance"
@@ -174,6 +177,7 @@
             "frontend-shared-component-facade-governance"
             "frontend-ui-layering-governance"
             "frontend-page-role-governance"
+            "frontend-semantics-governance"
             "frontend-style-governance"
             "frontend-build"]
            (mapv :label (frontend/frontend-gates))))))

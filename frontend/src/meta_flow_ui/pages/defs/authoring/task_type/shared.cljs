@@ -229,11 +229,7 @@
        [:p {:className "defs-authoring-copy"}
         (publish-order-message authoring)]]
       [:div {:className "defs-authoring-support-block"}
-       [:p {:className "stat-label"} "Flow"]
+       [:p {:className "stat-label"} "Editor scope"]
        [:p {:className "defs-authoring-copy"}
-        "Validate is optional. Create writes a draft. Publish copies that draft into defs and refreshes the published task-type list on this page."]]
-      [:div {:className "defs-authoring-support-block"}
-       [:p {:className "stat-label"} "First release fields"]
-       [:p {:className "defs-authoring-copy"}
-        "This browser pass exposes template, id, name, version, description, and published runtime selection. Schema and work-key overrides remain backend-supported but editor-free for now."]]]
+        "Create writes a draft. Publish copies that draft into defs and refreshes the published task-type list on this page. This browser pass covers template, id, name, version, description, and published runtime selection. Schema and work-key overrides remain backend-supported but editor-free for now."]]]
      [result-strip authoring task-authoring runtime-error]]))

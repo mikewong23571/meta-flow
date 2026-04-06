@@ -2,6 +2,7 @@
   display: grid;
   gap: var(--space-lg);
   margin-top: var(--space-lg);
+  padding: var(--space-xl);
 }
 
 .defs-authoring-panel-head {
@@ -153,6 +154,7 @@
 
 .defs-authoring-preview-panel {
   gap: var(--space-md);
+  padding: var(--space-lg);
   border-style: dashed;
 }
 
@@ -201,6 +203,10 @@
 }
 
 @media (max-width: 720px) {
+  .defs-authoring-panel {
+    padding: var(--space-lg);
+  }
+
   .defs-authoring-panel-head,
   .defs-authoring-draft-row {
     flex-direction: column;

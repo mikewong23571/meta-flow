@@ -138,6 +138,8 @@
 
 (def execution-gates-from-coverage execution/execution-gates-from-coverage)
 
+(def frontend-semantics-gate frontend/frontend-semantics-gate)
+
 (def frontend-style-gate frontend/frontend-style-gate)
 
 (def frontend-architecture-gate frontend/frontend-architecture-gate)
@@ -167,6 +169,7 @@
         frontend-shared-component-facade-future (spawn-gate frontend-shared-component-facade-gate)
         frontend-ui-layering-future (spawn-gate frontend-ui-layering-gate)
         frontend-page-role-future (spawn-gate frontend-page-role-gate)
+        frontend-semantics-future (spawn-gate frontend-semantics-gate)
         frontend-style-future (spawn-gate frontend-style-gate)
         frontend-build-future (spawn-gate frontend-build-gate)
         execution-result @execution-future
@@ -179,6 +182,7 @@
            @frontend-shared-component-facade-future
            @frontend-ui-layering-future
            @frontend-page-role-future
+           @frontend-semantics-future
            @frontend-style-future
            @frontend-build-future]
           execution-gates)))

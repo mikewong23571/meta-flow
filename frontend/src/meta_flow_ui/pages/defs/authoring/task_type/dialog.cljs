@@ -32,7 +32,7 @@
       [:option {:value (shared/format-runtime-value runtime-item)}
        (shared/runtime-option-label runtime-item)])]
    [:span {:className "defs-authoring-copy"}
-    "Only published runtime profiles appear here. Leave this blank to keep the template runtime profile."]])
+    "Published runtimes only. Leave blank to keep the template runtime."]])
 
 (defn- dialog-field
   [label input error]
@@ -73,7 +73,7 @@
 
     :else
     [:p {:className "defs-authoring-copy"}
-     "Validation shows the normalized backend request without writing a draft."]))
+     "Run Validate to inspect the normalized request before creating a draft."]))
 
 (defn task-type-dialog
   [dialog-state task-authoring runtime-items]
@@ -94,7 +94,7 @@
          [:div
           [:h2 {:className "component-title"} "New Task Type"]
           [:p {:className "defs-authoring-copy"}
-           "Clone-first authoring against the existing task-type templates."]]]
+           "Clone a published template into a new task-type draft."]]]
         [:div {:className "dialog-body"}
          (when (:templates-error task-authoring)
            [:p {:className "form-submit-error"} (:templates-error task-authoring)])
@@ -144,8 +144,6 @@
             (:selected-runtime-profile-value current-state)
             #(update-dialog-field! dialog-state :selected-runtime-profile-value %)]
            nil]]
-         [:p {:className "defs-authoring-copy"}
-          "Only published runtime profiles appear in this selector. To switch away from the template runtime, publish the runtime-profile first and then pick it here."]
          (when (:submit-error task-authoring)
            [:p {:className "form-submit-error"} (:submit-error task-authoring)])
          [:section {:className "panel defs-authoring-preview-panel"}
@@ -153,7 +151,7 @@
            [:div
             [:h3 {:className "component-title"} "Validation Preview"]
             [:p {:className "defs-authoring-copy"}
-             "Useful for checking the normalized request before you write a draft."]]]
+             "Check the normalized backend request before writing a draft."]]]
           [validate-preview task-authoring]]]
         [:div {:className "dialog-footer"}
          [:button {:className "button button-ghost"

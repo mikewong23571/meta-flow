@@ -5,6 +5,13 @@
             [meta-flow-ui.pages.defs.state :as defs-state]
             [reagent.core :as r]))
 
+(defn- show-draft-detail-panel?
+  [runtime-authoring]
+  (or (:draft-detail-loading? runtime-authoring)
+      (:draft-detail-error runtime-authoring)
+      (:draft-detail runtime-authoring)
+      (seq (:drafts runtime-authoring))))
+
 (defn runtime-profile-authoring-section
   [authoring runtime-items]
   (r/with-let [dialog-state (r/atom (shared/blank-dialog-state nil))]
@@ -13,11 +20,8 @@
       [:<>
        [dialog/runtime-profile-dialog dialog-state runtime-authoring]
        [shared/summary-panel authoring runtime-authoring runtime-items]
-       [:section {:className "defs-authoring-drafts-layout"}
-        [drafts/draft-list-panel runtime-authoring]
-        [drafts/draft-detail-panel runtime-authoring]]
        [:div {:className "defs-authoring-footer-actions"}
-        [:button {:className "button button-icon button-primary"
+        [:button {:className "button button-primary"
                   :on-click (fn []
                               (defs-state/reset-runtime-profile-authoring-feedback!)
                               (reset! dialog-state
@@ -25,4 +29,9 @@
                                              :open? true)))
                   :disabled (or (:templates-loading? runtime-authoring)
                                 (empty? (:templates runtime-authoring)))}
-         "New Runtime Profile"]]])))
+         "New Runtime Profile"]]
+       (if (show-draft-detail-panel? runtime-authoring)
+         [:section {:className "defs-authoring-drafts-layout"}
+          [drafts/draft-list-panel runtime-authoring]
+          [drafts/draft-detail-panel runtime-authoring]]
+         [drafts/draft-list-panel runtime-authoring])])))

@@ -65,7 +65,38 @@
                            [:td {:colSpan 5}
                             [:span {:className "scheduler-empty"}
                              "No task types match the current search."]]]]
-                         (map defs-list/task-type-row filtered-items))]
+                         (map defs-list/task-type-row filtered-items))
+            list-section (cond
+                           (and loading? (empty? items))
+                           [:p {:className "scheduler-empty"} "Loading task types..."]
+
+                           (and (not loading?) (empty? items))
+                           [:p {:className "scheduler-empty"} "No task types found."]
+
+                           :else
+                           [:section {:className "panel scheduler-table-panel"}
+                            [:div {:className "scheduler-table-header"}
+                             [:div {:className "tasks-table-status"}
+                              [:span {:className "tasks-visible-count"}
+                               (str (count filtered-items) " / " (count items))]
+                              [:span {:className (str "poll-dot"
+                                                      (when loading? " poll-dot-loading"))}]]]
+                            [:div {:className "scheduler-table-wrap"}
+                             [:table {:className "scheduler-table defs-table"}
+                              [:colgroup
+                               [:col {:className "defs-col-name"}]
+                               [:col {:className "defs-col-input"}]
+                               [:col {:className "defs-col-work-key"}]
+                               [:col {:className "defs-col-runtime"}]
+                               [:col {:className "defs-col-policy"}]]
+                              [:thead
+                               [:tr
+                                [:th "Task type"]
+                                [:th "Input"]
+                                [:th "Work key"]
+                                [:th "Runtime"]
+                                [:th "Policy"]]]
+                              (into [:tbody] table-rows)]]])]
         [components/page-shell
          {:active-route :defs
           :title "Defs"
@@ -87,38 +118,8 @@
            [:section {:className "scheduler-inline-error"}
             [:article {:className "panel scheduler-error-card"}
              [:p {:className "scheduler-error-copy"} error]]])
-         [task-authoring/task-type-authoring-section authoring runtime-items runtime-error items]
-         (cond
-           (and loading? (empty? items))
-           [:p {:className "scheduler-empty"} "Loading task types..."]
-
-           (and (not loading?) (empty? items))
-           [:p {:className "scheduler-empty"} "No task types found."]
-
-           :else
-           [:section {:className "panel scheduler-table-panel"}
-            [:div {:className "scheduler-table-header"}
-             [:div {:className "tasks-table-status"}
-              [:span {:className "tasks-visible-count"}
-               (str (count filtered-items) " / " (count items))]
-              [:span {:className (str "poll-dot"
-                                      (when loading? " poll-dot-loading"))}]]]
-            [:div {:className "scheduler-table-wrap"}
-             [:table {:className "scheduler-table defs-table"}
-              [:colgroup
-               [:col {:className "defs-col-name"}]
-               [:col {:className "defs-col-input"}]
-               [:col {:className "defs-col-work-key"}]
-               [:col {:className "defs-col-runtime"}]
-               [:col {:className "defs-col-policy"}]]
-              [:thead
-               [:tr
-                [:th "Task type"]
-                [:th "Input"]
-                [:th "Work key"]
-                [:th "Runtime"]
-                [:th "Policy"]]]
-              (into [:tbody] table-rows)]]])]))))
+         list-section
+         [task-authoring/task-type-authoring-section authoring runtime-items runtime-error items]]))))
 
 (defn- runtime-list-page-body
   []
@@ -131,7 +132,38 @@
                            [:td {:colSpan 5}
                             [:span {:className "scheduler-empty"}
                              "No runtime profiles match the current search."]]]]
-                         (map defs-list/runtime-profile-row filtered-items))]
+                         (map defs-list/runtime-profile-row filtered-items))
+            list-section (cond
+                           (and runtime-loading? (empty? runtime-items))
+                           [:p {:className "scheduler-empty"} "Loading runtime profiles..."]
+
+                           (and (not runtime-loading?) (empty? runtime-items))
+                           [:p {:className "scheduler-empty"} "No runtime profiles found."]
+
+                           :else
+                           [:section {:className "panel scheduler-table-panel"}
+                            [:div {:className "scheduler-table-header"}
+                             [:div {:className "tasks-table-status"}
+                              [:span {:className "tasks-visible-count"}
+                               (str (count filtered-items) " / " (count runtime-items))]
+                              [:span {:className (str "poll-dot"
+                                                      (when runtime-loading? " poll-dot-loading"))}]]]
+                            [:div {:className "scheduler-table-wrap"}
+                             [:table {:className "scheduler-table defs-table defs-runtime-table"}
+                              [:colgroup
+                               [:col {:className "defs-col-runtime-name"}]
+                               [:col {:className "defs-col-runtime-adapter"}]
+                               [:col {:className "defs-col-runtime-launch"}]
+                               [:col {:className "defs-col-runtime-artifact"}]
+                               [:col {:className "defs-col-runtime-task-types"}]]
+                              [:thead
+                               [:tr
+                                [:th "Runtime profile"]
+                                [:th "Adapter"]
+                                [:th "Launch"]
+                                [:th "Artifacts"]
+                                [:th "Task types"]]]
+                              (into [:tbody] table-rows)]]])]
         [components/page-shell
          {:active-route :defs
           :title "Defs"
@@ -153,38 +185,8 @@
            [:section {:className "scheduler-inline-error"}
             [:article {:className "panel scheduler-error-card"}
              [:p {:className "scheduler-error-copy"} runtime-error]]])
-         [runtime-authoring/runtime-profile-authoring-section authoring runtime-items]
-         (cond
-           (and runtime-loading? (empty? runtime-items))
-           [:p {:className "scheduler-empty"} "Loading runtime profiles..."]
-
-           (and (not runtime-loading?) (empty? runtime-items))
-           [:p {:className "scheduler-empty"} "No runtime profiles found."]
-
-           :else
-           [:section {:className "panel scheduler-table-panel"}
-            [:div {:className "scheduler-table-header"}
-             [:div {:className "tasks-table-status"}
-              [:span {:className "tasks-visible-count"}
-               (str (count filtered-items) " / " (count runtime-items))]
-              [:span {:className (str "poll-dot"
-                                      (when runtime-loading? " poll-dot-loading"))}]]]
-            [:div {:className "scheduler-table-wrap"}
-             [:table {:className "scheduler-table defs-table defs-runtime-table"}
-              [:colgroup
-               [:col {:className "defs-col-runtime-name"}]
-               [:col {:className "defs-col-runtime-adapter"}]
-               [:col {:className "defs-col-runtime-launch"}]
-               [:col {:className "defs-col-runtime-artifact"}]
-               [:col {:className "defs-col-runtime-task-types"}]]
-              [:thead
-               [:tr
-                [:th "Runtime profile"]
-                [:th "Adapter"]
-                [:th "Launch"]
-                [:th "Artifacts"]
-                [:th "Task types"]]]
-              (into [:tbody] table-rows)]]])]))))
+         list-section
+         [runtime-authoring/runtime-profile-authoring-section authoring runtime-items]]))))
 
 (defn- task-type-list-page
   []

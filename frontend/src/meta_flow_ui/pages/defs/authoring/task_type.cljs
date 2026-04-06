@@ -7,6 +7,13 @@
             [meta-flow-ui.pages.defs.state :as defs-state]
             [reagent.core :as r]))
 
+(defn- show-draft-detail-panel?
+  [task-authoring]
+  (or (:draft-detail-loading? task-authoring)
+      (:draft-detail-error task-authoring)
+      (:draft-detail task-authoring)
+      (seq (:drafts task-authoring))))
+
 (defn task-type-authoring-section
   [authoring runtime-items runtime-error task-items]
   (r/with-let [dialog-state (r/atom (shared/blank-dialog-state nil))
@@ -19,9 +26,6 @@
        [generation/generation-dialog generation-dialog-state task-authoring runtime-items generation-state]
        [shared/summary-panel authoring task-authoring runtime-items runtime-error task-items]
        [generation-result/generation-result-panel generation-state]
-       [:section {:className "defs-authoring-drafts-layout"}
-        [drafts/draft-list-panel task-authoring]
-        [drafts/draft-detail-panel task-authoring]]
        [:div {:className "defs-authoring-footer-actions"}
         [:button {:className "button button-secondary"
                   :on-click (fn []
@@ -30,7 +34,7 @@
                                                                      :open? true)))
                   :disabled (:submitting? generation-state)}
          "Generate From Description"]
-        [:button {:className "button button-icon button-primary"
+        [:button {:className "button button-primary"
                   :on-click (fn []
                               (defs-state/reset-task-type-authoring-feedback!)
                               (reset! dialog-state
@@ -38,4 +42,9 @@
                                              :open? true)))
                   :disabled (or (:templates-loading? task-authoring)
                                 (empty? (:templates task-authoring)))}
-         "New Task Type"]]])))
+         "New Task Type"]]
+       (if (show-draft-detail-panel? task-authoring)
+         [:section {:className "defs-authoring-drafts-layout"}
+          [drafts/draft-list-panel task-authoring]
+          [drafts/draft-detail-panel task-authoring]]
+         [drafts/draft-list-panel task-authoring])])))
