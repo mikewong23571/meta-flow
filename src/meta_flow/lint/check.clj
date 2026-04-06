@@ -133,13 +133,23 @@
       :action "Split oversized namespaces or directories by responsibility before adding more behavior."})))
 
 (def parse-test-counts execution/parse-test-counts)
+
 (def classify-test-failure execution/classify-test-failure)
+
 (def execution-gates-from-coverage execution/execution-gates-from-coverage)
+
 (def frontend-style-gate frontend/frontend-style-gate)
+
 (def frontend-architecture-gate frontend/frontend-architecture-gate)
+
 (def frontend-shared-component-placement-gate frontend/frontend-shared-component-placement-gate)
+
 (def frontend-shared-component-facade-gate frontend/frontend-shared-component-facade-gate)
+
 (def frontend-ui-layering-gate frontend/frontend-ui-layering-gate)
+
+(def frontend-page-role-gate frontend/frontend-page-role-gate)
+
 (def frontend-build-gate frontend/frontend-build-gate)
 
 (defn- spawn-gate
@@ -156,6 +166,7 @@
         frontend-shared-component-placement-future (spawn-gate frontend-shared-component-placement-gate)
         frontend-shared-component-facade-future (spawn-gate frontend-shared-component-facade-gate)
         frontend-ui-layering-future (spawn-gate frontend-ui-layering-gate)
+        frontend-page-role-future (spawn-gate frontend-page-role-gate)
         frontend-style-future (spawn-gate frontend-style-gate)
         frontend-build-future (spawn-gate frontend-build-gate)
         execution-result @execution-future
@@ -167,11 +178,13 @@
            @frontend-shared-component-placement-future
            @frontend-shared-component-facade-future
            @frontend-ui-layering-future
+           @frontend-page-role-future
            @frontend-style-future
            @frontend-build-future]
           execution-gates)))
 
 (def overall-status report/overall-status)
+
 (def print-report! report/print-report!)
 
 (defn finish-process!
