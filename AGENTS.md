@@ -1,3 +1,5 @@
+use formpatch skill modify clj source code
+
 # Repository Guidelines
 
 ## Project Structure & Module Organization
