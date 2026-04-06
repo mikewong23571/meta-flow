@@ -2,6 +2,7 @@
   (:require [clojure.string :as str]
             [meta-flow-ui.components :as components]
             [meta-flow-ui.icons :as icons]
+            [meta-flow-ui.pages.defs.authoring.runtime-profile :as runtime-authoring]
             [meta-flow-ui.pages.defs.detail :as defs-detail]
             [meta-flow-ui.pages.defs.list :as defs-list]
             [meta-flow-ui.pages.defs.state :as defs-state]
@@ -121,7 +122,7 @@
   []
   (let [search-text (r/atom "")]
     (fn []
-      (let [{:keys [runtime-items runtime-loading? runtime-error]} (defs-state/defs-state)
+      (let [{:keys [runtime-items runtime-loading? runtime-error authoring]} (defs-state/defs-state)
             filtered-items (visible-runtime-profiles runtime-items @search-text)
             table-rows (if (empty? filtered-items)
                          [[:tr
@@ -150,6 +151,7 @@
            [:section {:className "scheduler-inline-error"}
             [:article {:className "panel scheduler-error-card"}
              [:p {:className "scheduler-error-copy"} runtime-error]]])
+         [runtime-authoring/runtime-profile-authoring-section authoring runtime-items]
          (cond
            (and runtime-loading? (empty? runtime-items))
            [:p {:className "scheduler-empty"} "Loading runtime profiles..."]
@@ -189,7 +191,10 @@
 
 (defn- runtime-list-page
   []
-  (r/with-let [_ (defs-state/load-runtime-items!)]
+  (r/with-let [_ (do (defs-state/load-runtime-items!)
+                     (defs-state/load-authoring-contract!)
+                     (defs-state/load-runtime-profile-templates!)
+                     (defs-state/load-runtime-profile-drafts!))]
     [runtime-list-page-body]))
 
 (defn- task-type-detail-page

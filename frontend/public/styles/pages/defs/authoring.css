@@ -1,0 +1,206 @@
+.defs-authoring-panel {
+  display: grid;
+  gap: var(--space-lg);
+  margin-top: var(--space-lg);
+}
+
+.defs-authoring-panel-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-md);
+}
+
+.defs-authoring-panel-head .component-title {
+  margin: 0;
+}
+
+.defs-authoring-panel-actions {
+  display: flex;
+  gap: var(--space-sm);
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.defs-authoring-copy {
+  margin: 0.35rem 0 0;
+  color: var(--color-text-secondary);
+  font-size: var(--text-sm);
+  line-height: 1.55;
+}
+
+.defs-authoring-meta,
+.defs-authoring-draft-path {
+  margin: 0;
+  color: var(--color-text-muted);
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  word-break: break-word;
+}
+
+.defs-authoring-summary-grid,
+.defs-authoring-status-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--space-md);
+}
+
+.defs-authoring-support {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-md);
+}
+
+.defs-authoring-support-block {
+  min-width: 0;
+  padding: var(--space-md);
+  border: 1px solid var(--color-border-muted);
+  border-radius: var(--radius-md);
+  background: var(--color-bg-panel-muted);
+}
+
+.defs-authoring-badge-row {
+  display: flex;
+  gap: var(--space-sm);
+  flex-wrap: wrap;
+  margin-top: var(--space-sm);
+}
+
+.defs-authoring-status {
+  gap: var(--space-sm);
+}
+
+.defs-authoring-status-body {
+  display: grid;
+  gap: var(--space-xs);
+}
+
+.defs-authoring-drafts-layout {
+  display: grid;
+  grid-template-columns: minmax(19rem, 0.95fr) minmax(0, 1.25fr);
+  gap: var(--space-lg);
+  margin-top: var(--space-lg);
+}
+
+.defs-authoring-draft-list {
+  display: grid;
+  gap: var(--space-sm);
+}
+
+.defs-authoring-draft-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-md);
+  padding: var(--space-md);
+  border: 1px solid var(--color-border-muted);
+  border-radius: var(--radius-md);
+  background: var(--color-bg-panel-muted);
+}
+
+.defs-authoring-draft-row-active {
+  border-color: var(--color-border-accent);
+  box-shadow: inset 0 0 0 1px var(--color-border-accent);
+}
+
+.defs-authoring-draft-copy {
+  display: grid;
+  gap: 0.35rem;
+  min-width: 0;
+}
+
+.defs-authoring-draft-title {
+  margin: 0;
+  font-size: var(--text-base);
+}
+
+.defs-authoring-draft-actions {
+  display: flex;
+  gap: var(--space-sm);
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.defs-authoring-detail {
+  display: grid;
+  gap: var(--space-md);
+}
+
+.defs-authoring-code {
+  margin: 0;
+  padding: var(--space-md);
+  border: 1px solid var(--color-border-muted);
+  border-radius: var(--radius-md);
+  background: var(--color-code-bg);
+  color: var(--color-code-text);
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  line-height: 1.6;
+  overflow-x: auto;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.defs-authoring-dialog {
+  width: min(94vw, 56rem);
+}
+
+.defs-authoring-form-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-md);
+}
+
+.defs-authoring-preview-panel {
+  gap: var(--space-md);
+  border-style: dashed;
+}
+
+.defs-authoring-validation {
+  display: grid;
+  gap: var(--space-md);
+}
+
+.defs-authoring-validation-meta {
+  display: grid;
+  gap: var(--space-sm);
+}
+
+.defs-authoring-footer-actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: var(--space-lg);
+}
+
+@media (max-width: 1024px) {
+  .defs-authoring-summary-grid,
+  .defs-authoring-status-grid,
+  .defs-authoring-support,
+  .defs-authoring-drafts-layout {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 720px) {
+  .defs-authoring-panel-head,
+  .defs-authoring-draft-row {
+    flex-direction: column;
+  }
+
+  .defs-authoring-panel-actions,
+  .defs-authoring-draft-actions,
+  .defs-authoring-footer-actions {
+    width: 100%;
+    justify-content: stretch;
+  }
+
+  .defs-authoring-panel-actions .button,
+  .defs-authoring-draft-actions .button,
+  .defs-authoring-footer-actions .button {
+    flex: 1 1 auto;
+  }
+
+  .defs-authoring-form-grid {
+    grid-template-columns: 1fr;
+  }
+}
