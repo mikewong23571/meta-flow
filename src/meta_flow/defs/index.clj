@@ -1,4 +1,5 @@
-(ns meta-flow.defs.index)
+(ns meta-flow.defs.index
+  (:require [meta-flow.defs.source :as defs.source]))
 
 (defn index-definitions!
   [label definitions id-key version-key]
@@ -6,9 +7,12 @@
             (let [definition-key [(get definition id-key)
                                   (get definition version-key)]]
               (when (contains? idx definition-key)
-                (throw (ex-info (str "Duplicate definition version in " label)
-                                {:label label
-                                 :definition-key definition-key})))
+                (let [existing (get idx definition-key)]
+                  (throw (ex-info (str "Duplicate definition version in " label)
+                                  {:label label
+                                   :definition-key definition-key
+                                   :existing-source (defs.source/definition-source existing)
+                                   :duplicate-source (defs.source/definition-source definition)}))))
               (assoc idx definition-key definition)))
           {}
           definitions))

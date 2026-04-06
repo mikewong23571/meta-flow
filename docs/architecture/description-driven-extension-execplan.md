@@ -22,7 +22,7 @@ This plan deliberately does not promise that every future execution behavior can
 - [x] (2026-04-06 07:39Z) Implemented the layered definitions substrate in spike form: bundled defs, active overlay, duplicate-version rejection, draft exclusion by directory layout, and explicit repository reload all exist in code and tests.
 - [x] (2026-04-06 07:39Z) Implemented clone-first definition authoring in spike form: `create-runtime-profile-draft!`, `create-task-type-draft!`, and publish flows now exist in code and tests.
 - [x] (2026-04-06 07:39Z) Implemented a first thin CLI surface in spike form: `defs init-overlay`, `defs create-runtime-profile`, `defs create-task-type`, `defs publish-runtime-profile`, and `defs publish-task-type`.
-- [ ] Harden the existing substrate and authoring code from spike quality to production quality: clarify errors, add atomic writes, extend tests, and decide which spike interfaces are stable enough to keep.
+- [x] (2026-04-06 07:53Z) Hardened the definitions substrate into production-quality Milestone 1 groundwork: bundled-plus-overlay loading now works from `defs/`, draft content stays excluded by top-level file loading, duplicate version errors report bundled vs overlay sources, filesystem repositories support explicit reload, `defs init-overlay` creates deterministic overlay files with atomic writes, and the new substrate is covered by loader/CLI tests plus the full test suite.
 - [ ] Expand the clone-first authoring contract into an explicitly documented stable request shape, including publish ordering rules and which overrides are supported in the first release.
 - [ ] Add the next user-facing layer, likely HTTP after CLI, reusing the same clone-first request shape rather than inventing a second input model.
 - [ ] Add optional description-to-draft generation on top of the stable clone-first authoring contract.
@@ -109,6 +109,8 @@ This plan deliberately does not promise that every future execution behavior can
 ## Outcomes & Retrospective
 
 This plan is now partially de-risked by three spikes. The first spike proved the highest-risk loader assumptions: active overlay loading can remain file-based, draft isolation can be achieved by directory layout alone, and repository cache refresh can be explicit. The second spike proved that the minimal authoring model can be clone-first rather than schema-first: valid drafts can be created and published with a template id, a new id, a new name, and a narrow override map. The third spike proved that this route can be surfaced through a thin CLI without inventing a large authoring framework first. The remaining work is now mostly about hardening, broadening the override vocabulary, and deciding when HTTP adds enough value to justify itself.
+
+Task 1 is now complete in the current codebase. The definitions loader no longer assumes a classpath-only world: it merges bundled defaults with a top-level `defs/` overlay, ignores `defs/drafts/` by construction, and surfaces source metadata in duplicate-version failures so a user can tell whether the conflict came from bundled defaults or local overlay data. The filesystem repository now exposes an explicit reload path so long-running processes can see authored definitions after disk changes. The CLI also has a stable `defs init-overlay` command that creates deterministic overlay files and draft directories using atomic writes, giving later authoring tasks a safe write target instead of ad hoc file creation.
 
 ## Context and Orientation
 

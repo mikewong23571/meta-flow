@@ -58,6 +58,13 @@
                                     db/ensure-runtime-directories! (fn []
                                                                      ["var/artifacts" "var/runs" "var/codex-home"])]
                         (cli/dispatch-command! ["init"])))
+        defs-init-overlay-output (with-out-str
+                                   (with-redefs [defs.loader/init-overlay! (fn []
+                                                                             {:overlay-root "defs"
+                                                                              :draft-root "defs/drafts"
+                                                                              :created-files ["defs/task-types.edn"
+                                                                                              "defs/runtime-profiles.edn"]})]
+                                     (cli/dispatch-command! ["defs" "init-overlay"])))
         defs-output (with-out-str
                       (with-redefs [defs.loader/filesystem-definition-repository (fn []
                                                                                    repository)
@@ -151,6 +158,9 @@
     (is (= [[:load repository]] @bootstrap-calls))
     (is (str/includes? init-output "Initialized database at var/meta-flow.sqlite3"))
     (is (str/includes? init-output "Loaded workflow definitions"))
+    (is (str/includes? defs-init-overlay-output "Initialized definitions overlay at defs"))
+    (is (str/includes? defs-init-overlay-output "Drafts directory: defs/drafts"))
+    (is (str/includes? defs-init-overlay-output "Active definition files ready: 2"))
     (is (str/includes? defs-output "Definitions valid"))
     (is (str/includes? defs-output "Task types: 2"))
     (is (str/includes? codex-home-output "Profile :runtime-profile/codex-worker:"))

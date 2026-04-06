@@ -10,6 +10,7 @@
    \newline
    ["Usage:"
     "  clojure -M -m meta-flow.main init"
+    "  clojure -M -m meta-flow.main defs init-overlay"
     "  clojure -M -m meta-flow.main defs validate"
     "  clojure -M -m meta-flow.main runtime init-codex-home"
     "  clojure -M -m meta-flow.main enqueue [--work-key <work-key>]"
@@ -29,6 +30,9 @@
   (cond
     (= args ["init"])
     (commands/run-init!)
+
+    (= args ["defs" "init-overlay"])
+    (commands/run-defs-init-overlay!)
 
     (= args ["defs" "validate"])
     (commands/run-defs-validate!)

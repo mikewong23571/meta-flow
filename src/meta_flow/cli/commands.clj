@@ -39,12 +39,19 @@
         {:keys [db-path pragmas]} (db/initialize-database!)
         runtime-dirs (db/ensure-runtime-directories!)]
     (println (str "Initialized database at " db-path))
-    (println "Loaded workflow definitions from resources/meta_flow/defs")
+    (println "Loaded workflow definitions from resources/meta_flow/defs with defs/ overlay support")
     (println (str "Ensured runtime directories: " (str/join ", " runtime-dirs)))
     (println (str "SQLite pragmas applied: journal_mode="
                   (:journal_mode pragmas)
                   ", busy_timeout="
                   (:busy_timeout pragmas)))))
+
+(defn run-defs-init-overlay!
+  []
+  (let [{:keys [overlay-root draft-root created-files]} (defs.loader/init-overlay!)]
+    (println (str "Initialized definitions overlay at " overlay-root))
+    (println (str "Drafts directory: " draft-root))
+    (println (str "Active definition files ready: " (count created-files)))))
 
 (defn run-defs-validate!
   []
