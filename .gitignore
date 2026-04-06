@@ -3,6 +3,7 @@
 
 # Clojure CLI caches
 /.cpcache/
+/ui/.cpcache/
 
 # Build outputs
 /target/
