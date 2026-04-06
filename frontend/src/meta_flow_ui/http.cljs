@@ -23,13 +23,41 @@
   (when-let [json-text (some-> text str/trim not-empty)]
     (js->clj (.parse js/JSON json-text) :keywordize-keys true)))
 
+(defn- json-key
+  [value]
+  (cond
+    (keyword? value) (if-let [ns-part (namespace value)]
+                       (str ns-part "/" (name value))
+                       (name value))
+    (symbol? value) (if-let [ns-part (namespace value)]
+                      (str ns-part "/" (name value))
+                      (name value))
+    :else value))
+
+(defn- json-ready
+  [value]
+  (cond
+    (map? value)
+    (reduce-kv (fn [acc k v]
+                 (assoc acc (json-key k) (json-ready v)))
+               {}
+               value)
+
+    (vector? value)
+    (mapv json-ready value)
+
+    (seq? value)
+    (mapv json-ready value)
+
+    :else value))
+
 (defn post-json
   [path body]
   (-> (js/fetch (api-url path)
                 #js {:method "POST"
                      :headers #js {"Content-Type" "application/json"
                                    "Accept" "application/json"}
-                     :body (.stringify js/JSON (clj->js body))})
+                     :body (.stringify js/JSON (clj->js (json-ready body)))})
       (.then (fn [response]
                (-> (.text response)
                    (.then (fn [text]

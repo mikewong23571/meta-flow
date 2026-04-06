@@ -19,6 +19,10 @@
   []
   (reset-kind-feedback! :runtime-profile))
 
+(defn reset-task-type-authoring-feedback!
+  []
+  (reset-kind-feedback! :task-type))
+
 (defn- reset-kind-validation-preview!
   [definition-kind]
   (let [base-path (authoring-read/authoring-path definition-kind)]
@@ -32,3 +36,7 @@
 (defn reset-runtime-profile-validation-preview!
   []
   (reset-kind-validation-preview! :runtime-profile))
+
+(defn reset-task-type-validation-preview!
+  []
+  (reset-kind-validation-preview! :task-type))

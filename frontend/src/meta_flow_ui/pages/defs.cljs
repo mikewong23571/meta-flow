@@ -3,6 +3,7 @@
             [meta-flow-ui.components :as components]
             [meta-flow-ui.icons :as icons]
             [meta-flow-ui.pages.defs.authoring.runtime-profile :as runtime-authoring]
+            [meta-flow-ui.pages.defs.authoring.task-type :as task-authoring]
             [meta-flow-ui.pages.defs.detail :as defs-detail]
             [meta-flow-ui.pages.defs.list :as defs-list]
             [meta-flow-ui.pages.defs.state :as defs-state]
@@ -57,7 +58,7 @@
   []
   (let [search-text (r/atom "")]
     (fn []
-      (let [{:keys [items loading? error]} (defs-state/defs-state)
+      (let [{:keys [items loading? error runtime-items runtime-error authoring]} (defs-state/defs-state)
             filtered-items (visible-task-types items @search-text)
             table-rows (if (empty? filtered-items)
                          [[:tr
@@ -86,6 +87,7 @@
            [:section {:className "scheduler-inline-error"}
             [:article {:className "panel scheduler-error-card"}
              [:p {:className "scheduler-error-copy"} error]]])
+         [task-authoring/task-type-authoring-section authoring runtime-items runtime-error items]
          (cond
            (and loading? (empty? items))
            [:p {:className "scheduler-empty"} "Loading task types..."]
@@ -186,7 +188,11 @@
 
 (defn- task-type-list-page
   []
-  (r/with-let [_ (defs-state/load-items!)]
+  (r/with-let [_ (do (defs-state/load-items!)
+                     (defs-state/load-runtime-items!)
+                     (defs-state/load-authoring-contract!)
+                     (defs-state/load-task-type-templates!)
+                     (defs-state/load-task-type-drafts!))]
     [task-type-list-page-body]))
 
 (defn- runtime-list-page
