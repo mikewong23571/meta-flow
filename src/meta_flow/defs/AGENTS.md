@@ -2,15 +2,17 @@
 
 ## Scope
 
-This directory owns the code that loads, indexes, validates, and serves workflow definitions.
+This directory owns the code that loads, indexes, validates, authors, generates, and serves workflow definitions.
 
 Read it by responsibility:
 
-- `source.clj` loads raw definition data from resources.
+- `source.clj`, `repository.clj`, and `protocol.clj` own raw definition loading and the `DefinitionRepository` boundary.
 - `validation.clj` enforces schema, link, FSM, and runtime-profile constraints.
 - `index.clj` builds versioned lookup indexes and reference checks.
-- `repository.clj` exposes the filesystem-backed `DefinitionRepository`.
 - `loader.clj` is the narrow public entrypoint used by the rest of the app.
+- `authoring.clj` plus `authoring/` own draft editing, kind-specific authoring rules, prepare steps, and workspace materialization.
+- `generation/` owns description/inference-driven definition generation support.
+- `workspace/files.clj` owns reusable workspace file-layout helpers.
 
 The bundled definition data itself lives under `resources/meta_flow/defs/`.
 

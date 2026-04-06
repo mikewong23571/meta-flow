@@ -6,9 +6,11 @@ This directory owns the HTTP/UI-facing read and create surface for Meta-Flow. It
 
 Read it by boundary:
 
-- `http.clj` owns route definitions, request coercion, and server startup.
+- `http.clj` owns route composition, request coercion, and server startup.
 - `http/middleware.clj` owns cross-cutting HTTP behavior.
-- `scheduler.clj`, `tasks.clj`, and `defs.clj` assemble UI-facing views over scheduler state, tasks, runs, and definitions.
+- `http/defs.clj` plus `http/defs/` own defs-specific HTTP handlers, catalog shaping, and request/response schema wiring.
+- `defs.clj` and `defs/authoring.clj` assemble definition summaries, detail views, and authoring-facing responses.
+- `scheduler.clj` and `tasks.clj` assemble UI-facing views over scheduler state, tasks, and runs.
 
 ## Change Rules
 

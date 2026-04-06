@@ -6,10 +6,11 @@ This directory owns the concrete Codex runtime adapter: Codex home setup, worker
 
 Read it in slices rather than as one blob:
 
-- `home.clj`, `fs.clj`, and `helper.clj` prepare concrete worker inputs and local runtime state.
-- `worker.clj`, `worker/prompt.clj`, and `worker_api.clj` define worker-side contracts and bridge behavior.
+- `home.clj`, `fs.clj`, and `helper.clj` prepare Codex home state, concrete worker inputs, and local runtime helpers.
+- `worker.clj`, `worker/prompt.clj`, and `worker_api.clj` define worker-side payloads, prompt wrapping, and bridge behavior.
 - `execution.clj` and `execution/dispatch.clj` coordinate adapter lifecycle operations.
-- `process/` and `launch/` own launch-mode, command construction, and live process state semantics.
+- `process/launch.clj` and `process/state.clj` own launch execution and live process state semantics.
+- `launch/support.clj` holds launch-mode and command-construction helpers.
 - `events.clj` defines emitted runtime event shapes.
 
 ## Change Rules

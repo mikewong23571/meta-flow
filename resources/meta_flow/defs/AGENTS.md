@@ -4,7 +4,7 @@
 
 This directory holds the bundled versioned workflow definitions that shape task behavior without changing control-plane code.
 
-The main files are:
+This directory is intentionally flat; each file owns one definition family:
 
 - `task-types.edn` for task-type assembly
 - `task-fsms.edn` and `run-fsms.edn` for state-machine definitions

@@ -6,22 +6,22 @@ use formpatch skill modify clj source code
 
 Application code lives in `src/meta_flow/`. Read the codebase in layers rather than as a flat file list:
 
-- Entry points and shared facades: `main.clj`, `cli.clj`, and `scheduler.clj` are the main public entry points; shared infrastructure sits in `db.clj`, `sql.clj`, and `schema.clj`.
+- Entry points and shared facades: `main.clj`, `cli.clj`, and `scheduler.clj` are the main public entry points; `cli/` holds command parsing and defs-specific CLI helpers; shared infrastructure sits in `db.clj`, `sql.clj`, and `schema.clj`.
 - Core workflow domains:
-  - `control/` handles event ingestion, FSM logic, and projections.
-  - `defs/` handles workflow-definition loading, indexing, validation, and repository access.
-  - `scheduler/` contains orchestration, dispatch, step execution, retries, runtime coordination, and developer/demo helpers.
+  - `control/` handles event ingestion, event shapes, FSM logic, and projections.
+  - `defs/` spans definition loading, validation, indexing, repository protocols, authoring workflows, generation helpers, and workspace file support.
+  - `scheduler/` contains state validation, retries, dispatch, runtime passes, timeout handling, and developer/demo/inspect helpers.
 - Runtime and persistence:
-  - `runtime/` defines runtime contracts plus the concrete `codex/` and `mock/` adapters.
-  - `store/` defines storage contracts and the SQLite-backed implementation.
-- Service and UI:
+  - `runtime/` defines runtime protocols and registry wiring plus the concrete `codex/` and `mock/` adapters.
+  - `store/` defines storage protocols and the SQLite-backed implementation split across task, run, lease, and artifact persistence slices.
+- Service, interfaces, and governance:
   - `service/` contains service-layer validation.
-  - `ui/` contains Ring/HTTP wiring, middleware, and handlers for defs, scheduler, and tasks.
-- Governance and tests:
-  - `lint/` contains lint, governance, and coverage checks.
-  - `test/meta_flow/` broadly mirrors the production layout, with deeper splits where coverage is dense, especially under `scheduler/`, `runtime/`, `store/`, and `ui/`.
-- Bundled assets and docs:
-  - `resources/meta_flow/` holds EDN definitions, SQL migrations, prompt assets, and Codex home fixtures.
+  - `ui/` contains Ring/HTTP wiring, middleware, defs catalog/authoring handlers, and scheduler/task projections.
+  - `governance/` and `lint/` contain repo-governance graph/reporting plus lint, coverage, and check entry points.
+- Tests and bundled assets:
+  - `test/meta_flow/` broadly mirrors the production layout, with additional `arch/` and `governance/` coverage plus deeper splits where coverage is dense under `scheduler/`, `runtime/`, `store/`, and `ui/`.
+  - `resources/meta_flow/` holds versioned EDN definitions, SQL migrations, prompt assets, and Codex home fixtures.
+  - Top-level `ui/` is a separate browser project with its own `bb.edn`, `tests.edn`, `src/`, and `public/`.
   - `docs/architecture/` holds active architecture references; `docs/archive/` is historical background only.
 
 ## Build, Test, and Development Commands

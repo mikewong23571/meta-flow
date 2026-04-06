@@ -6,10 +6,10 @@ This directory owns the SQLite-backed `StateStore` implementation and its persis
 
 Read it by persistence slice:
 
-- `tasks.clj`, `runs.clj`, and `run_data.clj` are the main facade namespaces behind `src/meta_flow/store/sqlite.clj`.
-- `run/` owns run row, lifecycle, and event persistence details.
-- `lease/` owns active-lease persistence.
-- `artifact/` owns artifact, assessment, and disposition persistence.
+- `tasks.clj`, `runs.clj`, and `run_data.clj` are the main store-facing slices behind `src/meta_flow/store/sqlite.clj`.
+- `run/rows.clj`, `run/lifecycle.clj`, and `run/events.clj` own run row shape, lifecycle transitions, and event persistence details.
+- `lease/core.clj` owns active-lease persistence.
+- `artifact/core.clj`, `artifact/assessments.clj`, and `artifact/dispositions.clj` own artifact, assessment, and disposition persistence.
 - `shared.clj` holds shared SQL/row helpers.
 
 ## Change Rules

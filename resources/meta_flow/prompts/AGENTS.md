@@ -6,6 +6,11 @@ This directory holds bundled prompt assets consumed by runtime profiles and work
 
 Today these files act as runtime inputs, not as authoritative workflow state. The structure and truth of task behavior still live in versioned definitions, code, and persisted events.
 
+The current prompt assets are:
+
+- `worker.md` for the default Codex worker flow
+- `repo-arch-worker.md` for repository-architecture investigation flows
+
 ## Change Rules
 
 - Treat prompts as execution assets. Use them to shape worker instructions, not to encode hidden scheduler policy, validation rules, or persistence semantics.

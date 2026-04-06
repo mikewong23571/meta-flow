@@ -7,9 +7,10 @@ This directory owns scheduler-side orchestration: task/run validation, state tra
 The main internal split is:
 
 - `state.clj`, `validation.clj`, and `retry.clj` for transition and eligibility rules.
-- `step.clj`, `dispatch/core.clj`, and `runtime/` for each scheduler pass and runtime coordination.
+- `step.clj`, `runtime.clj`, `runtime/run.clj`, and `runtime/timeout.clj` for scheduler passes, runtime coordination, and timeout handling.
+- `dispatch/core.clj` for capacity and dispatch decisions.
 - `shared.clj` for common scheduler helpers.
-- `dev/` for demos, inspection, and developer-facing task helpers.
+- `dev.clj` plus `dev/` for demos, inspection, and developer-facing task helpers.
 
 The public facade stays narrow in `src/meta_flow/scheduler.clj`; avoid pushing subsystem detail back up into that file.
 
