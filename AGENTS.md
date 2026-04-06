@@ -2,7 +2,25 @@
 
 ## Project Structure & Module Organization
 
-Application code lives in `src/meta_flow/`. Top-level entry and shared namespaces include `main.clj`, `cli.clj`, `db.clj`, `sql.clj`, `schema.clj`, and the public scheduler facade in `scheduler.clj`; CLI flows are split further under `cli/commands.clj` and `cli/inspect.clj`. Control-plane primitives live under `control/`, with event ingestion, event constants, FSM helpers, a projection facade in `control/projection.clj`, and snapshot helpers in `control/projection/snapshot.clj`. Workflow definition loading and metadata live under `defs/`, where `loader.clj` fronts `protocol.clj`, `source.clj`, `index.clj`, `validation.clj`, and `repository.clj`. Scheduler internals are split by responsibility under `scheduler/`, including state and validation, step execution, retry policy, shared helpers, runtime orchestration in `scheduler/runtime.clj` plus `scheduler/runtime/{run,timeout}.clj`, dispatch logic in `scheduler/dispatch/core.clj`, and developer/demo helpers in `scheduler/dev.clj` plus `scheduler/dev/{demo,inspect,task}.clj`. Runtime adapters live under `runtime/`; shared contracts stay in `runtime/protocol.clj` and `runtime/registry.clj`, the mock adapter is split across `runtime/mock.clj` plus `runtime/mock/{fs,events,execution}.clj`, and the Codex adapter is split across `runtime/codex.clj` plus helper, home, filesystem, events, worker, worker prompt, worker API, execution, execution dispatch, launch support, and process launch/state namespaces. Storage code lives under `store/`; the protocol is in `store/protocol.clj`, and the SQLite implementation keeps its facade in `store/sqlite.clj` with shared helpers plus task, runs, run-data, lease, run-row/lifecycle/event, and artifact assessment/disposition persistence separated under `store/sqlite/`, including subareas for `run/`, `lease/`, and `artifact/`. UI entrypoints now live under `ui/`, with Ring/HTTP wiring in `ui/http.clj` and scheduler/task-facing handlers in `ui/scheduler.clj` and `ui/tasks.clj`. Lint and governance code lives under `lint/`, with entry namespaces in `lint/check.clj`, `lint/coverage.clj`, and `lint/file_length.clj`; detailed lint execution is split across `lint/check/{execution,report,shared}.clj`, and frontend-specific checks/build/style rules live under `lint/check/frontend/`, while coverage helpers live under `lint/coverage/`. Service-layer validation helpers live in `service/validation.clj`. Tests live in `test/meta_flow/`, organized by subsystem under `arch/`, `cli/`, `control/`, `db/`, `defs/`, `lint/`, `runtime/`, `scheduler/`, `service/`, `store/`, and `ui/`; scheduler fixtures live under `test/meta_flow/scheduler/support/`, scheduler coverage is further split across `dispatch/`, `heartbeat/`, `recovery/`, and `runtime/`, store coverage includes focused SQLite `run/` tests, and runtime coverage is split across `runtime/codex/`, `runtime/codex_launch/`, `runtime/codex_units/`, and `runtime/codex_worker_api/` with additional worker-wrapper support under `runtime/codex/worker_wrapper/`. Repository data and runtime inputs live under `resources/meta_flow/`: workflow definitions in `defs/*.edn`, SQL migrations in `sql/*.sql`, prompt assets in `prompts/`, and bundled Codex home/config fixtures under `codex_home/`. Current repository documentation lives in `docs/`, including active architecture references under `docs/architecture/`; archived historical material under `docs/archive/` is not part of the active reference set and does not need to be consulted when updating this file.
+Application code lives in `src/meta_flow/`. Read the codebase in layers rather than as a flat file list:
+
+- Entry points and shared facades: `main.clj`, `cli.clj`, and `scheduler.clj` are the main public entry points; shared infrastructure sits in `db.clj`, `sql.clj`, and `schema.clj`.
+- Core workflow domains:
+  - `control/` handles event ingestion, FSM logic, and projections.
+  - `defs/` handles workflow-definition loading, indexing, validation, and repository access.
+  - `scheduler/` contains orchestration, dispatch, step execution, retries, runtime coordination, and developer/demo helpers.
+- Runtime and persistence:
+  - `runtime/` defines runtime contracts plus the concrete `codex/` and `mock/` adapters.
+  - `store/` defines storage contracts and the SQLite-backed implementation.
+- Service and UI:
+  - `service/` contains service-layer validation.
+  - `ui/` contains Ring/HTTP wiring, middleware, and handlers for defs, scheduler, and tasks.
+- Governance and tests:
+  - `lint/` contains lint, governance, and coverage checks.
+  - `test/meta_flow/` broadly mirrors the production layout, with deeper splits where coverage is dense, especially under `scheduler/`, `runtime/`, `store/`, and `ui/`.
+- Bundled assets and docs:
+  - `resources/meta_flow/` holds EDN definitions, SQL migrations, prompt assets, and Codex home fixtures.
+  - `docs/architecture/` holds active architecture references; `docs/archive/` is historical background only.
 
 ## Build, Test, and Development Commands
 
