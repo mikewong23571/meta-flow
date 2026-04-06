@@ -2,9 +2,9 @@
   "name": "meta-flow-frontend",
   "private": true,
   "scripts": {
-    "ui:watch": "shadow-cljs watch app",
-    "ui:release": "shadow-cljs release app",
-    "ui:check": "shadow-cljs compile app"
+    "ui:watch": "clojure -M:native-access:cljs -m shadow.cljs.devtools.cli --npm watch app",
+    "ui:release": "clojure -M:native-access:cljs -m shadow.cljs.devtools.cli --npm release app",
+    "ui:check": "clojure -M:native-access:cljs -m shadow.cljs.devtools.cli --npm compile app"
   },
   "dependencies": {
     "@radix-ui/react-checkbox": "1.3.3",
