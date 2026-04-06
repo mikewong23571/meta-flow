@@ -1,16 +1,6 @@
 (ns meta-flow.ui.http.defs
-  (:require [meta-flow.ui.defs :as ui.defs]
-            [meta-flow.ui.defs.authoring :as ui.defs.authoring]))
-
-(def ^:private task-type-detail-query-params
-  [:map
-   [:task-type-id :string]
-   [:task-type-version :int]])
-
-(def ^:private runtime-profile-detail-query-params
-  [:map
-   [:runtime-profile-id :string]
-   [:runtime-profile-version :int]])
+  (:require [meta-flow.ui.defs.authoring :as ui.defs.authoring]
+            [meta-flow.ui.http.defs.catalog :as defs.catalog]))
 
 (def ^:private definition-draft-detail-query-params
   [:map
@@ -199,81 +189,41 @@
   {:status 200
    :body (ui.defs.authoring/reload-definition-repository! defs-repo)})
 
-(defn- task-types-handler
-  [defs-repo _]
-  {:status 200
-   :body {:items (ui.defs/list-task-types defs-repo)}})
-
-(defn- task-type-create-options-handler
-  [defs-repo _]
-  {:status 200
-   :body {:items (ui.defs/list-task-type-create-options defs-repo)}})
-
-(defn- task-type-detail-handler
-  [defs-repo {{{:keys [task-type-id task-type-version]} :query} :parameters}]
-  {:status 200
-   :body (ui.defs/load-task-type-detail defs-repo
-                                        (keyword task-type-id)
-                                        task-type-version)})
-
-(defn- runtime-profiles-handler
-  [defs-repo _]
-  {:status 200
-   :body {:items (ui.defs/list-runtime-profiles defs-repo)}})
-
-(defn- runtime-profile-detail-handler
-  [defs-repo {{{:keys [runtime-profile-id runtime-profile-version]} :query} :parameters}]
-  {:status 200
-   :body (ui.defs/load-runtime-profile-detail defs-repo
-                                              (keyword runtime-profile-id)
-                                              runtime-profile-version)})
-
 (defn routes
   [defs-repo]
-  [["/defs"
-    ["/contract"
-     {:get {:handler defs-authoring-contract-handler}}]
-    ["/runtime-profiles/templates"
-     {:get {:handler (partial runtime-profile-templates-handler defs-repo)}}]
-    ["/runtime-profiles/drafts"
-     {:get {:handler (partial runtime-profile-drafts-handler defs-repo)}
-      :post {:parameters {:body runtime-profile-draft-request-body}
-             :handler (partial create-runtime-profile-draft-handler defs-repo)}}]
-    ["/runtime-profiles/drafts/detail"
-     {:get {:parameters {:query definition-draft-detail-query-params}
-            :handler (partial runtime-profile-draft-detail-handler defs-repo)}}]
-    ["/runtime-profiles/drafts/validate"
-     {:post {:parameters {:body runtime-profile-draft-request-body}
-             :handler (partial validate-runtime-profile-draft-handler defs-repo)}}]
-    ["/runtime-profiles/drafts/publish"
-     {:post {:parameters {:body definition-ref-body}
-             :handler (partial publish-runtime-profile-draft-handler defs-repo)}}]
-    ["/task-types/templates"
-     {:get {:handler (partial task-type-templates-handler defs-repo)}}]
-    ["/task-types/drafts"
-     {:get {:handler (partial task-type-drafts-handler defs-repo)}
-      :post {:parameters {:body task-type-draft-request-body}
-             :handler (partial create-task-type-draft-handler defs-repo)}}]
-    ["/task-types/drafts/detail"
-     {:get {:parameters {:query definition-draft-detail-query-params}
-            :handler (partial task-type-draft-detail-handler defs-repo)}}]
-    ["/task-types/drafts/validate"
-     {:post {:parameters {:body task-type-draft-request-body}
-             :handler (partial validate-task-type-draft-handler defs-repo)}}]
-    ["/task-types/drafts/publish"
-     {:post {:parameters {:body definition-ref-body}
-             :handler (partial publish-task-type-draft-handler defs-repo)}}]
-    ["/reload"
-     {:post {:handler (partial defs-reload-handler defs-repo)}}]]
-   ["/task-types"
-    {:get {:handler (partial task-types-handler defs-repo)}}]
-   ["/task-types/create-options"
-    {:get {:handler (partial task-type-create-options-handler defs-repo)}}]
-   ["/task-types/detail"
-    {:get {:parameters {:query task-type-detail-query-params}
-           :handler (partial task-type-detail-handler defs-repo)}}]
-   ["/runtime-profiles"
-    {:get {:handler (partial runtime-profiles-handler defs-repo)}}]
-   ["/runtime-profiles/detail"
-    {:get {:parameters {:query runtime-profile-detail-query-params}
-           :handler (partial runtime-profile-detail-handler defs-repo)}}]])
+  (into [["/defs"
+          ["/contract"
+           {:get {:handler defs-authoring-contract-handler}}]
+          ["/runtime-profiles/templates"
+           {:get {:handler (partial runtime-profile-templates-handler defs-repo)}}]
+          ["/runtime-profiles/drafts"
+           {:get {:handler (partial runtime-profile-drafts-handler defs-repo)}
+            :post {:parameters {:body runtime-profile-draft-request-body}
+                   :handler (partial create-runtime-profile-draft-handler defs-repo)}}]
+          ["/runtime-profiles/drafts/detail"
+           {:get {:parameters {:query definition-draft-detail-query-params}
+                  :handler (partial runtime-profile-draft-detail-handler defs-repo)}}]
+          ["/runtime-profiles/drafts/validate"
+           {:post {:parameters {:body runtime-profile-draft-request-body}
+                   :handler (partial validate-runtime-profile-draft-handler defs-repo)}}]
+          ["/runtime-profiles/drafts/publish"
+           {:post {:parameters {:body definition-ref-body}
+                   :handler (partial publish-runtime-profile-draft-handler defs-repo)}}]
+          ["/task-types/templates"
+           {:get {:handler (partial task-type-templates-handler defs-repo)}}]
+          ["/task-types/drafts"
+           {:get {:handler (partial task-type-drafts-handler defs-repo)}
+            :post {:parameters {:body task-type-draft-request-body}
+                   :handler (partial create-task-type-draft-handler defs-repo)}}]
+          ["/task-types/drafts/detail"
+           {:get {:parameters {:query definition-draft-detail-query-params}
+                  :handler (partial task-type-draft-detail-handler defs-repo)}}]
+          ["/task-types/drafts/validate"
+           {:post {:parameters {:body task-type-draft-request-body}
+                   :handler (partial validate-task-type-draft-handler defs-repo)}}]
+          ["/task-types/drafts/publish"
+           {:post {:parameters {:body definition-ref-body}
+                   :handler (partial publish-task-type-draft-handler defs-repo)}}]
+          ["/reload"
+           {:post {:handler (partial defs-reload-handler defs-repo)}}]]]
+        (defs.catalog/routes defs-repo)))
