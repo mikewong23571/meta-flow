@@ -145,6 +145,35 @@
    [:runtime-profiles [:vector runtime-profile-schema]]
    [:resource-policies [:vector resource-policy-schema]]])
 
+(def runtime-profile-draft-overrides-schema
+  [:map
+   [:runtime-profile/web-search-enabled? {:optional true} boolean?]
+   [:runtime-profile/worker-prompt-path {:optional true} string?]])
+
+(def task-type-draft-overrides-schema
+  [:map
+   [:task-type/runtime-profile-ref {:optional true} definition-ref-schema]
+   [:task-type/input-schema {:optional true} [:vector input-field-schema]]
+   [:task-type/work-key-expr {:optional true} work-key-expr-schema]])
+
+(def runtime-profile-draft-request-schema
+  [:map
+   [:authoring/from-id keyword?]
+   [:authoring/from-version {:optional true} pos-int?]
+   [:authoring/new-id keyword?]
+   [:authoring/new-name string?]
+   [:authoring/new-version {:optional true} pos-int?]
+   [:authoring/overrides {:optional true} runtime-profile-draft-overrides-schema]])
+
+(def task-type-draft-request-schema
+  [:map
+   [:authoring/from-id keyword?]
+   [:authoring/from-version {:optional true} pos-int?]
+   [:authoring/new-id keyword?]
+   [:authoring/new-name string?]
+   [:authoring/new-version {:optional true} pos-int?]
+   [:authoring/overrides {:optional true} task-type-draft-overrides-schema]])
+
 (defn explain
   [schema value]
   (when-let [explanation (m/explain schema value)]

@@ -1,10 +1,10 @@
 (ns meta-flow.defs-loader-test
   (:require [clojure.java.io :as io]
             [clojure.test :refer [deftest is testing]]
-            [meta-flow.defs.files :as defs.files]
             [meta-flow.defs.loader :as defs.loader]
             [meta-flow.defs.protocol :as defs.protocol]
-            [meta-flow.defs.repository :as defs.repository]))
+            [meta-flow.defs.repository :as defs.repository]
+            [meta-flow.defs.workspace.files :as workspace.files]))
 
 (defn- temp-overlay-root
   []
@@ -57,9 +57,9 @@
 
 (deftest defs-loader-delegates-overlay-init-and-reload
   (let [repository ::repository]
-    (with-redefs [defs.files/initialize-overlay! (fn [overlay-root]
-                                                   {:overlay-root overlay-root
-                                                    :created-files []})
+    (with-redefs [workspace.files/initialize-overlay! (fn [overlay-root]
+                                                        {:overlay-root overlay-root
+                                                         :created-files []})
                   defs.repository/reload-filesystem-definition-repository! (fn [repo]
                                                                              [:reloaded repo])]
       (is (= {:overlay-root "defs/custom"

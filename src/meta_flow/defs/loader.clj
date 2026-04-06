@@ -1,7 +1,7 @@
 (ns meta-flow.defs.loader
-  (:require [meta-flow.defs.files :as defs.files]
-            [meta-flow.defs.repository :as defs.repository]
-            [meta-flow.defs.source :as defs.source]))
+  (:require [meta-flow.defs.repository :as defs.repository]
+            [meta-flow.defs.source :as defs.source]
+            [meta-flow.defs.workspace.files :as workspace.files]))
 
 (defn definitions-summary
   [{:keys [task-types task-fsms run-fsms runtime-profiles artifact-contracts validators resource-policies]}]
@@ -25,4 +25,4 @@
 (defn init-overlay!
   ([] (init-overlay! defs.source/default-overlay-root))
   ([overlay-root]
-   (defs.files/initialize-overlay! overlay-root)))
+   (workspace.files/initialize-overlay! overlay-root)))

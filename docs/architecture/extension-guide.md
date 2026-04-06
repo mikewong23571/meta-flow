@@ -19,6 +19,10 @@ Meta-Flow is designed to be extended in three ways:
 Task-type behavior is assembled from definition refs.
 The bundled examples live in `resources/meta_flow/defs/task-types.edn`.
 
+For project-local extension work, definitions now load from bundled defaults plus
+the top-level `defs/` overlay. Drafts belong under `defs/drafts/` and are not part
+of the live repository until explicitly published.
+
 A task type normally pins:
 
 - task FSM
@@ -48,6 +52,41 @@ Recommended workflow:
 6. add the task-type record that pins those refs together
 7. run `bb defs:validate`
 
+## 1A. Stable Authoring Contract
+
+The first supported authoring contract is clone-first, not schema-first.
+That means callers start from an existing `task-type` or `runtime-profile`,
+pick a new id and name, and apply only a narrow override map.
+
+Stable request shape for both definition kinds:
+
+- `:authoring/from-id`
+- optional `:authoring/from-version`
+- `:authoring/new-id`
+- `:authoring/new-name`
+- optional `:authoring/new-version`
+- optional `:authoring/overrides`
+
+First-release `runtime-profile` overrides are limited to:
+
+- `:runtime-profile/web-search-enabled?`
+- `:runtime-profile/worker-prompt-path`
+
+First-release `task-type` overrides are limited to:
+
+- `:task-type/runtime-profile-ref`
+- `:task-type/input-schema`
+- `:task-type/work-key-expr`
+
+Publish-order rule:
+
+- a `task-type` draft may reference only a published `runtime-profile`
+- if a task type needs a newly authored runtime profile, publish that runtime profile into `defs/runtime-profiles.edn` before creating or validating the task-type draft
+
+Current contract helpers live in `src/meta_flow/defs/authoring.clj`.
+They validate the request shape, resolve the source template, and enforce the
+publish-order rule before later CLI or HTTP layers try to write files.
+
 ## 2. Add A Runtime Adapter
 
 Runtime adapters implement `RuntimeAdapter` in `src/meta_flow/runtime/protocol.clj`.
@@ -68,6 +107,9 @@ To add a new adapter:
 4. add a runtime profile definition that points at the new `:runtime-profile/adapter-id`
 5. add tests under `test/meta_flow/runtime/`
 
+Runtime adapters are still a code extension seam.
+They are not part of the description-driven or definitions-only authoring contract.
+
 Keep the adapter responsible only for runtime concerns.
 Do not move scheduler policy or store transitions into adapter code.
 
@@ -79,6 +121,10 @@ If you need stronger validation than required-path checks:
 1. add a new validator type in `resources/meta_flow/defs/validators.edn`
 2. extend `src/meta_flow/service/validation.clj`
 3. keep `scheduler/validation` focused on orchestration, not domain-specific artifact parsing
+
+Validator engines are also still code-defined.
+Adding a new validator type requires Clojure changes; definition authoring only
+lets you pin or clone existing validator refs.
 
 ## 4. Extend Resource Policy
 

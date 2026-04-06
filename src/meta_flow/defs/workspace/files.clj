@@ -1,4 +1,4 @@
-(ns meta-flow.defs.files
+(ns meta-flow.defs.workspace.files
   (:require [clojure.java.io :as io]
             [meta-flow.defs.source :as defs.source])
   (:import (java.nio.file AtomicMoveNotSupportedException Files StandardCopyOption)
